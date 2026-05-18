@@ -6,12 +6,18 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "functions:lint": "npm --prefix functions run lint",
+    "firebase:deploy": "firebase deploy",
+    "firebase:deploy:functions": "firebase deploy --only functions"
   },
   "dependencies": {
+    "firebase": "^12.13.0",
+    "lucide-react": "^1.16.0",
     "next": "16.2.6",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "three": "^0.184.0"
   },
   "devDependencies": {
     "eslint": "^9",

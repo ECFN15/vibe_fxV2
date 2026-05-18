@@ -1,0 +1,34 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function ownsPath(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isSafeImageUpload(maxBytes) {
+      return request.resource != null
+        && request.resource.size <= maxBytes
+        && request.resource.contentType.matches('image/(jpeg|jpg|png|webp|avif)');
+    }
+
+    match /users/{userId}/publications/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if ownsPath(userId) && isSafeImageUpload(8 * 1024 * 1024);
+      allow delete: if ownsPath(userId);
+    }
+
+    match /publications/{allPaths=**} {
+      allow read: if true;
+      allow create, update: if signedIn() && isSafeImageUpload(8 * 1024 * 1024);
+      allow delete: if signedIn();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

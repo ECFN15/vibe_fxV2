@@ -1,0 +1,14 @@
+export default function robots() {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://vibefx.app";
+
+  return {
+    rules: [
+      {
+        userAgent: "*",
+        allow: "/",
+        disallow: ["/studio", "/api", "/admin"],
+      },
+    ],
+    sitemap: `${siteUrl}/sitemap.xml`,
+  };
+}

@@ -1,0 +1,208 @@
+import { NOISE_PATTERN_CANVAS } from '../utils/canvasUtils';
+
+/**
+ * renderLayoutBackground — Dessine le fond du layout (couleur, blur, polaroid).
+ */
+export function renderLayoutBackground(ctx, w, h, { images, layoutBgColor, layoutBgBlur, bgCanvas, activeTemplate }) {
+    ctx.fillStyle = layoutBgColor;
+    ctx.fillRect(0, 0, w, h);
+
+    if (images.length > 0 && layoutBgBlur && bgCanvas && activeTemplate.id !== 'polaroid') {
+        ctx.drawImage(bgCanvas, 0, 0, w, h);
+    }
+
+    if (activeTemplate.id === 'polaroid') {
+        ctx.fillStyle = '#f8f8f8';
+        ctx.fillRect(0, 0, w, h);
+        ctx.save();
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.globalAlpha = 0.03;
+        const p = ctx.createPattern(NOISE_PATTERN_CANVAS, 'repeat');
+        if (p) { ctx.fillStyle = p; ctx.fillRect(0, 0, w, h); }
+        ctx.restore();
+    }
+}
+
+/**
+ * renderSlot — Dessine une image dans un slot avec zoom, pan, border, blur.
+ */
+export function renderSlot(ctx, slotId, imgIndex, x, y, sw, sh, overrideRadius, { images, slotConfigs, radius, layoutBgBlur, layoutBgColor, activeTemplate, slotRects }) {
+    const safeImgIndex = imgIndex % images.length;
+    const img = images[safeImgIndex];
+    const cfg = slotConfigs[slotId] || { zoom: 1, x: 0, y: 0, border: 0, blur: 0 };
+    const effRadius = overrideRadius !== undefined ? overrideRadius : radius;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(x, y, sw, sh, effRadius);
+    ctx.save();
+    ctx.clip();
+    if (!layoutBgBlur && activeTemplate.id !== 'polaroid') {
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(x, y, sw, sh);
+    }
+
+    const imgRatio = img.width / img.height;
+    const slotRatio = sw / sh;
+    let baseW, baseH;
+    if (slotRatio > imgRatio) { baseW = sw; baseH = sw / imgRatio; }
+    else { baseH = sh; baseW = sh * imgRatio; }
+    const scale = cfg.zoom;
+    const finalW = baseW * scale;
+    const finalH = baseH * scale;
+    const centerX = x + (sw - finalW) / 2;
+    const centerY = y + (sh - finalH) / 2;
+    const panX = cfg.x * (sw / 100);
+    const panY = cfg.y * (sh / 100);
+
+    if (cfg.blur > 0) ctx.filter = `blur(${cfg.blur}px)`;
+    ctx.drawImage(img, centerX + panX, centerY + panY, finalW, finalH);
+    ctx.filter = 'none';
+    ctx.restore();
+
+    if (cfg.border > 0 && activeTemplate.id !== 'polaroid') {
+        ctx.lineWidth = cfg.border;
+        ctx.strokeStyle = layoutBgBlur ? '#ffffff' : layoutBgColor;
+        ctx.stroke();
+    }
+    ctx.restore();
+    slotRects.push({ id: slotId, x, y, w: sw, h: sh, r: effRadius });
+}
+
+/**
+ * renderTemplateSlots — Dispatch les slots selon le template actif.
+ */
+export function renderTemplateSlots(ctx, w, h, opts) {
+    const { activeTemplate, padding, gap, images, overlayMode, radius } = opts;
+    const safeW = w - (padding * 2);
+    const safeH = h - (padding * 2);
+    const startX = padding;
+    const startY = padding;
+
+    const rs = (slotId, imgIndex, x, y, sw, sh, overrideRadius) => {
+        renderSlot(ctx, slotId, imgIndex, x, y, sw, sh, overrideRadius, opts);
+    };
+
+    if (activeTemplate.id === 'minimal') {
+        rs(0, 0, startX, startY, safeW, safeH);
+    }
+    else if (activeTemplate.id === 'polaroid') {
+        const sideMargin = w * 0.018;
+        const topMargin = w * 0.018;
+        const bottomMargin = h * 0.14;
+        rs(0, 0, sideMargin, topMargin, w - (sideMargin * 2), h - topMargin - bottomMargin, 1);
+    }
+    else if (activeTemplate.id === 'pip') {
+        rs(0, 0, startX, startY, safeW, safeH);
+
+        // Dark veil
+        ctx.save();
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.beginPath();
+        ctx.roundRect(startX, startY, safeW, safeH, radius);
+        ctx.fill();
+        ctx.restore();
+
+        // Foreground PiP
+        const overlayImgIdx = images.length > 1 ? 1 : 0;
+        const fgImg = images[overlayImgIdx];
+        const fgRatio = fgImg.width / fgImg.height;
+        let pipW, pipH;
+        if (overlayMode === 'square') { pipW = safeW * 0.90; pipH = pipW; }
+        else if (overlayMode === 'landscape') { pipW = safeW * 0.92; pipH = pipW * (2 / 3); }
+        else {
+            if (fgRatio > 1) { pipW = safeW; pipH = safeW / fgRatio; }
+            else { pipH = safeH * 0.8; pipW = pipH * fgRatio; if (pipW > safeW) { pipW = safeW; pipH = pipW / fgRatio; } }
+        }
+        const pipX = startX + (safeW - pipW) / 2;
+        const pipY = startY + (safeH - pipH) / 2;
+
+        // Drop shadow
+        ctx.save();
+        ctx.shadowColor = "rgba(0,0,0,0.6)"; ctx.shadowBlur = 40; ctx.shadowOffsetY = 20;
+        ctx.beginPath(); ctx.roundRect(pipX, pipY, pipW, pipH, radius); ctx.fill();
+        ctx.restore();
+
+        rs(1, overlayImgIdx, pipX, pipY, pipW, pipH);
+    }
+    else if (activeTemplate.id === 'split') {
+        const hS = (safeH - gap) / 2;
+        rs(0, 0, startX, startY, safeW, hS);
+        rs(1, 1, startX, startY + hS + gap, safeW, hS);
+    }
+    else if (activeTemplate.id === 'filmstrip') {
+        const hS = (safeH - (gap * 2)) / 3;
+        rs(0, 0, startX, startY, safeW, hS);
+        rs(1, 1, startX, startY + hS + gap, safeW, hS);
+        rs(2, 2, startX, startY + (hS + gap) * 2, safeW, hS);
+    }
+    else if (activeTemplate.id === 'mosaic') {
+        const c1W = (safeW - gap) * 0.6; const c2W = safeW - c1W - gap; const c2H = (safeH - gap) / 2;
+        rs(0, 0, startX, startY, c1W, safeH);
+        rs(1, 1, startX + c1W + gap, startY, c2W, c2H);
+        rs(2, 2, startX + c1W + gap, startY + c2H + gap, c2W, c2H);
+    }
+    else if (activeTemplate.id === 'grid4') {
+        const wS = (safeW - gap) / 2; const hS = (safeH - gap) / 2;
+        rs(0, 0, startX, startY, wS, hS);
+        rs(1, 1, startX + wS + gap, startY, wS, hS);
+        rs(2, 2, startX, startY + hS + gap, wS, hS);
+        rs(3, 3, startX + wS + gap, startY + hS + gap, wS, hS);
+    }
+    else if (activeTemplate.id === 'cinema') {
+        const cineH = safeW * (9 / 16);
+        const cineY = startY + (safeH - cineH) / 2;
+        rs(0, 0, startX, cineY, safeW, cineH);
+    }
+}
+
+/**
+ * renderLayoutTexture — Ajoute la texture de grain au layout.
+ */
+export function renderLayoutTexture(ctx, w, h, { layoutBgTexture, activeTemplate }) {
+    if (layoutBgTexture > 0 && activeTemplate.id !== 'polaroid') {
+        ctx.save();
+        ctx.globalCompositeOperation = 'overlay';
+        ctx.globalAlpha = (layoutBgTexture / 100) * 0.5;
+        const pattern = ctx.createPattern(NOISE_PATTERN_CANVAS, 'repeat');
+        ctx.fillStyle = pattern;
+        ctx.fillRect(0, 0, w, h);
+        ctx.restore();
+    }
+}
+
+/**
+ * renderSlotSelection — Dessine l'indicateur de sélection de slot.
+ */
+export function renderSlotSelection(ctx, { selectedSlotIndex, slotRects }) {
+    const selectedRect = slotRects.find(s => s.id === selectedSlotIndex);
+    if (!selectedRect) return;
+
+    const { x, y, w: sw, h: sh, r } = selectedRect;
+    ctx.save();
+    ctx.strokeStyle = '#6366f1';
+    ctx.lineWidth = 2;
+    ctx.shadowColor = 'rgba(99, 102, 241, 0.5)';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.roundRect(x + 1, y + 1, sw - 2, sh - 2, r);
+    ctx.stroke();
+    ctx.restore();
+}
+
+/**
+ * renderGuides — Dessine les guides d'alignement lors du drag.
+ */
+export function renderGuides(ctx, h, { activeGuides }) {
+    ctx.save();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#00FFFF';
+    ctx.setLineDash([]);
+    activeGuides.forEach(gx => {
+        ctx.beginPath();
+        ctx.moveTo(gx, 0);
+        ctx.lineTo(gx, h);
+        ctx.stroke();
+    });
+    ctx.restore();
+}
