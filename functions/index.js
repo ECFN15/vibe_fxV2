@@ -14,13 +14,8 @@ const META_APP_SECRET = defineSecret("META_APP_SECRET");
 const META_OAUTH_REDIRECT_URI = defineSecret("META_OAUTH_REDIRECT_URI");
 const META_TOKEN_ENCRYPTION_KEY = defineSecret("META_TOKEN_ENCRYPTION_KEY");
 
-const ADMIN_EMAIL = "matthis.fradin2@gmail.com";
 const REGION = "europe-west9";
 const ENFORCE_META_APP_CHECK = process.env.ENFORCE_META_APP_CHECK === "true";
-const ENFORCE_PUBLIC_QUOTE_APP_CHECK = process.env.ENFORCE_PUBLIC_QUOTE_APP_CHECK === "true";
-const ENFORCE_PUBLIC_ORDER_APP_CHECK = process.env.ENFORCE_PUBLIC_ORDER_APP_CHECK === "true";
-const MAX_REQUEST_TEXT = 5000;
-const MAX_SHORT_TEXT = 240;
 const META_CONNECTION_ID = "default";
 const META_OAUTH_SCOPES = [
   "pages_show_list",
@@ -31,58 +26,13 @@ const META_OAUTH_SCOPES = [
   "business_management",
 ];
 
-const QUOTE_SERVICES = new Map([
-  ["creation-jardin", "Creation de jardin"],
-  ["entretien", "Entretien de jardin"],
-  ["tonte-pelouse", "Tonte de pelouse"],
-  ["taille-haies", "Taille de haies et arbustes"],
-  ["potager", "Creation de potager et vergers"],
-  ["elagage", "Elagage et abattage"],
-  ["terrasses", "Terrasses et allees"],
-  ["phytoepuration", "Phytoepuration et bassins"],
-  ["clotures", "Clotures et brise-vues"],
-  ["autre", "Autre projet"],
-]);
-
-const PICKUP_DEFAULT_CAPACITY = 8;
-const PICKUP_LOCATION = "Le Hameau Hue, 61100 Flers";
-const DELIVERY_LOCATION = "Flers et alentours";
-const MAX_ROUTINE_OCCURRENCES = 60;
-
-const ROUTINE_DISCOUNT_RATES = {
-  weekly: 0.15,
-  biweekly: 0.1,
-  monthly: 0.075,
-};
-
-const SLOT_MODE_LABELS = {
-  pickup: "Retrait au Hameau Hue",
-  local_delivery: "Livraison locale",
-};
-
-const LEGACY_FULFILLMENT_SLOTS = new Map([
-  ["jeudi-15", { mode: "pickup", type: "Retrait au Hameau Hue", day: "Jeudi", date: "30/05", time: "15h00 - 15h30", location: PICKUP_LOCATION, capacity: PICKUP_DEFAULT_CAPACITY }],
-  ["jeudi-16", { mode: "pickup", type: "Retrait au Hameau Hue", day: "Jeudi", date: "30/05", time: "16h00 - 16h30", location: PICKUP_LOCATION, capacity: PICKUP_DEFAULT_CAPACITY }],
-  ["vendredi-17", { mode: "pickup", type: "Retrait au Hameau Hue", day: "Vendredi", date: "31/05", time: "17h00 - 17h30", location: PICKUP_LOCATION, capacity: PICKUP_DEFAULT_CAPACITY }],
-  ["vendredi-18", { mode: "pickup", type: "Retrait au Hameau Hue", day: "Vendredi", date: "31/05", time: "18h00 - 18h30", location: PICKUP_LOCATION, capacity: PICKUP_DEFAULT_CAPACITY }],
-  ["flers", { mode: "local_delivery", type: "Livraison locale", day: "Livraison Flers", date: "Selon tournee", time: "Dans la journee", location: DELIVERY_LOCATION, capacity: 6 }],
-]);
-
-const STATIC_PRODUCTS = new Map([
-  ["tomate-noire-de-crimee", { title: "Tomate 'Noire de Crimee'", category: "Plants potagers", price: 3.2, image: "/assets/pages/marche/product-01-tomate-noire-crimee.jpg" }],
-  ["basilic-genovese", { title: "Basilic Genovese", category: "Plantes aromatiques", price: 2.2, image: "/assets/pages/marche/product-02-basilic-genovese.jpg" }],
-  ["courgette-verte", { title: "Courgette Verte non coureuse", category: "Plants potagers", price: 2.8, image: "/assets/pages/marche/product-03-courgette-verte.jpg" }],
-  ["laitue-batavia", { title: "Laitue Batavia", category: "Plants potagers", price: 2.1, image: "/assets/pages/marche/product-04-laitue-batavia.jpg" }],
-  ["lavande-vraie", { title: "Lavande vraie", category: "Fleurs comestibles", price: 8.9, image: "/assets/pages/marche/product-05-lavande-vraie.jpg" }],
-  ["erable-japon", { title: "Erable du Japon", category: "Arbustes", price: 34.9, image: "/assets/pages/marche/product-06-erable-japon.jpg" }],
-  ["paillage-miscanthus", { title: "Paillage de miscanthus", category: "Paillage", price: 12.9, image: "/assets/pages/marche/product-07-paillage-miscanthus.jpg" }],
-  ["engrais-organique", { title: "Engrais organique universel", category: "Substrats & terreaux", price: 15.9, image: "/assets/pages/marche/product-08-engrais-organique.jpg" }],
-]);
-
 async function assertAdmin(request) {
   const email = request.auth?.token?.email?.toLowerCase();
-  const hasVerifiedAdminEmail =
-    email === ADMIN_EMAIL;
+  const adminEmails = (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+  const hasVerifiedAdminEmail = Boolean(email && adminEmails.includes(email));
   let hasAdminAccessDoc = false;
   if (email) {
     const snapshot = await admin.firestore().collection("admins").doc(email).get();
@@ -94,247 +44,16 @@ async function assertAdmin(request) {
   }
 }
 
-function normalizeEmail(value) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function requireText(value, field, min = 1, max = MAX_SHORT_TEXT) {
-  const text = String(value || "").trim();
-  if (text.length < min || text.length > max) {
-    throw new HttpsError("invalid-argument", `${field} invalide.`);
+function assertAuthenticated(request) {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Connexion utilisateur requise.");
   }
-  return text;
+  return uid;
 }
 
-function optionalText(value, max = MAX_SHORT_TEXT) {
-  const text = String(value || "").trim();
-  if (text.length > max) {
-    throw new HttpsError("invalid-argument", "Champ trop long.");
-  }
-  return text;
-}
-
-function requireEmail(value) {
-  const email = normalizeEmail(value);
-  if (email.length < 5 || email.length > 254 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-    throw new HttpsError("invalid-argument", "Adresse e-mail invalide.");
-  }
-  return email;
-}
-
-function requirePhone(value) {
-  return requireText(value, "Telephone", 6, 30);
-}
-
-function requestIp(request) {
-  return String(
-    request.rawRequest?.headers?.["fastly-client-ip"] ||
-    request.rawRequest?.headers?.["x-forwarded-for"] ||
-    request.rawRequest?.ip ||
-    "unknown"
-  ).split(",")[0].trim();
-}
-
-function hashKey(value) {
-  return crypto.createHash("sha256").update(String(value)).digest("hex").slice(0, 32);
-}
-
-function makePublicNumber(prefix) {
-  return `${prefix}-${new Date().getFullYear()}-${crypto.randomInt(100000, 1000000)}`;
-}
-
-function padDatePart(value) {
-  return String(value).padStart(2, "0");
-}
-
-function toDateKey(date) {
-  return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())}`;
-}
-
-function parseDateKey(value) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) {
-    return null;
-  }
-  const date = new Date(`${value}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function addDays(date, days) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-}
-
-function addMonths(date, months) {
-  const next = new Date(date);
-  next.setMonth(next.getMonth() + months);
-  return next;
-}
-
-function slotIdFor(date, startTime, mode = "pickup") {
-  return `${mode}-${date}-${String(startTime || "journee").replace(":", "")}`;
-}
-
-function formatSlotDay(dateKey, mode = "pickup") {
-  const date = parseDateKey(dateKey);
-  if (!date) {
-    return mode === "local_delivery" ? "Livraison Flers" : "Retrait";
-  }
-  const day = new Intl.DateTimeFormat("fr-FR", { weekday: "long" }).format(date);
-  const cleanDay = `${day.charAt(0).toUpperCase()}${day.slice(1)}`;
-  return mode === "local_delivery" ? `Livraison ${cleanDay}` : cleanDay;
-}
-
-function formatSlotDate(dateKey) {
-  const date = parseDateKey(dateKey);
-  if (!date) {
-    return "Date a confirmer";
-  }
-  return new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit" }).format(date);
-}
-
-function formatSlotTime(startTime, endTime, mode = "pickup") {
-  if (mode === "local_delivery") {
-    return "Dans la journee";
-  }
-  return `${String(startTime || "").replace(":", "h")} - ${String(endTime || "").replace(":", "h")}`;
-}
-
-function normalizeSlot(data, id) {
-  const mode = data?.mode === "local_delivery" ? "local_delivery" : "pickup";
-  const date = String(data?.date || data?.dateKey || "").trim();
-  const parsed = parseDateKey(date);
-  if (!parsed) {
-    return null;
-  }
-  const startTime = String(data?.startTime || (mode === "local_delivery" ? "10:00" : "15:00")).trim();
-  const endTime = String(data?.endTime || (mode === "local_delivery" ? "18:00" : "15:30")).trim();
-  const capacity = Math.max(1, Math.min(200, Number(data?.capacity) || PICKUP_DEFAULT_CAPACITY));
-  const reservedCount = Math.max(0, Number(data?.reservedCount) || 0);
-  const status = data?.status === "closed" || data?.closed === true ? "closed" : "open";
-
-  return {
-    id: id || slotIdFor(date, startTime, mode),
-    date,
-    dateKey: date,
-    mode,
-    startTime,
-    endTime,
-    day: data?.day || formatSlotDay(date, mode),
-    displayDate: data?.displayDate || formatSlotDate(date),
-    time: data?.time || formatSlotTime(startTime, endTime, mode),
-    type: data?.type || SLOT_MODE_LABELS[mode],
-    location: data?.location || (mode === "local_delivery" ? DELIVERY_LOCATION : PICKUP_LOCATION),
-    capacity,
-    reservedCount,
-    active: data?.active !== false,
-    status,
-    note: optionalText(data?.note || "", 1000),
-  };
-}
-
-function buildGeneratedSlot(date, startTime, endTime, mode = "pickup", capacity = PICKUP_DEFAULT_CAPACITY) {
-  return normalizeSlot({
-    date,
-    startTime,
-    endTime,
-    mode,
-    capacity,
-    active: true,
-    status: "open",
-  }, slotIdFor(date, startTime, mode));
-}
-
-function buildGeneratedSlots(origin = new Date(), monthsAhead = 12) {
-  const start = new Date(origin);
-  start.setHours(0, 0, 0, 0);
-  const end = addMonths(start, monthsAhead);
-  const slots = new Map();
-
-  for (let cursor = new Date(start); cursor <= end; cursor = addDays(cursor, 1)) {
-    const weekday = cursor.getDay();
-    const date = toDateKey(cursor);
-    const daySlots = [];
-    if (weekday === 4) {
-      daySlots.push(
-        buildGeneratedSlot(date, "15:00", "15:30"),
-        buildGeneratedSlot(date, "16:00", "16:30")
-      );
-    }
-    if (weekday === 5) {
-      daySlots.push(
-        buildGeneratedSlot(date, "17:00", "17:30"),
-        buildGeneratedSlot(date, "18:00", "18:30")
-      );
-    }
-    daySlots.filter(Boolean).forEach((slot) => slots.set(slot.id, slot));
-  }
-
-  LEGACY_FULFILLMENT_SLOTS.forEach((slot, id) => {
-    slots.set(id, { id, ...slot, active: true, status: "open" });
-  });
-
-  return slots;
-}
-
-function getRoutineDates(startDateKey, frequency, untilDateKey) {
-  const start = parseDateKey(startDateKey);
-  const until = parseDateKey(untilDateKey);
-  if (!start || !until || until <= start) {
-    return [];
-  }
-  const maxUntil = addMonths(start, 12);
-  const cappedUntil = until > maxUntil ? maxUntil : until;
-  const dates = [];
-  let cursor = new Date(start);
-
-  while (dates.length < MAX_ROUTINE_OCCURRENCES) {
-    if (frequency === "weekly") {
-      cursor = addDays(cursor, 7);
-    } else if (frequency === "biweekly") {
-      cursor = addDays(cursor, 14);
-    } else if (frequency === "monthly") {
-      cursor = addMonths(cursor, 1);
-    } else {
-      break;
-    }
-    if (cursor > cappedUntil) {
-      break;
-    }
-    dates.push(toDateKey(cursor));
-  }
-
-  return dates;
-}
-
-async function consumeRateLimit(kind, identity, limit, windowMs) {
-  const now = Date.now();
-  const ref = admin.firestore().collection("rate_limits").doc(`${kind}_${hashKey(identity)}`);
-  await admin.firestore().runTransaction(async (tx) => {
-    const snapshot = await tx.get(ref);
-    const current = snapshot.exists ? snapshot.data() : {};
-    const windowStart = current.windowStart?.toMillis?.() || 0;
-    const expired = now - windowStart > windowMs;
-    const nextCount = expired ? 1 : Number(current.count || 0) + 1;
-    if (nextCount > limit) {
-      throw new HttpsError("resource-exhausted", "Trop de tentatives. Reessayez plus tard.");
-    }
-    tx.set(ref, {
-      kind,
-      count: nextCount,
-      windowStart: admin.firestore.Timestamp.fromMillis(expired ? now : windowStart),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true });
-  });
-}
-
-function assertVerifiedEmailMatches(request, emailLower) {
-  const tokenEmail = normalizeEmail(request.auth?.token?.email);
-  return Boolean(
-    request.auth?.uid &&
-    request.auth?.token?.email_verified === true &&
-    tokenEmail === emailLower
-  );
+function metaConnectionRef(uid) {
+  return admin.firestore().collection("meta_connections").doc(uid);
 }
 
 function getSecretValue(secret) {
@@ -396,6 +115,10 @@ function publicMetaConnection(data = {}) {
     updatedAt: data.updatedAt || null,
     lastError: data.lastError || "",
   };
+}
+
+function isExpiredTimestamp(timestamp) {
+  return Boolean(timestamp?.toMillis && timestamp.toMillis() <= Date.now());
 }
 
 function htmlEscape(value) {
@@ -587,13 +310,17 @@ function validateMetaTargets(value) {
   if (typeof value !== "object" || Array.isArray(value)) {
     throw new HttpsError("invalid-argument", "targets invalide.");
   }
-  return {
+  const targets = {
     instagram: value.instagram !== false,
     facebook: value.facebook !== false,
   };
+  if (!targets.instagram && !targets.facebook) {
+    throw new HttpsError("invalid-argument", "Selectionne au moins une plateforme Meta.");
+  }
+  return targets;
 }
 
-async function acquireMetaLock(ref) {
+async function acquireMetaLock(ref, ownerUid = null) {
   const now = Date.now();
   let publication;
   await admin.firestore().runTransaction(async (tx) => {
@@ -602,6 +329,9 @@ async function acquireMetaLock(ref) {
       throw new HttpsError("not-found", "Publication introuvable.");
     }
     const data = snapshot.data();
+    if (ownerUid && data.ownerUid !== ownerUid) {
+      throw new HttpsError("permission-denied", "Cette publication n'appartient pas a l'utilisateur connecte.");
+    }
     const lockUntil = data.metaSync?.lockUntil?.toMillis?.() || 0;
     if (data.metaSync?.status === "running" && lockUntil > now) {
       throw new HttpsError("resource-exhausted", "Synchronisation Meta deja en cours.");
@@ -630,6 +360,37 @@ async function releaseMetaLock(ref, status) {
   });
 }
 
+async function reserveMetaOAuthState(stateRef) {
+  let stateData;
+  await admin.firestore().runTransaction(async (tx) => {
+    const stateSnapshot = await tx.get(stateRef);
+    stateData = stateSnapshot.data();
+    if (!stateSnapshot.exists || stateData.status !== "pending") {
+      throw new HttpsError("failed-precondition", "state_not_pending");
+    }
+    if (!stateData.uid) {
+      tx.set(stateRef, {
+        status: "failed",
+        error: "missing_uid",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      throw new HttpsError("failed-precondition", "missing_uid");
+    }
+    if ((stateData.expiresAt?.toMillis?.() || 0) < Date.now()) {
+      tx.set(stateRef, {
+        status: "expired",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      throw new HttpsError("deadline-exceeded", "state_expired");
+    }
+    tx.set(stateRef, {
+      status: "processing",
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+  });
+  return stateData;
+}
+
 function requirePublicationId(value) {
   if (typeof value !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(value)) {
     throw new HttpsError("invalid-argument", "publicationId invalide.");
@@ -637,9 +398,9 @@ function requirePublicationId(value) {
   return value;
 }
 
-async function publishPublicationWithCredentials({ publicationId, targets, force, token, igUserId, pageId, source, connectionId }) {
+async function publishPublicationWithCredentials({ publicationId, targets, force, token, igUserId, pageId, source, connectionId, ownerUid = null }) {
   const ref = admin.firestore().collection("publications").doc(publicationId);
-  const publication = await acquireMetaLock(ref);
+  const publication = await acquireMetaLock(ref, ownerUid);
   const platformStatus = { ...(publication.platformStatus || {}) };
   const results = {};
   const withSource = (result) => ({
@@ -699,284 +460,6 @@ async function publishPublicationWithCredentials({ publicationId, targets, force
   }
 }
 
-async function resolveProduct(productId) {
-  const snapshot = await admin.firestore().collection("products").doc(productId).get();
-  if (snapshot.exists) {
-    const data = snapshot.data();
-    if (data.active === false) {
-      throw new HttpsError("failed-precondition", "Produit indisponible.");
-    }
-    return {
-      id: snapshot.id,
-      title: requireText(data.title, "Produit", 1, 160),
-      category: requireText(data.category || "Plants potagers", "Categorie", 1, 120),
-      price: Number(data.price),
-      image: optionalText(data.image || "", 1000),
-    };
-  }
-
-  const fallback = STATIC_PRODUCTS.get(productId);
-  if (!fallback) {
-    throw new HttpsError("not-found", "Produit introuvable.");
-  }
-  return { id: productId, ...fallback };
-}
-
-exports.createQuoteRequest = onCall(
-  {
-    region: REGION,
-    enforceAppCheck: ENFORCE_PUBLIC_QUOTE_APP_CHECK,
-  },
-  async (request) => {
-    const payload = request.data || {};
-    const customer = payload.customer || {};
-    const project = payload.project || {};
-    const emailLower = requireEmail(customer.email);
-    const fullName = requireText(customer.fullName, "Nom", 2, 120);
-    const phone = requirePhone(customer.phone);
-    const services = Array.isArray(project.services) ? project.services : [];
-    const cleanServices = [...new Set(services.map((item) => String(item || "").trim()))]
-      .filter((item) => QUOTE_SERVICES.has(item));
-
-    if (!cleanServices.length || cleanServices.length > 12) {
-      throw new HttpsError("invalid-argument", "Services invalides.");
-    }
-
-    await consumeRateLimit("quote", `${requestIp(request)}:${emailLower}`, 5, 60 * 60 * 1000);
-
-    const requestNumber = makePublicNumber("DEV");
-    const data = {
-      requestNumber,
-      source: "public_devis_page",
-      status: "new",
-      customerEmailLower: emailLower,
-      customer: {
-        fullName,
-        email: emailLower,
-        phone,
-      },
-      project: {
-        services: cleanServices,
-        serviceLabels: cleanServices.map((id) => QUOTE_SERVICES.get(id)),
-        description: requireText(project.description, "Description", 10, MAX_REQUEST_TEXT),
-        surface: optionalText(project.surface, 80),
-        address: requireText(project.address, "Adresse", 6, MAX_SHORT_TEXT),
-        budget: optionalText(project.budget, 80),
-        timing: optionalText(project.timing, 80),
-        referral: optionalText(project.referral, 120),
-      },
-      attachments: [],
-      consent: payload.consent === true,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    };
-
-    if (data.consent !== true) {
-      throw new HttpsError("invalid-argument", "Consentement requis.");
-    }
-
-    const ref = await admin.firestore().collection("quote_requests").add(data);
-    return { id: ref.id, requestNumber };
-  }
-);
-
-exports.createOrder = onCall(
-  {
-    region: REGION,
-    enforceAppCheck: ENFORCE_PUBLIC_ORDER_APP_CHECK,
-  },
-  async (request) => {
-    const payload = request.data || {};
-    const customer = payload.customer || {};
-    const emailLower = requireEmail(customer.email);
-    const slotId = requireText(payload.fulfillment?.slotId, "Creneau", 2, 160);
-    const inputItems = Array.isArray(payload.items) ? payload.items : [];
-
-    if (!inputItems.length || inputItems.length > 50) {
-      throw new HttpsError("invalid-argument", "Panier invalide.");
-    }
-
-    await consumeRateLimit("order", `${requestIp(request)}:${emailLower}`, 10, 60 * 60 * 1000);
-
-    const items = [];
-    for (const inputItem of inputItems) {
-      const productId = requireText(inputItem.productId || inputItem.id, "Produit", 1, 160);
-      const qty = Number(inputItem.qty);
-      if (!Number.isInteger(qty) || qty < 1 || qty > 50) {
-        throw new HttpsError("invalid-argument", "Quantite invalide.");
-      }
-      const product = await resolveProduct(productId);
-      if (!Number.isFinite(product.price) || product.price < 0 || product.price > 5000) {
-        throw new HttpsError("failed-precondition", "Prix produit invalide.");
-      }
-      const price = Number(product.price.toFixed(2));
-      items.push({
-        productId: product.id,
-        title: product.title,
-        category: product.category,
-        price,
-        qty,
-        image: product.image || "",
-        lineTotal: Number((price * qty).toFixed(2)),
-      });
-    }
-
-    const itemCount = items.reduce((sum, item) => sum + item.qty, 0);
-    if (itemCount > 500) {
-      throw new HttpsError("invalid-argument", "Panier trop volumineux.");
-    }
-
-    const subtotalAmount = Number(items.reduce((sum, item) => sum + item.lineTotal, 0).toFixed(2));
-    const db = admin.firestore();
-    const requestedSlotSnapshot = await db.collection("pickup_slots").doc(slotId).get();
-    if (!requestedSlotSnapshot.exists) {
-      throw new HttpsError("invalid-argument", "Ce creneau n'est plus publie dans le calendrier.");
-    }
-    const requestedSlot = normalizeSlot(requestedSlotSnapshot.data(), requestedSlotSnapshot.id);
-    if (!requestedSlot) {
-      throw new HttpsError("invalid-argument", "Creneau invalide.");
-    }
-    if (!requestedSlot.active || requestedSlot.status === "closed") {
-      throw new HttpsError("failed-precondition", "Ce creneau n'est plus disponible.");
-    }
-
-    const routinePayload = payload.routine || {};
-    const routineFrequency = ["weekly", "biweekly", "monthly"].includes(routinePayload.frequency)
-      ? routinePayload.frequency
-      : "once";
-    const routineDates = routinePayload.enabled === true
-      ? getRoutineDates(requestedSlot.date, routineFrequency, routinePayload.untilDate)
-      : [];
-    const routineSlots = routineDates.map((date) =>
-      buildGeneratedSlot(
-        date,
-        requestedSlot.startTime,
-        requestedSlot.endTime,
-        requestedSlot.mode,
-        requestedSlot.capacity
-      )
-    ).filter(Boolean);
-
-    const slotsToReserve = [requestedSlot, ...routineSlots];
-    if (slotsToReserve.length > MAX_ROUTINE_OCCURRENCES + 1) {
-      throw new HttpsError("invalid-argument", "Routine trop longue.");
-    }
-    const routineDiscountRate = routineSlots.length ? ROUTINE_DISCOUNT_RATES[routineFrequency] || 0 : 0;
-    const discountAmount = Number((subtotalAmount * routineDiscountRate).toFixed(2));
-    const totalAmount = Number(Math.max(0, subtotalAmount - discountAmount).toFixed(2));
-
-    const attachVerifiedUser = assertVerifiedEmailMatches(request, emailLower);
-    const firstName = optionalText(customer.firstName, 80);
-    const lastName = optionalText(customer.lastName, 80);
-    const customerName = requireText(customer.name || `${firstName} ${lastName}`, "Nom", 2, 120);
-    const phone = requirePhone(customer.phone);
-    const note = optionalText(payload.fulfillment?.note, 1000);
-    const routineInfo = routineSlots.length
-      ? {
-          enabled: true,
-          frequency: routineFrequency,
-          untilDate: routinePayload.untilDate,
-          occurrenceCount: slotsToReserve.length,
-          parentSlotId: requestedSlot.id,
-          discountRate: routineDiscountRate,
-        }
-      : { enabled: false };
-
-    const orderRefs = slotsToReserve.map(() => db.collection("orders").doc());
-    const slotRefs = slotsToReserve.map((slot) => db.collection("pickup_slots").doc(slot.id));
-    const orderNumbers = slotsToReserve.map(() => makePublicNumber("CMD"));
-
-    await db.runTransaction(async (tx) => {
-      const txSlots = [];
-      for (let index = 0; index < slotsToReserve.length; index += 1) {
-        const slotRef = slotRefs[index];
-        const slotSnapshot = await tx.get(slotRef);
-        if (!slotSnapshot.exists) {
-          throw new HttpsError("failed-precondition", "Un creneau de la routine n'est plus publie.");
-        }
-        const slot = normalizeSlot(slotSnapshot.data(), slotSnapshot.id);
-        if (!slot) {
-          throw new HttpsError("invalid-argument", "Creneau invalide.");
-        }
-        if (!slot.active || slot.status === "closed") {
-          throw new HttpsError("failed-precondition", "Un creneau de la routine n'est plus disponible.");
-        }
-        const reservedCount = Math.max(0, Number(slotSnapshot.data().reservedCount) || 0);
-        if (reservedCount >= slot.capacity) {
-          throw new HttpsError("resource-exhausted", "Un creneau est complet. Choisissez un autre horaire.");
-        }
-        txSlots.push({ ...slot, reservedCount });
-      }
-
-      txSlots.forEach((slot, index) => {
-        tx.set(orderRefs[index], {
-          orderNumber: orderNumbers[index],
-          source: "marketplace",
-          status: "new",
-          customerEmailLower: emailLower,
-          userId: attachVerifiedUser ? request.auth.uid : null,
-          customer: {
-            name: customerName,
-            firstName,
-            lastName,
-            email: emailLower,
-            phone,
-          },
-          fulfillment: {
-            mode: slot.mode,
-            type: slot.type,
-            slotId: slot.id,
-            slotRef: `pickup_slots/${slot.id}`,
-            dateKey: slot.date,
-            startTime: slot.startTime,
-            endTime: slot.endTime,
-            slotLabel: `${slot.day} ${slot.displayDate || slot.date} - ${slot.time}`,
-            location: slot.location,
-            note,
-          },
-          routine: {
-            ...routineInfo,
-            isOccurrence: index > 0,
-            sequence: index + 1,
-          },
-          items,
-          itemCount,
-          subtotalAmount,
-          discount: {
-            rate: routineDiscountRate,
-            amount: discountAmount,
-            label: routineDiscountRate ? `Remise routine ${Math.round(routineDiscountRate * 1000) / 10}%` : "",
-          },
-          totalAmount,
-          currency: "EUR",
-          payment: {
-            method: "on_pickup",
-            label: "Paiement au retrait",
-            onlinePaid: false,
-          },
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-
-        tx.set(slotRefs[index], {
-          ...slot,
-          reservedCount: admin.firestore.FieldValue.increment(1),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        }, { merge: true });
-      });
-    });
-
-    return {
-      id: orderRefs[0].id,
-      orderNumber: orderNumbers[0],
-      orderCount: slotsToReserve.length,
-      subtotalAmount,
-      discountAmount,
-      totalAmount,
-    };
-  }
-);
-
 exports.publishPublicationToMeta = onCall(
   {
     region: REGION,
@@ -993,9 +476,9 @@ exports.publishPublicationToMeta = onCall(
       throw new HttpsError("invalid-argument", "force invalide.");
     }
 
-    const token = META_ACCESS_TOKEN.value();
-    const igUserId = META_IG_USER_ID.value();
-    const pageId = META_FACEBOOK_PAGE_ID.value();
+    const token = getSecretValue(META_ACCESS_TOKEN);
+    const igUserId = getSecretValue(META_IG_USER_ID);
+    const pageId = getSecretValue(META_FACEBOOK_PAGE_ID);
     if (!token) {
       throw new HttpsError("failed-precondition", "Secret META_ACCESS_TOKEN manquant.");
     }
@@ -1018,8 +501,8 @@ exports.getMetaOAuthStatus = onCall(
     enforceAppCheck: ENFORCE_META_APP_CHECK,
   },
   async (request) => {
-    await assertAdmin(request);
-    const snapshot = await admin.firestore().collection("meta_connections").doc(META_CONNECTION_ID).get();
+    const uid = assertAuthenticated(request);
+    const snapshot = await metaConnectionRef(uid).get();
     if (!snapshot.exists) {
       return publicMetaConnection();
     }
@@ -1034,7 +517,7 @@ exports.createMetaOAuthConnectUrl = onCall(
     secrets: [META_APP_ID, META_OAUTH_REDIRECT_URI],
   },
   async (request) => {
-    await assertAdmin(request);
+    const uid = assertAuthenticated(request);
     const appId = getSecretValue(META_APP_ID);
     const redirectUri = getSecretValue(META_OAUTH_REDIRECT_URI);
     if (!appId || !redirectUri) {
@@ -1046,7 +529,7 @@ exports.createMetaOAuthConnectUrl = onCall(
     const expiresAt = admin.firestore.Timestamp.fromMillis(Date.now() + 10 * 60 * 1000);
     await admin.firestore().collection("meta_oauth_states").doc(stateId).set({
       status: "pending",
-      uid: request.auth?.uid || "",
+      uid,
       email: request.auth?.token?.email || "",
       connectionId: META_CONNECTION_ID,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -1073,9 +556,22 @@ exports.disconnectMetaOAuth = onCall(
     enforceAppCheck: ENFORCE_META_APP_CHECK,
   },
   async (request) => {
-    await assertAdmin(request);
-    await admin.firestore().collection("meta_connections").doc(META_CONNECTION_ID).set({
+    const uid = assertAuthenticated(request);
+    await metaConnectionRef(uid).set({
       status: "disconnected",
+      ownerUid: uid,
+      encryptedPageAccessToken: admin.firestore.FieldValue.delete(),
+      pageId: admin.firestore.FieldValue.delete(),
+      pageName: admin.firestore.FieldValue.delete(),
+      igUserId: admin.firestore.FieldValue.delete(),
+      igUsername: admin.firestore.FieldValue.delete(),
+      scopes: admin.firestore.FieldValue.delete(),
+      tokenExpiresAt: admin.firestore.FieldValue.delete(),
+      connectedAt: admin.firestore.FieldValue.delete(),
+      connectedBy: admin.firestore.FieldValue.delete(),
+      connectedUid: admin.firestore.FieldValue.delete(),
+      source: admin.firestore.FieldValue.delete(),
+      lastError: "",
       disconnectedAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       disconnectedBy: request.auth?.token?.email || "",
@@ -1091,7 +587,7 @@ exports.publishPublicationToConnectedMeta = onCall(
     secrets: [META_TOKEN_ENCRYPTION_KEY],
   },
   async (request) => {
-    await assertAdmin(request);
+    const uid = assertAuthenticated(request);
     const publicationId = requirePublicationId(request.data?.publicationId);
     const targets = validateMetaTargets(request.data?.targets);
     const force = request.data?.force === true;
@@ -1099,12 +595,21 @@ exports.publishPublicationToConnectedMeta = onCall(
       throw new HttpsError("invalid-argument", "force invalide.");
     }
 
-    const snapshot = await admin.firestore().collection("meta_connections").doc(META_CONNECTION_ID).get();
+    const snapshot = await metaConnectionRef(uid).get();
     if (!snapshot.exists || snapshot.data()?.status !== "connected") {
       throw new HttpsError("failed-precondition", "Aucune connexion Meta OAuth active.");
     }
 
     const connection = snapshot.data();
+    if (isExpiredTimestamp(connection.tokenExpiresAt)) {
+      await metaConnectionRef(uid).set({
+        status: "expired",
+        lastError: "Token Meta expire. Reconnecte OAuth Meta avant de publier.",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      throw new HttpsError("failed-precondition", "Token Meta expire. Reconnecte OAuth Meta avant de publier.");
+    }
+
     const token = decryptMetaToken(connection.encryptedPageAccessToken);
     return publishPublicationWithCredentials({
       publicationId,
@@ -1115,6 +620,7 @@ exports.publishPublicationToConnectedMeta = onCall(
       pageId: connection.pageId,
       source: "oauth",
       connectionId: META_CONNECTION_ID,
+      ownerUid: uid,
     });
   }
 );
@@ -1126,37 +632,45 @@ exports.metaOAuthCallback = onRequest(
   },
   async (request, response) => {
     response.set("Content-Type", "text/html; charset=utf-8");
-    const finish = (title, body, ok = false) => response.status(ok ? 200 : 400).send(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${htmlEscape(title)}</title><style>body{font-family:Inter,Arial,sans-serif;background:#111710;color:#f4f1e8;display:grid;min-height:100vh;place-items:center;margin:0}.card{max-width:620px;padding:34px;border:1px solid rgba(158,211,106,.25);border-radius:22px;background:#182015}h1{margin:0 0 12px;font-size:28px}p{line-height:1.6;color:#d8e8cb}.ok{color:#9ed36a}.bad{color:#ff9b8d}button{border:0;border-radius:999px;background:#9ed36a;color:#10140f;padding:12px 18px;font-weight:800;cursor:pointer}</style></head><body><main class="card"><h1 class="${ok ? "ok" : "bad"}">${htmlEscape(title)}</h1><p>${htmlEscape(body)}</p><button onclick="window.close()">Fermer cette fenêtre</button><script>setTimeout(()=>{try{window.close()}catch(e){}},2200)</script></main></body></html>`);
+    const finish = (title, body, ok = false) => response.status(ok ? 200 : 400).send(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>${htmlEscape(title)}</title><style>body{font-family:Inter,Arial,sans-serif;background:#111710;color:#f4f1e8;display:grid;min-height:100vh;place-items:center;margin:0}.card{max-width:620px;padding:34px;border:1px solid rgba(158,211,106,.25);border-radius:22px;background:#182015}h1{margin:0 0 12px;font-size:28px}p{line-height:1.6;color:#d8e8cb}.ok{color:#9ed36a}.bad{color:#ff9b8d}button{border:0;border-radius:999px;background:#9ed36a;color:#10140f;padding:12px 18px;font-weight:800;cursor:pointer}</style></head><body><main class="card"><h1 class="${ok ? "ok" : "bad"}">${htmlEscape(title)}</h1><p>${htmlEscape(body)}</p><button onclick="window.close()">Fermer cette fenetre</button><script>setTimeout(()=>{try{window.close()}catch(e){}},2200)</script></main></body></html>`);
+    let callbackStateRef = null;
 
     try {
       if (request.method !== "GET") {
-        return finish("Méthode refusée", "La callback OAuth Meta doit être appelée en GET.");
+        return finish("Methode refusee", "La callback OAuth Meta doit etre appelee en GET.");
       }
       const error = request.query.error_description || request.query.error;
       if (error) {
-        return finish("Connexion annulée", String(error));
+        return finish("Connexion annulee", String(error));
       }
       const code = String(request.query.code || "");
       const state = String(request.query.state || "");
       if (!code || !state) {
-        return finish("Callback incomplète", "Meta n'a pas renvoyé le code OAuth ou le state.");
+        return finish("Callback incomplete", "Meta n'a pas renvoye le code OAuth ou le state.");
       }
 
       const stateId = crypto.createHash("sha256").update(state).digest("hex");
       const stateRef = admin.firestore().collection("meta_oauth_states").doc(stateId);
-      const stateSnapshot = await stateRef.get();
-      const stateData = stateSnapshot.data();
-      if (!stateSnapshot.exists || stateData.status !== "pending") {
-        return finish("State invalide", "Cette demande de connexion est introuvable ou déjà utilisée.");
-      }
-      if ((stateData.expiresAt?.toMillis?.() || 0) < Date.now()) {
-        await stateRef.set({ status: "expired", updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-        return finish("State expiré", "Relance la connexion depuis le backoffice.");
+      callbackStateRef = stateRef;
+      let stateData;
+      try {
+        stateData = await reserveMetaOAuthState(stateRef);
+      } catch (stateError) {
+        if (stateError.message === "missing_uid") {
+          return finish("State invalide", "Cette demande OAuth n'est rattachee a aucun utilisateur.");
+        }
+        if (stateError.message === "state_expired") {
+          return finish("State expire", "Relance la connexion depuis le backoffice.");
+        }
+        return finish("State invalide", "Cette demande de connexion est introuvable ou deja utilisee.");
       }
 
       const appId = getSecretValue(META_APP_ID);
       const appSecret = getSecretValue(META_APP_SECRET);
       const redirectUri = getSecretValue(META_OAUTH_REDIRECT_URI);
+      if (!appId || !appSecret || !redirectUri) {
+        throw new HttpsError("failed-precondition", "Secrets META_APP_ID, META_APP_SECRET ou META_OAUTH_REDIRECT_URI manquants.");
+      }
       const shortToken = await graphGet("/oauth/access_token", {
         client_id: appId,
         client_secret: appSecret,
@@ -1177,7 +691,7 @@ exports.metaOAuthCallback = onRequest(
       const page = Array.isArray(accounts.data) ? accounts.data.find((item) => item.access_token) : null;
       if (!page) {
         await stateRef.set({ status: "failed", error: "no_page", updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-        return finish("Aucune Page trouvée", "Le compte Facebook connecté ne semble administrer aucune Page accessible par l'app.");
+        return finish("Aucune Page trouvee", "Le compte Facebook connecte ne semble administrer aucune Page accessible par l'app.");
       }
 
       const pageDetails = await graphGet(`/${page.id}`, {
@@ -1187,15 +701,17 @@ exports.metaOAuthCallback = onRequest(
       const instagram = pageDetails.instagram_business_account;
       if (!instagram?.id) {
         await stateRef.set({ status: "failed", error: "no_instagram_business_account", pageId: page.id, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-        return finish("Instagram non relié", "La Page trouvée n'a pas d'Instagram professionnel relié. Relie Instagram à la Page puis recommence.");
+        return finish("Instagram non relie", "La Page trouvee n'a pas d'Instagram professionnel relie. Relie Instagram a la Page puis recommence.");
       }
 
       const tokenExpiresAt = longToken.expires_in
         ? admin.firestore.Timestamp.fromMillis(Date.now() + Number(longToken.expires_in) * 1000)
         : null;
-      await admin.firestore().collection("meta_connections").doc(META_CONNECTION_ID).set({
+      await metaConnectionRef(stateData.uid).set({
         status: "connected",
         provider: "meta",
+        ownerUid: stateData.uid,
+        connectionId: META_CONNECTION_ID,
         pageId: String(page.id),
         pageName: String(page.name || ""),
         igUserId: String(instagram.id),
@@ -1216,13 +732,20 @@ exports.metaOAuthCallback = onRequest(
         igUserId: String(instagram.id),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
-      return finish("Connexion Meta réussie", `Page ${page.name || page.id} connectée avec Instagram @${instagram.username || instagram.id}. Tu peux revenir au backoffice.`, true);
+      return finish("Connexion Meta reussie", `Page ${page.name || page.id} connectee avec Instagram @${instagram.username || instagram.id}. Tu peux revenir au backoffice.`, true);
     } catch (error) {
+      if (callbackStateRef) {
+        await callbackStateRef.set({
+          status: "failed",
+          error: error.code || "callback_error",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true }).catch((stateError) => logger.warn("Meta OAuth state failure update failed", stateError));
+      }
       logger.error("Meta OAuth callback failed", {
         code: error.code || null,
         message: error.message || null,
       });
-      return finish("Connexion Meta échouée", error.message || "Erreur inconnue pendant la callback OAuth Meta.");
+      return finish("Connexion Meta echouee", error.message || "Erreur inconnue pendant la callback OAuth Meta.");
     }
   }
 );

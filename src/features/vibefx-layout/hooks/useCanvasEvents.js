@@ -11,14 +11,16 @@ export default function useCanvasEvents({
     activeTextId, setActiveTextId,
     activeAssetId, setActiveAssetId,
     selectedSlotIndex, setSelectedSlotIndex,
-    slotRects,
+    slotRects: slotRectsRef,
     // Drag state
     isDragging, setIsDragging,
     isDraggingText, setIsDraggingText,
     isDraggingAsset, setIsDraggingAsset,
     activeGuides, setActiveGuides,
     // Refs
-    lastMousePos, dragOffset, textMetrics,
+    lastMousePos: lastMousePosRef,
+    dragOffset: dragOffsetRef,
+    textMetrics: textMetricsRef,
     // Studio/Fusion state
     isCropping,
     setOverlayPos, setCropPos,
@@ -50,7 +52,7 @@ export default function useCanvasEvents({
                 const ax = a.x * W; const ay = a.y * H;
                 if (Math.abs(pos.x - ax) < 60 && Math.abs(pos.y - ay) < 20) {
                     setActiveAssetId(a.id); setSelectedSlotIndex(null); setActiveTextId(null); setIsDraggingAsset(true);
-                    dragOffset.current = { x: pos.x - ax, y: pos.y - ay };
+                    dragOffsetRef.current = { x: pos.x - ax, y: pos.y - ay };
                     return;
                 }
             }
@@ -74,15 +76,15 @@ export default function useCanvasEvents({
 
                 if (pos.x >= tx - tw / 2 && pos.x <= tx + tw / 2 && pos.y >= ty - th / 2 && pos.y <= ty + th / 2) {
                     setActiveTextId(t.id); setSelectedSlotIndex(null); setActiveAssetId(null); setIsDraggingText(true);
-                    dragOffset.current = { x: pos.x - tx, y: pos.y - ty };
-                    textMetrics.current = { w: tw, h: th };
+                    dragOffsetRef.current = { x: pos.x - tx, y: pos.y - ty };
+                    textMetricsRef.current = { w: tw, h: th };
                     return;
                 }
             }
 
             // 3. Slot Check
-            for (let i = slotRects.current.length - 1; i >= 0; i--) {
-                const s = slotRects.current[i];
+            for (let i = slotRectsRef.current.length - 1; i >= 0; i--) {
+                const s = slotRectsRef.current[i];
                 if (pos.x >= s.x && pos.x <= s.x + s.w && pos.y >= s.y && pos.y <= s.y + s.h) {
                     setSelectedSlotIndex(s.id); setActiveTextId(null); setActiveAssetId(null);
                     return;
@@ -170,7 +172,7 @@ export default function useCanvasEvents({
                         setIsDragging(true);
                         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
                         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-                        lastMousePos.current = { x: clientX, y: clientY };
+                        lastMousePosRef.current = { x: clientX, y: clientY };
                         return;
                     }
                 }
@@ -180,11 +182,12 @@ export default function useCanvasEvents({
             setIsDragging(true);
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            lastMousePos.current = { x: clientX, y: clientY };
+            lastMousePosRef.current = { x: clientX, y: clientY };
         }
     }, [canvasRef, view, assets, texts, images, isCropping, getPointerPos,
         setActiveAssetId, setSelectedSlotIndex, setActiveTextId, setIsDraggingAsset,
-        setIsDraggingText, setIsDragging, slotRects, dragOffset, textMetrics, lastMousePos]);
+        setIsDraggingText, setIsDragging, slotRectsRef, dragOffsetRef, textMetricsRef, lastMousePosRef,
+        fusionConfig, setSelectedImgIndex]);
 
     const handlePointerMove = useCallback((e) => {
         // LAYOUT DRAG
@@ -195,13 +198,13 @@ export default function useCanvasEvents({
                 const W = canvasRef.current.width; const H = canvasRef.current.height;
                 const ctx = canvasRef.current.getContext('2d');
 
-                let newX = pos.x - dragOffset.current.x;
-                let newY = pos.y - dragOffset.current.y;
+                let newX = pos.x - dragOffsetRef.current.x;
+                let newY = pos.y - dragOffsetRef.current.y;
 
                 // Snapping
                 const snapThreshold = 15; const centerX = W / 2;
                 const sideMargin = W * 0.018; const photoLeft = sideMargin; const photoRight = W - sideMargin;
-                let guidesFound = []; const currentHalfW = textMetrics.current.w / 2;
+                let guidesFound = []; const currentHalfW = textMetricsRef.current.w / 2;
 
                 // 1. Canvas Center
                 if (Math.abs(newX - centerX) < snapThreshold) { newX = centerX; guidesFound.push(centerX); }
@@ -243,8 +246,8 @@ export default function useCanvasEvents({
                 e.preventDefault();
                 const pos = getPointerPos(e, canvasRef.current);
                 const W = canvasRef.current.width; const H = canvasRef.current.height;
-                let newX = pos.x - dragOffset.current.x;
-                let newY = pos.y - dragOffset.current.y;
+                let newX = pos.x - dragOffsetRef.current.x;
+                let newY = pos.y - dragOffsetRef.current.y;
                 setAssets(prev => prev.map(a => a.id === activeAssetId ? { ...a, x: newX / W, y: newY / H } : a));
             }
         }
@@ -253,8 +256,8 @@ export default function useCanvasEvents({
             e.preventDefault();
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            const dx = clientX - lastMousePos.current.x;
-            const dy = clientY - lastMousePos.current.y;
+            const dx = clientX - lastMousePosRef.current.x;
+            const dy = clientY - lastMousePosRef.current.y;
             if (view === 'fusion') {
                 if (selectedImgIndex !== null) {
                     setFusionConfig(prev => {
@@ -273,11 +276,11 @@ export default function useCanvasEvents({
                 }
             }
             else if (isCropping) { const speedFactor = 1.5; setCropPos(prev => ({ x: prev.x + (dx * speedFactor), y: prev.y + (dy * speedFactor) })); }
-            lastMousePos.current = { x: clientX, y: clientY };
+            lastMousePosRef.current = { x: clientX, y: clientY };
         }
     }, [view, isDraggingText, isDraggingAsset, isDragging, canvasRef, activeTextId, activeAssetId,
         texts, isCropping, getPointerPos, setActiveGuides, setTexts, setAssets,
-        setCropPos, dragOffset, textMetrics, lastMousePos, setFusionConfig]);
+        setCropPos, dragOffsetRef, textMetricsRef, lastMousePosRef, setFusionConfig, selectedImgIndex]);
 
     const handlePointerUp = useCallback(() => {
         setIsDragging(false);

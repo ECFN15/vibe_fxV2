@@ -19,7 +19,7 @@ const BackgroundPanel = ({ images, isDarkMode, layoutBgBlur, setLayoutBgBlur, la
                         </div>
                         <div className="flex flex-col">
                             <span className="text-xs font-bold uppercase tracking-wider">Flou Arrière-plan</span>
-                            <span className="text-[9px] opacity-60">Floute l'image principale en fond</span>
+                            <span className="text-[9px] opacity-60">{"Floute l'image principale en fond"}</span>
                         </div>
                     </div>
                     <button onClick={() => setLayoutBgBlur(!layoutBgBlur)} className={`w-11 h-6 rounded-full p-1 transition-colors relative shadow-inner ${layoutBgBlur ? 'bg-indigo-500' : (isDarkMode ? 'bg-neutral-700' : 'bg-gray-300')}`}>
@@ -54,7 +54,7 @@ const BackgroundPanel = ({ images, isDarkMode, layoutBgBlur, setLayoutBgBlur, la
 
                 {/* COLOR PALETTE */}
                 <div className={`flex flex-col gap-3 p-4 rounded-2xl border transition-all duration-300 ${layoutBgBlur ? 'opacity-40 pointer-events-none grayscale-[50%]' : 'opacity-100'} ${isDarkMode ? 'bg-neutral-900/50 border-neutral-800' : 'bg-white border-gray-200 shadow-sm'}`}>
-                    <span className="text-[10px] font-mono font-bold uppercase tracking-widest opacity-70">Couleur d'arrière-plan</span>
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-widest opacity-70">{"Couleur d'arrière-plan"}</span>
                     <div className="flex flex-wrap gap-2">
                         {/* Custom Color Picker */}
                         <div className={`relative flex items-center justify-center w-8 h-8 rounded-md overflow-hidden border-2 shadow-sm transition-transform hover:scale-105 active:scale-95 ${isDarkMode ? 'border-neutral-600' : 'border-gray-300'}`} title="Couleur personnalisée">
@@ -90,7 +90,7 @@ const BackgroundPanel = ({ images, isDarkMode, layoutBgBlur, setLayoutBgBlur, la
                 <div className={`flex flex-col gap-2 p-4 rounded-2xl border ${isDarkMode ? 'bg-neutral-900/50 border-neutral-800' : 'bg-white border-gray-200 shadow-sm'}`}>
                     <ControlGroup label="Texture Film (Grain visuel)" value={layoutBgTexture} onChange={setLayoutBgTexture} min={0} max={50} unit="%" isDarkMode={isDarkMode} />
                     <p className={`text-[9px] ${isDarkMode ? 'text-neutral-500' : 'text-gray-400'}`}>
-                        Ajoute un effet "matière" ou "papier granuleux" par-dessus votre couleur de fond. Mettez à 0 pour une couleur lisse.
+                        {'Ajoute un effet "matière" ou "papier granuleux" par-dessus votre couleur de fond. Mettez à 0 pour une couleur lisse.'}
                     </p>
                 </div>
 

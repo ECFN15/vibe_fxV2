@@ -28,7 +28,7 @@ import useLayoutHelpers from './hooks/useLayoutHelpers';
 
 const DEFAULT_TEXT = {
   id: 1,
-  content: 'Les Jardins de Chawi',
+  content: 'Vibe_fx Studio',
   x: 0.5,
   y: 0.85,
   font: 'Inter',
@@ -344,8 +344,10 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
     if (!isDemoRunning) return undefined;
     const step = DEMO_SCRIPT[demoStepIndex];
     if (!step) {
-      handleStopDemo();
-      return undefined;
+      const timer = window.setTimeout(() => {
+        handleStopDemo();
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
 
     let active = true;
@@ -959,15 +961,15 @@ function VibeFxInstagramPreviewModal({ preview, onClose }) {
             <div className="vibefx-story-preview">
               {activeSlide ? <img src={activeSlide} alt="" /> : <div className="vibefx-preview-empty" />}
               <div className="vibefx-story-bars"><i /></div>
-              <div className="vibefx-story-head"><span>jardinsdechawi</span><small>2h</small><MoreHorizontal size={18} /></div>
+              <div className="vibefx-story-head"><span>vibefx.studio</span><small>2h</small><MoreHorizontal size={18} /></div>
               <div className="vibefx-story-bottom"><span>Envoyer un message</span><Heart size={24} /><Send size={24} /></div>
             </div>
           ) : (
             <div className="vibefx-feed-preview">
               <header><ChevronLeft size={24} /><strong>Publications</strong><MoreHorizontal size={18} /></header>
               <div className="vibefx-post-head">
-                <span className="vibefx-avatar">JC</span>
-                <div><strong>jardinsdechawi</strong><small>Les Jardins de Chawi - Original</small></div>
+                <span className="vibefx-avatar">VF</span>
+                <div><strong>vibefx.studio</strong><small>Vibe_fx Studio - Original</small></div>
               </div>
               <div className="vibefx-post-media" style={{ aspectRatio: mediaRatio }}>
                 {activeSlide ? <img src={activeSlide} alt="" /> : <div className="vibefx-preview-empty" />}
@@ -980,7 +982,7 @@ function VibeFxInstagramPreviewModal({ preview, onClose }) {
                 ) : null}
               </div>
               <div className="vibefx-post-actions"><Heart size={24} /><MessageCircle size={24} /><Send size={24} /><Bookmark size={24} /></div>
-              <p><strong>jardinsdechawi</strong> {preview.title || 'Nouvelle publication.'}</p>
+              <p><strong>vibefx.studio</strong> {preview.title || 'Nouvelle publication.'}</p>
             </div>
           )}
         </div>

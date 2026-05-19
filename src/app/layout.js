@@ -1,8 +1,5 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import "../features/vibefx-layout/vibefx-tailwind.css";
-import "../features/vibefx-layout/vibefx-layout.css";
-import "../features/publications/publications.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

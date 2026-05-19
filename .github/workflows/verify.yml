@@ -1,0 +1,67 @@
+name: Verify
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Java for Firebase emulators
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Install functions dependencies
+        run: npm --prefix functions ci
+
+      - name: Verify local gates
+        run: npm run verify:local
+
+      - name: Verify Firebase emulator readiness
+        run: npm run check:emulator-readiness
+
+      - name: Verify Firebase emulator rules
+        run: npm run test:emulators
+
+      - name: Start Next server
+        run: |
+          npm run start -- -p 3000 > /tmp/vibefx-next.log 2>&1 &
+          for i in {1..40}; do
+            if curl -fsS http://localhost:3000 >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/vibefx-next.log
+          exit 1
+
+      - name: Verify routes
+        run: npm run verify:routes
+
+      - name: Verify studio UI smoke
+        run: npm run test:studio-ui
+
+      - name: Verify studio save with Firebase emulators
+        run: npm run test:studio-emulators

@@ -223,7 +223,7 @@ export default function SmoothBlurPopup({ images, isOpen, onClose, isDarkMode, i
                     <div className="mt-4 bg-white/[0.03] rounded-xl p-5 flex flex-col gap-6">
 
                         <div className="flex flex-col gap-3">
-                            <span className="font-bold text-xs text-neutral-500 uppercase tracking-wider">Type d'assouplissement</span>
+                            <span className="font-bold text-xs text-neutral-500 uppercase tracking-wider">{"Type d'assouplissement"}</span>
                             <div className="flex flex-wrap gap-2">
                                 {EASE_TYPES.map((ease, idx) => {
                                     const isActive = config.easeType === ease.id;

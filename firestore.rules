@@ -9,20 +9,60 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
-    function isOwnerFieldValid() {
-      return request.resource.data.ownerUid == request.auth.uid;
+    function isUserProfileCreateValid(userId) {
+      return ownsUserDoc(userId)
+        && request.resource.data.keys().hasOnly([
+          'email',
+          'displayName',
+          'photoURL',
+          'createdAt',
+          'updatedAt',
+        ]);
+    }
+
+    function isUserProfileUpdateValid(userId) {
+      return ownsUserDoc(userId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'email',
+          'displayName',
+          'photoURL',
+          'updatedAt',
+        ]);
+    }
+
+    function isOwnerCreateValid() {
+      return signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && !request.resource.data.keys().hasAny(['metaSync'])
+        && (
+          !request.resource.data.keys().hasAny(['platformStatus'])
+          || request.resource.data.platformStatus == {}
+        );
+    }
+
+    function isOwnerUpdateValid() {
+      return signedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'platformStatus',
+          'metaSync',
+        ]);
     }
 
     match /users/{userId} {
-      allow read, create, update: if ownsUserDoc(userId);
+      allow read: if ownsUserDoc(userId);
+      allow create: if isUserProfileCreateValid(userId);
+      allow update: if isUserProfileUpdateValid(userId);
       allow delete: if false;
     }
 
     match /publications/{publicationId} {
       allow read: if resource.data.status == 'published'
         || (signedIn() && resource.data.ownerUid == request.auth.uid);
-      allow create: if signedIn() && isOwnerFieldValid();
-      allow update, delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create: if isOwnerCreateValid();
+      allow update: if isOwnerUpdateValid();
+      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
     }
 
     match /meta_connections/{connectionId} {

@@ -14,7 +14,8 @@ export default function useCanvasRenderer({
     padding, gap, radius,
     layoutBgColor, layoutBgBlur, layoutBgTexture, layoutSmoothBlur,
     selectedSlotIndex, slotConfigs,
-    slotRects, bgCanvasRef,
+    slotRects: slotRectsRef,
+    bgCanvasRef,
     // Text & Assets
     texts, assets, activeTextId, activeAssetId,
     isDraggingText, activeGuides,
@@ -49,7 +50,7 @@ export default function useCanvasRenderer({
         } else {
             bgCanvasRef.current = null;
         }
-    }, [images, activeFormat, layoutBgBlur, view]);
+    }, [images, activeFormat, layoutBgBlur, view, bgCanvasRef]);
 
     const getCanvasDimensions = useCallback(() => {
         if (view === 'layout' || view === 'fusion') return { width: activeFormat.w, height: activeFormat.h };
@@ -231,13 +232,13 @@ export default function useCanvasRenderer({
             }
 
             // Sync slotRects ref
-            slotRects.current = slotRectsArray;
+            slotRectsRef.current = slotRectsArray;
 
         }
-    }, [images, filters, view, fusionConfig, activeFormat, activeTemplate, overlayMode, padding, gap, radius,
+    }, [images, view, activeTemplate, overlayMode, padding, gap, radius,
         layoutBgColor, layoutBgBlur, layoutBgTexture, layoutSmoothBlur, selectedSlotIndex, slotConfigs,
         texts, activeTextId, isDraggingText, activeGuides, assets, activeAssetId,
-        cropRatio, cropPos, cropScale, isCropping, selectedImgIndex]);
+        bgCanvasRef, slotRectsRef]);
 
     const renderCanvas = useCallback(() => {
         if ((!images.length && view !== 'fusion') || !canvasRef.current) return;
@@ -247,13 +248,13 @@ export default function useCanvasRenderer({
         canvas.width = width;
         canvas.height = height;
         renderPipeline(canvas, width, height, true, (isDragging || isDraggingText) ? 'low' : 'high');
-    }, [images, getCanvasDimensions, renderPipeline, isDragging, isDraggingText, view]);
+    }, [images, getCanvasDimensions, renderPipeline, isDragging, isDraggingText, view, canvasRef]);
 
     // Animation loop
     useEffect(() => {
         requestRef.current = requestAnimationFrame(renderCanvas);
         return () => cancelAnimationFrame(requestRef.current);
-    }, [renderCanvas]);
+    }, [renderCanvas, requestRef]);
 
     return { getCanvasDimensions, renderPipeline, renderCanvas };
 }

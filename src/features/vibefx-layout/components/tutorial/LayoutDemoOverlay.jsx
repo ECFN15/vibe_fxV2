@@ -13,11 +13,15 @@ export default function LayoutDemoOverlay({
 
   useEffect(() => {
     if (!running || !step) {
-      setTypedText('');
-      return undefined;
+      const timer = window.setTimeout(() => {
+        setTypedText('');
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
 
-    setTypedText('');
+    const resetTimer = window.setTimeout(() => {
+      setTypedText('');
+    }, 0);
     let index = 0;
     const fullText = step.body || '';
     const timer = window.setInterval(() => {
@@ -26,7 +30,10 @@ export default function LayoutDemoOverlay({
       if (index >= fullText.length) window.clearInterval(timer);
     }, 18);
 
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearTimeout(resetTimer);
+      window.clearInterval(timer);
+    };
   }, [running, step]);
 
   if (!running || !step) return null;

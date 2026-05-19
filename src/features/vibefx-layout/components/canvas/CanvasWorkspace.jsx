@@ -137,7 +137,7 @@ export default function CanvasWorkspace({
 
                         {view === 'layout' && selectedSlotIndex === null && !activeTextId && activeTemplate.id !== 'polaroid' && (
                             <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur px-3 py-1 rounded-full text-[10px] text-white/70 pointer-events-none border border-white/10 animate-pulse">
-                                Cliquez sur une image pour l'ajuster
+                                {"Cliquez sur une image pour l'ajuster"}
                             </div>
                         )}
                         {view === 'layout' && activeTemplate.id === 'polaroid' && isDraggingText && (
@@ -154,7 +154,7 @@ export default function CanvasWorkspace({
                             <div className="vibefx-thumb-rail absolute bottom-4 left-6 right-6 flex gap-3 overflow-x-auto pb-2 pointer-events-auto no-scrollbar">
                                 {images.map((img, i) => (
                                     <div key={i} className={`relative group flex-shrink-0 w-16 h-16 cursor-pointer border rounded-sm overflow-hidden transition-all active:scale-95 ${isDarkMode ? 'border-neutral-700' : 'border-gray-300'}`} onClick={() => setSelectedImgIndex(i)}>
-                                        <img src={img.src} className="w-full h-full object-cover" />
+                                        <img src={img.src} alt="" className="w-full h-full object-cover" />
                                         <button onClick={(e) => { e.stopPropagation(); const filtered = images.filter((_, idx) => idx !== i); setImages(filtered); }} className={`absolute top-0 right-0 w-6 h-6 flex items-center justify-center backdrop-blur-md text-white border-b border-l transition-colors z-10 bg-red-600 lg:bg-black/80 lg:hover:bg-red-600 ${isDarkMode ? 'border-neutral-700' : 'border-gray-400'}`} title="Supprimer">
                                             <X size={12} strokeWidth={2.5} />
                                         </button>
