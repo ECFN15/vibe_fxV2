@@ -149,7 +149,7 @@ export const CONFIG = {
                 // FR
                 'paysage', 'montagne', 'sommet', 'vallée', 'forêt',
                 'plage', 'cascade', 'rivière', 'prairie',
-                'coucher de soleil', 'lever de soleil', 'jardin', 'jardins',
+                'coucher de soleil', 'lever de soleil',
             
                 // ➕ AI Audit Additions (EN)
                 'landscape photography', 'epic landscape', 'nature photography', 'mountainscape', 'seascape', 'cityscape', 'cinematic landscape', 'breathtaking view', 'aerial photography',

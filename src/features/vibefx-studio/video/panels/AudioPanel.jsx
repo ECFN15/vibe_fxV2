@@ -47,6 +47,7 @@ const AudioPanel = () => {
                             <Volume2 size={14} className="text-neutral-400 shrink-0" />
                             <input
                                 type="range" min={0} max={200}
+                                aria-label={`Volume du clip ${selectedClip.name}`}
                                 value={selectedClip.volume}
                                 onChange={(e) => updateClip(selectedClip.id, { volume: parseInt(e.target.value) })}
                                 className="flex-1 h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-indigo-500"
@@ -72,6 +73,7 @@ const AudioPanel = () => {
                         <button
                             onClick={() => fileInputRef.current?.click()}
                             className="text-indigo-400 hover:text-indigo-300 transition"
+                            aria-label="Importer une piste audio"
                         >
                             <Plus size={14} />
                         </button>
@@ -97,6 +99,7 @@ const AudioPanel = () => {
                                     <Volume2 size={12} className="text-neutral-500 shrink-0" />
                                     <input
                                         type="range" min={0} max={200}
+                                        aria-label={`Volume de la piste ${track.name}`}
                                         value={track.volume}
                                         onChange={(e) => updateAudioTrack(track.id, { volume: parseInt(e.target.value) })}
                                         className="flex-1 h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-emerald-500"

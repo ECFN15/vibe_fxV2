@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 
 
@@ -73,7 +75,7 @@ function App({ onImportToPublication, onOpenPublications }) {
     const [activeFormat, setActiveFormat] = useState(FORMATS[0]);
     const [activeTemplate, setActiveTemplate] = useState(TEMPLATES[0]);
     const [overlayMode, setOverlayMode] = useState('landscape');
-    const [activeAccordion, setActiveAccordion] = useState('texts'); // 'texts', 'geometry', 'background'
+    const [activeAccordion, setActiveAccordion] = useState('texts'); // 'texts', 'geometry', 'texture', 'background'
 
     // Texts & Assets
     const [texts, setTexts] = useState([
@@ -93,6 +95,9 @@ function App({ onImportToPublication, onOpenPublications }) {
     const [layoutBgColor, setLayoutBgColor] = useState('#000000');
     const [layoutBgBlur, setLayoutBgBlur] = useState(true);
     const [layoutBgTexture, setLayoutBgTexture] = useState(15);
+    const [layoutTextures, setLayoutTextures] = useState([]);
+    const [activeTextureId, setActiveTextureId] = useState(null);
+    const [layoutTextureOpacity, setLayoutTextureOpacity] = useState(70);
     const [layoutBgGradient, setLayoutBgGradient] = useState(false); // New Smart Background
     const [selectedSlotIndex, setSelectedSlotIndex] = useState(null);
     const [slotConfigs, setSlotConfigs] = useState({});
@@ -219,6 +224,7 @@ function App({ onImportToPublication, onOpenPublications }) {
         activeFormat, activeTemplate, overlayMode,
         padding, gap, radius,
         layoutBgColor, layoutBgBlur, layoutBgTexture, layoutSmoothBlur,
+        layoutTextures, activeTextureId, layoutTextureOpacity,
         selectedSlotIndex, slotConfigs,
         slotRects, bgCanvasRef,
         texts, assets, activeTextId, activeAssetId,
@@ -290,6 +296,13 @@ function App({ onImportToPublication, onOpenPublications }) {
                 layoutBgColor,
                 layoutBgBlur,
                 layoutBgTexture,
+                layoutTextures: layoutTextures.map(texture => ({
+                    id: texture.id,
+                    src: texture.src,
+                    name: texture.name,
+                })),
+                activeTextureId,
+                layoutTextureOpacity,
                 layoutBgGradient,
                 layoutSmoothBlur,
                 texts,
@@ -303,6 +316,7 @@ function App({ onImportToPublication, onOpenPublications }) {
     }, [
         activeFormat,
         activeTemplate,
+        activeTextureId,
         assets,
         exportName,
         filters,
@@ -314,6 +328,8 @@ function App({ onImportToPublication, onOpenPublications }) {
         layoutBgGradient,
         layoutBgTexture,
         layoutSmoothBlur,
+        layoutTextureOpacity,
+        layoutTextures,
         onImportToPublication,
         overlayMode,
         padding,
@@ -329,6 +345,9 @@ function App({ onImportToPublication, onOpenPublications }) {
         // setImages([]); 
         setOverlayImage(null);
         setTexts([]);
+        setLayoutTextures([]);
+        setActiveTextureId(null);
+        setLayoutTextureOpacity(70);
         setActiveTextId(null);
         setFilters({ brightness: 100, contrast: 100, saturation: 100, sepia: 0, blur: 0, grain: 0, vignette: 0, tintColor: '#ffffff', tintIntensity: 0 });
 
@@ -402,6 +421,20 @@ function App({ onImportToPublication, onOpenPublications }) {
                 } else if (type === 'slot') {
                     setImages(prev => [...prev, img]);
                     setView('layout');
+                } else if (type === 'texture') {
+                    const textureId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                    setLayoutTextures(prev => [
+                        ...prev,
+                        {
+                            id: textureId,
+                            image: img,
+                            src: img.src,
+                            name: `Texture ${prev.length + 1}`,
+                        },
+                    ]);
+                    setActiveTextureId(textureId);
+                    setActiveAccordion('texture');
+                    setView('layout');
                 }
             };
             img.onerror = () => {
@@ -415,7 +448,7 @@ function App({ onImportToPublication, onOpenPublications }) {
         };
 
         tryNext();
-    }, [setImages, setView, setOverlayImage]);
+    }, [setImages, setView, setOverlayImage, setLayoutTextures, setActiveTextureId, setActiveAccordion]);
 
     // --- COMPARE MODAL RENDERING ---
     useEffect(() => {
@@ -575,6 +608,12 @@ function App({ onImportToPublication, onOpenPublications }) {
                                     setLayoutBgColor={setLayoutBgColor}
                                     layoutBgTexture={layoutBgTexture}
                                     setLayoutBgTexture={setLayoutBgTexture}
+                                    layoutTextures={layoutTextures}
+                                    activeTextureId={activeTextureId}
+                                    setActiveTextureId={setActiveTextureId}
+                                    setLayoutTextures={setLayoutTextures}
+                                    layoutTextureOpacity={layoutTextureOpacity}
+                                    setLayoutTextureOpacity={setLayoutTextureOpacity}
                                     layoutSmoothBlur={layoutSmoothBlur}
                                     setLayoutSmoothBlur={setLayoutSmoothBlur}
                                     showGuidelines={showGuidelines}

@@ -24,6 +24,38 @@ export function renderLayoutBackground(ctx, w, h, { images, layoutBgColor, layou
 }
 
 /**
+ * renderLayoutImageTexture - Dessine une texture utilisateur sous les slots d'image.
+ */
+export function renderLayoutImageTexture(ctx, w, h, { layoutTextures, activeTextureId, layoutTextureOpacity, activeTemplate }) {
+    if (!layoutTextures?.length || activeTemplate.id === 'polaroid') return;
+
+    const activeTexture = layoutTextures.find(texture => texture.id === activeTextureId) || layoutTextures[0];
+    const textureImage = activeTexture?.image;
+    if (!textureImage?.width || !textureImage?.height) return;
+
+    const imgRatio = textureImage.width / textureImage.height;
+    const canvasRatio = w / h;
+    let sw, sh, sx, sy;
+
+    if (canvasRatio > imgRatio) {
+        sw = textureImage.width;
+        sh = textureImage.width / canvasRatio;
+        sx = 0;
+        sy = (textureImage.height - sh) / 2;
+    } else {
+        sh = textureImage.height;
+        sw = textureImage.height * canvasRatio;
+        sy = 0;
+        sx = (textureImage.width - sw) / 2;
+    }
+
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(100, layoutTextureOpacity ?? 65)) / 100;
+    ctx.drawImage(textureImage, sx, sy, sw, sh, 0, 0, w, h);
+    ctx.restore();
+}
+
+/**
  * renderSlot — Dessine une image dans un slot avec zoom, pan, border, blur.
  */
 export function renderSlot(ctx, slotId, imgIndex, x, y, sw, sh, overrideRadius, { images, slotConfigs, radius, layoutBgBlur, layoutBgColor, activeTemplate, slotRects }) {

@@ -1,21 +1,147 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { X, Download, Monitor, Smartphone } from 'lucide-react';
 import useVideoStore from '../store/videoStore';
-import { EXPORT_PRESETS } from '../engine/VideoEngine';
+import { EXPORT_PRESETS, PlaybackEngine } from '../engine/VideoEngine';
+import { drawTextOverlays } from '../preview/VideoPreview';
 
 const ExportVideoPanel = () => {
+    const [exportMessage, setExportMessage] = useState('');
     const {
         exportPreset, setExportPreset,
         exportFormat, setExportFormat,
         isExporting, exportProgress,
-        setActivePanel, totalDuration, clips
+        setActivePanel, totalDuration, clips, transitions, transitionItems,
+        audioTracks, textOverlays, setIsExporting, setExportProgress,
+        projectName
     } = useVideoStore();
 
     const preset = EXPORT_PRESETS[exportPreset];
     const hasClips = clips.length > 0;
 
-    const handleExport = () => {
-        alert('Export video en cours de developpement. Le pipeline WebCodecs sera integre prochainement.');
+    const handleExport = async () => {
+        const exportCanvas = document.createElement('canvas');
+        if (!exportCanvas.captureStream || typeof MediaRecorder === 'undefined') {
+            setExportMessage('Export navigateur indisponible sur cette session.');
+            return;
+        }
+
+        const mimeCandidates = exportFormat === 'webm'
+            ? ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
+            : ['video/mp4;codecs=h264,aac', 'video/mp4;codecs=h264', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+        const mimeType = mimeCandidates.find((candidate) => MediaRecorder.isTypeSupported(candidate));
+        if (!mimeType) {
+            setExportMessage('Aucun codec MediaRecorder compatible trouve.');
+            return;
+        }
+
+        const fps = preset?.fps || 30;
+        exportCanvas.width = preset?.width || 1920;
+        exportCanvas.height = preset?.height || 1080;
+        exportCanvas.style.width = `${exportCanvas.width}px`;
+        exportCanvas.style.height = `${exportCanvas.height}px`;
+        exportCanvas.style.position = 'fixed';
+        exportCanvas.style.left = '-100000px';
+        exportCanvas.style.top = '0';
+        exportCanvas.style.pointerEvents = 'none';
+        document.body.appendChild(exportCanvas);
+
+        const exportEngine = new PlaybackEngine(exportCanvas);
+        const chunks = [];
+        const stream = exportCanvas.captureStream(fps);
+        let disconnectAudio = null;
+        let recordStream = stream;
+        let progressTimer = null;
+        let renderTimer = null;
+
+        try {
+            await exportEngine.loadAllClips(clips);
+            await exportEngine.loadAllAudioTracks(audioTracks);
+
+            const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+            if (AudioContextCtor && exportEngine.connectAudioToDestination) {
+                const audioContext = exportEngine.getOrCreateAudioContext(AudioContextCtor);
+                await audioContext.resume();
+                const destination = audioContext.createMediaStreamDestination();
+                disconnectAudio = exportEngine.connectAudioToDestination(audioContext, destination);
+                recordStream = new MediaStream([
+                    ...stream.getVideoTracks(),
+                    ...destination.stream.getAudioTracks(),
+                ]);
+            }
+        } catch (error) {
+            console.warn('Audio export mix unavailable:', error);
+            setExportMessage('Export video sans piste audio mixee: le navigateur a refuse le mix audio.');
+        }
+
+        const recorder = new MediaRecorder(recordStream, {
+            mimeType,
+            videoBitsPerSecond: 8_000_000,
+            audioBitsPerSecond: 192_000,
+        });
+        const startedAt = performance.now();
+        const durationMs = Math.max(1000, totalDuration * 1000 + 500);
+        let renderTime = 0;
+
+        setExportMessage(mimeType.includes('mp4') ? 'Export MP4 en cours.' : 'Export WebM en cours; le MP4 natif depend du navigateur.');
+        setExportProgress(0);
+        setIsExporting(true);
+
+        const cleanup = () => {
+            window.clearInterval(progressTimer);
+            window.clearInterval(renderTimer);
+            recordStream.getTracks().forEach((track) => track.stop());
+            stream.getTracks().forEach((track) => track.stop());
+            disconnectAudio?.();
+            exportEngine.dispose();
+            exportCanvas.remove();
+        };
+
+        const stopRecording = () => {
+            if (recorder.state === 'inactive') return;
+            exportEngine.stopPlayback();
+            recorder.stop();
+        };
+
+        const renderExportFrame = () => {
+            exportEngine.renderFrame(clips, transitions, renderTime, transitionItems);
+            drawTextOverlays(exportCanvas, textOverlays, renderTime, null);
+            exportEngine.syncClipAudio(clips, transitions, renderTime, 1);
+            exportEngine.syncExternalAudio(audioTracks, renderTime, 1);
+            renderTime += 1 / fps;
+            if (renderTime >= totalDuration) stopRecording();
+        };
+
+        recorder.ondataavailable = (event) => {
+            if (event.data?.size) chunks.push(event.data);
+        };
+
+        recorder.onstop = () => {
+            cleanup();
+            setIsExporting(false);
+            setExportProgress(100);
+
+            const extension = mimeType.includes('mp4') ? 'mp4' : 'webm';
+            const blob = new Blob(chunks, { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${(projectName || 'vibecut').replace(/[^a-z0-9_-]+/gi, '-').toLowerCase()}-${Date.now()}.${extension}`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+            setExportMessage(`Export termine (${extension.toUpperCase()}, ${(blob.size / 1024 / 1024).toFixed(1)} Mo).`);
+        };
+
+        progressTimer = window.setInterval(() => {
+            const elapsed = performance.now() - startedAt;
+            setExportProgress(Math.min(99, Math.round((elapsed / durationMs) * 100)));
+        }, 200);
+
+        recorder.start();
+        renderExportFrame();
+        renderTimer = window.setInterval(renderExportFrame, 1000 / fps);
+        window.setTimeout(stopRecording, durationMs);
     };
 
     return (
@@ -102,6 +228,12 @@ const ExportVideoPanel = () => {
                     <div className="h-1 bg-neutral-800 rounded-full overflow-hidden">
                         <div className="h-full bg-indigo-500 transition-all duration-300" style={{ width: `${exportProgress}%` }} />
                     </div>
+                )}
+
+                {exportMessage && (
+                    <p className="text-[9px] font-mono text-neutral-500 leading-relaxed">
+                        {exportMessage}
+                    </p>
                 )}
             </div>
         </div>

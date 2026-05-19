@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { renderLayoutBackground, renderTemplateSlots, renderLayoutTexture, renderSlotSelection, renderGuides } from '../engine/layoutRenderer';
+import { renderLayoutBackground, renderLayoutImageTexture, renderTemplateSlots, renderLayoutTexture, renderSlotSelection, renderGuides } from '../engine/layoutRenderer';
 import { renderAssets, renderAssetSelection } from '../engine/assetRenderer';
 import { renderTexts, renderTextSelection } from '../engine/textRenderer';
 import { renderStudio } from '../engine/studioRenderer';
@@ -14,6 +14,7 @@ export default function useCanvasRenderer({
     activeFormat, activeTemplate, overlayMode,
     padding, gap, radius,
     layoutBgColor, layoutBgBlur, layoutBgTexture, layoutSmoothBlur,
+    layoutTextures, activeTextureId, layoutTextureOpacity,
     selectedSlotIndex, slotConfigs,
     slotRects, bgCanvasRef,
     // Text & Assets
@@ -86,6 +87,9 @@ export default function useCanvasRenderer({
             renderLayoutBackground(ctx, w, h, {
                 images, layoutBgColor, layoutBgBlur,
                 bgCanvas: bgCanvasRef.current, activeTemplate,
+            });
+            renderLayoutImageTexture(ctx, w, h, {
+                layoutTextures, activeTextureId, layoutTextureOpacity, activeTemplate,
             });
 
             if (images.length === 0) return;
@@ -242,7 +246,7 @@ export default function useCanvasRenderer({
             });
         }
     }, [images, filters, view, fusionConfig, activeFormat, activeTemplate, overlayMode, padding, gap, radius,
-        layoutBgColor, layoutBgBlur, layoutBgTexture, layoutSmoothBlur, selectedSlotIndex, slotConfigs,
+        layoutBgColor, layoutBgBlur, layoutBgTexture, layoutSmoothBlur, layoutTextures, activeTextureId, layoutTextureOpacity, selectedSlotIndex, slotConfigs,
         texts, activeTextId, isDraggingText, activeGuides, assets, activeAssetId,
         cropRatio, cropPos, cropScale, isCropping, selectedImgIndex]);
 

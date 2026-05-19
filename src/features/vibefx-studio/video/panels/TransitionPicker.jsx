@@ -1,52 +1,87 @@
-import React, { useState } from 'react';
-import { X, Clock, ChevronRight } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { X, Clock, Crosshair, Trash2 } from 'lucide-react';
 import useVideoStore from '../store/videoStore';
-import { TRANSITIONS, TRANSITION_CATEGORIES } from '../engine/VideoEngine';
+import { TRANSITIONS, TRANSITION_CATEGORIES, formatTime } from '../engine/VideoEngine';
 
 const TransitionPicker = () => {
     const {
-        clips, transitions, setTransition, removeTransition, setActivePanel
+        clips, transitionItems, selectedTransitionId, setSelectedTransitionId,
+        addTransitionItem, updateTransitionItem, removeTransitionItem,
+        setActivePanel, currentTime, totalDuration
     } = useVideoStore();
 
     const [activeCategory, setActiveCategory] = useState('basic');
-    const [duration, setDuration] = useState(0.5);
-    const [selectedPair, setSelectedPair] = useState(null);
+    const selectedTransition = useMemo(() => {
+        if (selectedTransitionId) {
+            return transitionItems.find(item => item.id === selectedTransitionId) || null;
+        }
+        return transitionItems[0] || null;
+    }, [selectedTransitionId, transitionItems]);
 
+    const [duration, setDuration] = useState(selectedTransition?.duration || 0.5);
     const filteredTransitions = TRANSITIONS.filter(t => t.category === activeCategory);
+    const hasClips = clips.length > 0;
 
-    // Build list of adjacent clip pairs
-    const pairs = [];
-    for (let i = 0; i < clips.length - 1; i++) {
-        const key = `${clips[i].id}->${clips[i + 1].id}`;
-        pairs.push({
-            key,
-            fromClip: clips[i],
-            toClip: clips[i + 1],
-            transition: transitions[key] || null,
-            fromIndex: i,
-        });
-    }
+    useEffect(() => {
+        if (selectedTransition) setDuration(selectedTransition.duration || 0.5);
+    }, [selectedTransition]);
 
-    // Auto-select first pair if none selected
-    const activePair = selectedPair ? pairs.find(p => p.key === selectedPair) : pairs[0];
+    const clampTransitionStart = (start, dur) => {
+        const maxStart = Math.max(0, totalDuration - dur);
+        return Math.min(maxStart, Math.max(0, start));
+    };
 
     const applyTransition = (transition) => {
-        if (!activePair) return;
-        setTransition(activePair.fromClip.id, activePair.toClip.id, {
+        const nextDuration = duration || transition.defaultDuration || 0.5;
+        if (selectedTransition) {
+            updateTransitionItem(selectedTransition.id, {
+                type: transition.id,
+                name: transition.name,
+                icon: transition.icon,
+                category: transition.category,
+                duration: nextDuration,
+            });
+            return;
+        }
+
+        const startTime = clampTransitionStart(currentTime, nextDuration);
+        addTransitionItem({
             type: transition.id,
             name: transition.name,
             icon: transition.icon,
             category: transition.category,
-            duration,
+            duration: nextDuration,
+            startTime,
         });
     };
 
-    const clearTransition = () => {
-        if (!activePair) return;
-        removeTransition(activePair.fromClip.id, activePair.toClip.id);
+    const addAtCursor = () => {
+        const transition = TRANSITIONS.find(t => t.category === activeCategory) || TRANSITIONS[0];
+        const startTime = clampTransitionStart(currentTime, duration || transition.defaultDuration || 0.5);
+        addTransitionItem({
+            type: transition.id,
+            name: transition.name,
+            icon: transition.icon,
+            category: transition.category,
+            duration: duration || transition.defaultDuration || 0.5,
+            startTime,
+        });
     };
 
-    if (clips.length < 2) {
+    const updateDuration = (value) => {
+        const nextDuration = parseFloat(value);
+        setDuration(nextDuration);
+        if (selectedTransition) {
+            updateTransitionItem(selectedTransition.id, { duration: nextDuration });
+        }
+    };
+
+    const clearTransition = () => {
+        if (!selectedTransition) return;
+        removeTransitionItem(selectedTransition.id);
+    };
+
+    if (!hasClips) {
         return (
             <div className="flex flex-col h-full">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
@@ -57,7 +92,7 @@ const TransitionPicker = () => {
                 </div>
                 <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 text-center">
                     <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
-                        Importez au moins 2 clips pour ajouter des transitions entre eux
+                        Importez une video pour placer des transitions sur la piste Trans.
                     </p>
                 </div>
             </div>
@@ -66,71 +101,84 @@ const TransitionPicker = () => {
 
     return (
         <div className="flex flex-col h-full">
-            {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
-                <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Transitions</h3>
+                <div>
+                    <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Transitions</h3>
+                    <p className="text-[8px] font-mono uppercase tracking-wider text-neutral-600 mt-0.5">
+                        Piste libre sous la video
+                    </p>
+                </div>
                 <button onClick={() => setActivePanel(null)} className="text-neutral-500 hover:text-white transition">
                     <X size={14} />
                 </button>
             </div>
 
-            {/* Clip pair selector */}
-            <div className="px-3 py-2 border-b border-neutral-800/50 space-y-1">
-                <span className="text-[8px] font-mono text-neutral-600 uppercase tracking-widest">Jonction</span>
-                <div className="space-y-1">
-                    {pairs.map(pair => (
-                        <button
-                            key={pair.key}
-                            onClick={() => setSelectedPair(pair.key)}
-                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-sm border text-left transition-all ${
-                                activePair?.key === pair.key
-                                    ? 'bg-purple-600/15 border-purple-500/30 text-purple-300'
-                                    : 'border-neutral-800 text-neutral-400 hover:border-neutral-600'
-                            }`}
-                        >
-                            <span className="text-[9px] font-mono truncate flex-1">{pair.fromClip.name}</span>
-                            <ChevronRight size={10} className="text-neutral-600 shrink-0" />
-                            <span className="text-[9px] font-mono truncate flex-1">{pair.toClip.name}</span>
-                            {pair.transition && (
-                                <span className="text-[7px] font-mono text-purple-400 bg-purple-500/10 px-1 rounded shrink-0">
-                                    {pair.transition.name}
-                                </span>
-                            )}
-                        </button>
-                    ))}
+            <div className="px-3 py-2 border-b border-neutral-800/50 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                    <span className="text-[8px] font-mono text-neutral-600 uppercase tracking-widest">Placees</span>
+                    <button
+                        onClick={addAtCursor}
+                        className="flex items-center gap-1 text-[8px] font-mono text-purple-300 hover:text-white border border-purple-500/25 hover:border-purple-400/60 rounded-sm px-2 py-1 transition"
+                    >
+                        <Crosshair size={10} /> Ajouter au curseur
+                    </button>
                 </div>
+
+                {transitionItems.length === 0 ? (
+                    <p className="text-[9px] font-mono text-neutral-600 leading-relaxed">
+                        Choisissez une animation ci-dessous: elle sera creee au temps courant, puis deplacable sur la piste Trans.
+                    </p>
+                ) : (
+                    <div className="space-y-1 max-h-28 overflow-y-auto custom-scrollbar">
+                        {transitionItems.map(item => (
+                            <button
+                                key={item.id}
+                                onClick={() => setSelectedTransitionId(item.id)}
+                                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-sm border text-left transition-all ${
+                                    item.id === selectedTransition?.id
+                                        ? 'bg-purple-600/15 border-purple-500/30 text-purple-300'
+                                        : 'border-neutral-800 text-neutral-400 hover:border-neutral-600'
+                                }`}
+                            >
+                                <span className="text-[10px] shrink-0">{item.icon}</span>
+                                <span className="text-[9px] font-mono truncate flex-1">{item.name}</span>
+                                <span className="text-[8px] font-mono text-neutral-600 tabular-nums">
+                                    {formatTime(item.startTime)} - {formatTime(item.endTime)}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
 
-            {/* Current transition info */}
-            {activePair?.transition && (
+            {selectedTransition && (
                 <div className="px-3 py-2 border-b border-neutral-800/50 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-mono text-purple-400">{activePair.transition.icon}</span>
-                        <span className="text-[9px] font-mono text-purple-300">{activePair.transition.name}</span>
-                        <span className="text-[8px] font-mono text-neutral-600">{activePair.transition.duration}s</span>
+                        <span className="text-[10px] font-mono text-purple-400">{selectedTransition.icon}</span>
+                        <span className="text-[9px] font-mono text-purple-300">{selectedTransition.name}</span>
+                        <span className="text-[8px] font-mono text-neutral-600">{selectedTransition.duration.toFixed(1)}s</span>
                     </div>
                     <button
                         onClick={clearTransition}
-                        className="text-[8px] font-mono text-neutral-600 hover:text-red-400 transition uppercase"
+                        className="flex items-center gap-1 text-[8px] font-mono text-neutral-600 hover:text-red-400 transition uppercase"
                     >
-                        Retirer
+                        <Trash2 size={10} /> Retirer
                     </button>
                 </div>
             )}
 
-            {/* Duration */}
             <div className="flex items-center gap-3 px-4 py-2 border-b border-neutral-800/30">
                 <Clock size={11} className="text-neutral-600 shrink-0" />
                 <span className="text-[9px] font-mono text-neutral-500 uppercase shrink-0">Duree</span>
                 <input
                     type="range" min={0.1} max={2} step={0.1} value={duration}
-                    onChange={(e) => setDuration(parseFloat(e.target.value))}
+                    aria-label="Duree de transition"
+                    onChange={(e) => updateDuration(e.target.value)}
                     className="flex-1 h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-purple-500"
                 />
-                <span className="text-[10px] font-mono text-neutral-400 tabular-nums w-8 text-right">{duration}s</span>
+                <span className="text-[10px] font-mono text-neutral-400 tabular-nums w-8 text-right">{duration.toFixed(1)}s</span>
             </div>
 
-            {/* Categories */}
             <div className="flex gap-1 px-3 py-2 overflow-x-auto border-b border-neutral-800/30 scrollbar-hide">
                 {TRANSITION_CATEGORIES.map(cat => (
                     <button
@@ -147,15 +195,15 @@ const TransitionPicker = () => {
                 ))}
             </div>
 
-            {/* Transition grid */}
             <div className="flex-1 overflow-y-auto custom-scrollbar p-3">
                 <div className="grid grid-cols-3 gap-2">
                     {filteredTransitions.map(transition => {
-                        const isActive = activePair?.transition?.type === transition.id;
+                        const isActive = selectedTransition?.type === transition.id;
                         return (
                             <button
                                 key={transition.id}
                                 onClick={() => applyTransition(transition)}
+                                aria-label={transition.name}
                                 className={`flex flex-col items-center gap-1.5 p-2.5 rounded-sm border transition-all group ${
                                     isActive
                                         ? 'bg-purple-600/20 border-purple-500/40 text-purple-300'

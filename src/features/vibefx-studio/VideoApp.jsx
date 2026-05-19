@@ -1,3 +1,5 @@
+"use client";
+
 import React from 'react';
 import { Film, ArrowLeft, Undo2, Redo2 } from 'lucide-react';
 import VideoEditor from './video/VideoEditor';

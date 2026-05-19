@@ -103,7 +103,10 @@ export function catalogResponse(request) {
 }
 
 export async function deleteCatalogResponse(_request, { params }) {
-  const jobId = params.jobId;
+  const resolvedParams = await params;
+  const jobId = resolvedParams?.jobId;
+  if (!jobId) return json({ error: "Missing jobId" }, 400);
+
   const themes = deleteImage(jobId);
 
   for (const theme of themes) {
@@ -237,7 +240,8 @@ function updateScrapeStatus(text) {
 }
 
 export async function imageResponse(_request, { params }) {
-  const segments = params.path || [];
+  const resolvedParams = await params;
+  const segments = resolvedParams?.path || [];
   if (segments.length < 3) return json({ error: "Invalid image path" }, 400);
   const category = segments[0];
   const theme = segments[1];

@@ -278,12 +278,21 @@ export default function AssetGrid({
                                                         </button>
                                                     </div>
 
-                                                    <button
-                                                        onClick={(e) => handleUse(e, workingUrlsRef.current[img.jobId] || initialSrc, 'background')}
-                                                        className="w-full px-2 py-2 bg-indigo-600 hover:bg-indigo-500 border border-indigo-400 text-white text-[10px] uppercase font-mono tracking-widest font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-[0_0_15px_rgba(79,70,229,0.4)] clip-path-polygon will-change-transform"
-                                                    >
-                                                        <Plus size={14} /> Importer
-                                                    </button>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <button
+                                                            onClick={(e) => handleUse(e, workingUrlsRef.current[img.jobId] || initialSrc, 'background')}
+                                                            className="px-2 py-2 bg-indigo-600 hover:bg-indigo-500 border border-indigo-400 text-white text-[10px] uppercase font-mono tracking-widest font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-[0_0_15px_rgba(79,70,229,0.4)] clip-path-polygon will-change-transform"
+                                                        >
+                                                            <Plus size={14} /> Importer
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => handleUse(e, workingUrlsRef.current[img.jobId] || initialSrc, 'texture')}
+                                                            className="px-2 py-2 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/50 text-cyan-200 text-[10px] uppercase font-mono tracking-widest font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-[0_0_15px_rgba(34,211,238,0.18)] clip-path-polygon will-change-transform"
+                                                            title="Ajouter comme texture de fond"
+                                                        >
+                                                            <ImageIcon size={14} /> Texture
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </>
                                         ) : (

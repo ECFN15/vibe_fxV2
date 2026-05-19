@@ -1,3 +1,5 @@
+"use client";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as Icons from "lucide-react";
 import { collection, doc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";

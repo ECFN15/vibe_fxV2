@@ -21,6 +21,7 @@
     "test:publication-flow": "node --no-warnings scripts/smoke-publication-flow.mjs",
     "test:routes": "node scripts/smoke-routes.mjs",
     "test:studio-ui": "playwright test scripts/smoke-studio-ui.spec.cjs --reporter=line",
+    "test:video-ui": "playwright test scripts/smoke-video-ui.spec.cjs --reporter=line",
     "functions:lint": "npm --prefix functions run lint",
     "firebase:deploy:backend": "node scripts/firebase-deploy.mjs backend",
     "firebase:deploy:functions": "node scripts/firebase-deploy.mjs functions"

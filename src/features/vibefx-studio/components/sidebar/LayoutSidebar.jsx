@@ -1,13 +1,93 @@
 import React from 'react';
 import {
     Smartphone, LayoutTemplate, Square, RectangleHorizontal, Sparkles,
-    ChevronDown, MousePointer2, Scaling, Palette, Type
+    ChevronDown, MousePointer2, Scaling, Palette, Type, Images, Trash2
 } from 'lucide-react';
 import { FORMATS, TEMPLATES } from '../../data/constants';
 import ControlGroup from '../ui/ControlGroup';
 import TextAssetsPanel from '../panels/TextAssetsPanel';
 import GeometryPanel from '../panels/GeometryPanel';
 import BackgroundPanel from '../panels/BackgroundPanel';
+
+function TexturePanel({
+    isDarkMode,
+    layoutTextures,
+    activeTextureId,
+    setActiveTextureId,
+    setLayoutTextures,
+    layoutTextureOpacity,
+    setLayoutTextureOpacity,
+}) {
+    const removeTexture = (textureId) => {
+        setLayoutTextures(prev => {
+            const next = prev.filter(texture => texture.id !== textureId);
+            if (activeTextureId === textureId) {
+                setActiveTextureId(next[0]?.id ?? null);
+            }
+            return next;
+        });
+    };
+
+    return (
+        <div className="space-y-4">
+            <ControlGroup
+                label="Opacite"
+                value={layoutTextureOpacity}
+                onChange={setLayoutTextureOpacity}
+                min={0}
+                max={100}
+                unit="%"
+                isDarkMode={isDarkMode}
+            />
+
+            {layoutTextures.length > 0 ? (
+                <div className="grid grid-cols-2 gap-3">
+                    {layoutTextures.map(texture => {
+                        const isActive = texture.id === activeTextureId;
+                        return (
+                            <div
+                                key={texture.id}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => setActiveTextureId(texture.id)}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Enter' || event.key === ' ') {
+                                        event.preventDefault();
+                                        setActiveTextureId(texture.id);
+                                    }
+                                }}
+                                className={`group relative aspect-square overflow-hidden border transition-all ${isActive ? 'border-cyan-300 shadow-[0_0_18px_rgba(34,211,238,0.28)]' : (isDarkMode ? 'border-neutral-800 hover:border-neutral-500' : 'border-gray-200 hover:border-gray-400')}`}
+                            >
+                                <img src={texture.src} alt={texture.name} className="absolute inset-0 h-full w-full object-cover" />
+                                <div className={`absolute inset-0 transition-colors ${isActive ? 'bg-cyan-500/10' : 'bg-black/0 group-hover:bg-black/20'}`} />
+                                <span className="absolute bottom-2 left-2 right-9 truncate text-left font-mono text-[9px] uppercase tracking-widest text-white drop-shadow">
+                                    {texture.name}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        removeTexture(texture.id);
+                                    }}
+                                    className="absolute right-2 bottom-2 flex h-6 w-6 items-center justify-center border border-red-400/40 bg-red-950/70 text-red-200 opacity-0 transition-opacity group-hover:opacity-100"
+                                    title="Retirer la texture"
+                                >
+                                    <Trash2 size={12} />
+                                </button>
+                            </div>
+                        );
+                    })}
+                </div>
+            ) : (
+                <div className={`border border-dashed p-4 text-center ${isDarkMode ? 'border-neutral-800 bg-black/20 text-neutral-500' : 'border-gray-200 bg-white text-gray-500'}`}>
+                    <Images size={18} className="mx-auto mb-2 opacity-70" />
+                    <p className="font-mono text-[10px] uppercase tracking-widest">Aucune texture</p>
+                    <p className="mt-2 text-[11px] leading-relaxed opacity-70">Depuis la bibliotheque, clique sur Texture dans une carte.</p>
+                </div>
+            )}
+        </div>
+    );
+}
 
 /**
  * LayoutSidebar — Sidebar complète du mode Layout (slot editor, formats, templates, accordéons).
@@ -41,6 +121,8 @@ export default function LayoutSidebar({
     layoutBgBlur, setLayoutBgBlur,
     layoutBgColor, setLayoutBgColor,
     layoutBgTexture, setLayoutBgTexture,
+    layoutTextures, activeTextureId, setActiveTextureId, setLayoutTextures,
+    layoutTextureOpacity, setLayoutTextureOpacity,
     layoutSmoothBlur, setLayoutSmoothBlur,
     showGuidelines, setShowGuidelines,
 }) {
@@ -176,6 +258,35 @@ export default function LayoutSidebar({
                                     radius={radius}
                                     setRadius={setRadius}
                                     activeTemplate={activeTemplate}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* TEXTURE ACCORDION */}
+                <div className={`rounded-2xl border overflow-hidden transition-colors ${isDarkMode ? 'border-neutral-800 bg-neutral-900/20' : 'border-gray-200 bg-gray-50/50'}`}>
+                    <button
+                        onClick={() => setActiveAccordion(activeAccordion === 'texture' ? null : 'texture')}
+                        className={`w-full flex items-center justify-between p-4 focus:outline-none transition-colors ${activeAccordion === 'texture' ? (isDarkMode ? 'bg-neutral-800/50' : 'bg-gray-100') : 'hover:bg-black/5 dark:hover:bg-white/5'}`}
+                    >
+                        <div className={`flex items-center gap-3 text-xs font-bold uppercase tracking-widest ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                            <Images size={16} className={activeAccordion === 'texture' ? 'text-cyan-300' : ''} /> Texture
+                        </div>
+                        <ChevronDown size={16} className={`transition-transform duration-300 ${activeAccordion === 'texture' ? 'rotate-180 text-cyan-300' : 'opacity-50'}`} />
+                    </button>
+
+                    <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${activeAccordion === 'texture' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                        <div className="overflow-hidden">
+                            <div className="p-4 border-t border-neutral-800/50 dark:border-white/5">
+                                <TexturePanel
+                                    isDarkMode={isDarkMode}
+                                    layoutTextures={layoutTextures}
+                                    activeTextureId={activeTextureId}
+                                    setActiveTextureId={setActiveTextureId}
+                                    setLayoutTextures={setLayoutTextures}
+                                    layoutTextureOpacity={layoutTextureOpacity}
+                                    setLayoutTextureOpacity={setLayoutTextureOpacity}
                                 />
                             </div>
                         </div>

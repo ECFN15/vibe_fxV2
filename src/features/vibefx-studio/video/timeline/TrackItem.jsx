@@ -10,12 +10,17 @@ const COLOR_MAP = {
 };
 
 const TrackItem = ({ item, type, pps, trackHeight, color = 'amber', label, isSelected, onSelect }) => {
-    const { updateTextOverlay, updateAudioTrack, removeTextOverlay, removeAudioTrack } = useVideoStore();
+    const {
+        updateTextOverlay, updateAudioTrack, updateTransitionItem,
+        removeTextOverlay, removeAudioTrack, removeTransitionItem
+    } = useVideoStore();
 
     const [dragMode, setDragMode] = useState(null); // 'move' | 'resize-left' | 'resize-right'
     const [visualStart, setVisualStart] = useState(null);
     const [visualEnd, setVisualEnd] = useState(null);
     const dragRef = useRef(null);
+    const visualStartRef = useRef(null);
+    const visualEndRef = useRef(null);
 
     const colors = COLOR_MAP[color] || COLOR_MAP.amber;
 
@@ -30,13 +35,15 @@ const TrackItem = ({ item, type, pps, trackHeight, color = 'amber', label, isSel
     const updateItem = useCallback((id, updates) => {
         if (type === 'text') updateTextOverlay(id, updates);
         else if (type === 'audio') updateAudioTrack(id, updates);
-    }, [type, updateTextOverlay, updateAudioTrack]);
+        else if (type === 'transition') updateTransitionItem(id, updates);
+    }, [type, updateTextOverlay, updateAudioTrack, updateTransitionItem]);
 
     const deleteItem = useCallback((e) => {
         e.stopPropagation();
         if (type === 'text') removeTextOverlay(item.id);
         else if (type === 'audio') removeAudioTrack(item.id);
-    }, [type, item.id, removeTextOverlay, removeAudioTrack]);
+        else if (type === 'transition') removeTransitionItem(item.id);
+    }, [type, item.id, removeTextOverlay, removeAudioTrack, removeTransitionItem]);
 
     // Unified pointer handler
     const handlePointerDown = useCallback((e, mode) => {
@@ -49,6 +56,8 @@ const TrackItem = ({ item, type, pps, trackHeight, color = 'amber', label, isSel
         const origEnd = item.endTime || origStart + 3;
 
         setDragMode(mode);
+        visualStartRef.current = null;
+        visualEndRef.current = null;
         dragRef.current = { startX, origStart, origEnd, mode };
 
         const onMove = (ev) => {
@@ -58,13 +67,17 @@ const TrackItem = ({ item, type, pps, trackHeight, color = 'amber', label, isSel
             if (mode === 'move') {
                 const newStart = Math.max(0, origStart + dt);
                 const dur = origEnd - origStart;
+                visualStartRef.current = newStart;
+                visualEndRef.current = newStart + dur;
                 setVisualStart(newStart);
                 setVisualEnd(newStart + dur);
             } else if (mode === 'resize-left') {
                 const newStart = Math.max(0, Math.min(origEnd - 0.2, origStart + dt));
+                visualStartRef.current = newStart;
                 setVisualStart(newStart);
             } else if (mode === 'resize-right') {
                 const newEnd = Math.max(origStart + 0.2, origEnd + dt);
+                visualEndRef.current = newEnd;
                 setVisualEnd(newEnd);
             }
         };
@@ -73,20 +86,13 @@ const TrackItem = ({ item, type, pps, trackHeight, color = 'amber', label, isSel
             window.removeEventListener('pointermove', onMove);
             window.removeEventListener('pointerup', onUp);
 
-            // Commit
-            const finalStart = visualStart !== null ? visualStart : origStart;
-            const finalEnd = visualEnd !== null ? visualEnd : origEnd;
-
-            // Use the latest values from the state updaters
-            setVisualStart(vs => {
-                setVisualEnd(ve => {
-                    const fs = vs !== null ? vs : origStart;
-                    const fe = ve !== null ? ve : origEnd;
-                    updateItem(item.id, { startTime: fs, endTime: fe });
-                    return null;
-                });
-                return null;
-            });
+            const finalStart = visualStartRef.current !== null ? visualStartRef.current : origStart;
+            const finalEnd = visualEndRef.current !== null ? visualEndRef.current : origEnd;
+            visualStartRef.current = null;
+            visualEndRef.current = null;
+            setVisualStart(null);
+            setVisualEnd(null);
+            updateItem(item.id, { startTime: finalStart, endTime: finalEnd });
 
             setDragMode(null);
             dragRef.current = null;
@@ -94,10 +100,12 @@ const TrackItem = ({ item, type, pps, trackHeight, color = 'amber', label, isSel
 
         window.addEventListener('pointermove', onMove);
         window.addEventListener('pointerup', onUp);
-    }, [pps, item, onSelect, updateItem, visualStart, visualEnd]);
+    }, [pps, item, onSelect, updateItem]);
 
     return (
         <div
+            data-track-item-type={type}
+            data-testid={`${type}-track-item-${item.id}`}
             className={`absolute rounded-sm overflow-hidden transition-shadow group
                 ${colors.bg} border ${colors.border}
                 ${isSelected ? `ring-1 ${colors.ring} ring-offset-1 ring-offset-neutral-950 z-20` : 'z-10'}

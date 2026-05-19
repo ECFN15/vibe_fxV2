@@ -1,16 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { X, Search, Play, Pause, Download, Volume2, Music, Loader, ChevronDown } from 'lucide-react';
+import { X, Search, Play, Pause, Download, Music, Loader } from 'lucide-react';
 import useVideoStore from '../store/videoStore';
-
-// Pixabay API (free for non-commercial use)
-const PIXABAY_API_KEY = '47874039-f3e5fab05e40ee3511fdbe6f6';
-
-const MUSIC_CATEGORIES = [
-    { id: '', name: 'Tout' },
-    { id: 'backgrounds', name: 'Ambiance' },
-    { id: 'music', name: 'Musique' },
-    { id: 'effects', name: 'Effets' },
-];
 
 const MUSIC_GENRES = [
     { id: '', name: 'Tous les genres' },
@@ -40,7 +30,6 @@ const formatDuration = (seconds) => {
 const MusicLibrary = () => {
     const { addAudioTrack, setActivePanel, currentTime } = useVideoStore();
     const [query, setQuery] = useState('');
-    const [category, setCategory] = useState('');
     const [genre, setGenre] = useState('');
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -49,8 +38,7 @@ const MusicLibrary = () => {
     const audioRef = useRef(null);
     const abortRef = useRef(null);
 
-    // Fetch music from Pixabay
-    const searchMusic = useCallback(async (searchQuery = '', searchCategory = '', searchGenre = '') => {
+    const searchMusic = useCallback(async (searchQuery = '', searchGenre = '') => {
         if (abortRef.current) abortRef.current.abort();
         const controller = new AbortController();
         abortRef.current = controller;
@@ -59,19 +47,6 @@ const MusicLibrary = () => {
         setHasSearched(true);
 
         try {
-            const params = new URLSearchParams({
-                key: PIXABAY_API_KEY,
-                per_page: '40',
-            });
-            if (searchQuery) params.set('q', searchQuery);
-            if (searchCategory) params.set('category', searchCategory);
-
-            const url = `https://pixabay.com/api/videos/?${params.toString()}`;
-            // Pixabay doesn't have a dedicated audio API in the free tier
-            // Use their video API as a workaround - or use curated local tracks
-
-            // For a real implementation, we'd use the Pixabay Audio API or Freesound
-            // For now, provide a curated set of free music sources
             setResults(getCuratedTracks(searchQuery, searchGenre));
         } catch (err) {
             if (err.name !== 'AbortError') {
@@ -84,12 +59,12 @@ const MusicLibrary = () => {
 
     // Load initial results
     useEffect(() => {
-        searchMusic('', category, genre);
-    }, [category, genre]);
+        searchMusic('', genre);
+    }, [genre, searchMusic]);
 
     const handleSearch = (e) => {
         e.preventDefault();
-        searchMusic(query, category, genre);
+        searchMusic(query, genre);
     };
 
     const togglePlay = (track) => {
@@ -234,6 +209,7 @@ const MusicLibrary = () => {
                                     onClick={() => importTrack(track)}
                                     className="opacity-0 group-hover:opacity-100 p-1.5 text-neutral-500 hover:text-emerald-400 transition"
                                     title="Importer dans la timeline"
+                                    aria-label={`Importer ${track.title} dans la timeline`}
                                 >
                                     <Download size={12} />
                                 </button>
@@ -288,28 +264,38 @@ const LocalAudioImport = () => {
 
 // Curated free music tracks (CC0 / royalty-free from various sources)
 function getCuratedTracks(query = '', genre = '') {
-    const tracks = [
-        { id: 'ambient-1', title: 'Peaceful Morning', genre: 'Ambient', duration: 120, previewUrl: '', tags: 'ambient chill calm peaceful nature' },
-        { id: 'electronic-1', title: 'Neon Pulse', genre: 'Electronique', duration: 95, previewUrl: '', tags: 'electronic beats dance energy' },
-        { id: 'cinematic-1', title: 'Epic Horizon', genre: 'Cinematique', duration: 145, previewUrl: '', tags: 'cinematic epic orchestral dramatic' },
-        { id: 'lofi-1', title: 'Late Night Study', genre: 'Lo-Fi', duration: 110, previewUrl: '', tags: 'lofi chill study relax beats' },
-        { id: 'pop-1', title: 'Summer Vibes', genre: 'Pop', duration: 85, previewUrl: '', tags: 'pop happy summer upbeat' },
-        { id: 'rock-1', title: 'Thunder Road', genre: 'Rock', duration: 130, previewUrl: '', tags: 'rock energy guitar power' },
-        { id: 'jazz-1', title: 'Midnight Cafe', genre: 'Jazz', duration: 140, previewUrl: '', tags: 'jazz smooth night cafe' },
-        { id: 'hiphop-1', title: 'Urban Flow', genre: 'Hip Hop', duration: 100, previewUrl: '', tags: 'hip hop beats urban rap' },
-        { id: 'classical-1', title: 'Sunrise Sonata', genre: 'Classique', duration: 180, previewUrl: '', tags: 'classical piano beautiful' },
-        { id: 'happy-1', title: 'Good Day Ahead', genre: 'Joyeux', duration: 75, previewUrl: '', tags: 'happy upbeat positive joyeux' },
-        { id: 'sad-1', title: 'Rain on Glass', genre: 'Triste', duration: 155, previewUrl: '', tags: 'sad melancholy emotional triste' },
-        { id: 'epic-1', title: 'Rise of Heroes', genre: 'Epique', duration: 160, previewUrl: '', tags: 'epic dramatic cinematic trailer' },
-        { id: 'nature-1', title: 'Forest Stream', genre: 'Nature', duration: 200, previewUrl: '', tags: 'nature forest water calm ambient' },
-        { id: 'beats-1', title: 'Trap Nation', genre: 'Beats', duration: 90, previewUrl: '', tags: 'beats trap bass energy' },
-        { id: 'chill-1', title: 'Ocean Breeze', genre: 'Chill', duration: 125, previewUrl: '', tags: 'chill relax ocean summer lofi' },
-        { id: 'electronic-2', title: 'Digital Dreams', genre: 'Electronique', duration: 105, previewUrl: '', tags: 'electronic synth futuristic' },
-        { id: 'cinematic-2', title: 'Tension Rising', genre: 'Cinematique', duration: 95, previewUrl: '', tags: 'cinematic suspense thriller tension' },
-        { id: 'ambient-2', title: 'Deep Space', genre: 'Ambient', duration: 190, previewUrl: '', tags: 'ambient space deep meditation' },
-        { id: 'pop-2', title: 'Dancing Lights', genre: 'Pop', duration: 80, previewUrl: '', tags: 'pop dance fun party' },
-        { id: 'lofi-2', title: 'Rainy Window', genre: 'Lo-Fi', duration: 115, previewUrl: '', tags: 'lofi rain cozy study' },
+    const files = [
+        ['akira', 'Karl Casey - Akira.mp3', 'Electronique', 208, 'electronic cyberpunk synth beats'],
+        ['andromeda', 'Karl Casey - Andromeda.mp3', 'Ambient', 157, 'ambient space deep cinematic'],
+        ['black-tar', 'Karl Casey - Black Tar.mp3', 'Beats', 206, 'beats dark bass energy'],
+        ['blade-runner', 'Karl Casey - Blade Runner.mp3', 'Cinematique', 160, 'cinematic synth futuristic'],
+        ['chrome', 'Karl Casey - Chrome.mp3', 'Electronique', 207, 'electronic chrome cyber synth'],
+        ['cyberpunk', 'Karl Casey - Cyberpunk.mp3', 'Electronique', 199, 'electronic cyberpunk night drive'],
+        ['dark-matter', 'Karl Casey - Dark Matter.mp3', 'Ambient', 77, 'ambient dark matter space'],
+        ['empty-streets', 'Karl Casey - Empty Streets.mp3', 'Chill', 199, 'chill night urban lofi'],
+        ['exosuit', 'Karl Casey - Exosuit.mp3', 'Epique', 65, 'epic trailer synth power'],
+        ['future-city', 'Karl Casey - Future City.mp3', 'Electronique', 108, 'electronic city futuristic'],
+        ['ghost-shell', 'Karl Casey - Ghost in the Shell.mp3', 'Cinematique', 165, 'cinematic anime cyber'],
+        ['hackers', 'Karl Casey - Hackers.mp3', 'Beats', 196, 'beats tech hacker electronic'],
+        ['neon-blood', 'Karl Casey - Neon Blood.mp3', 'Electronique', 84, 'electronic neon dark'],
+        ['night-drive', 'Karl Casey - Night Drive.mp3', 'Chill', 109, 'chill drive night synth'],
+        ['overdrive', 'Karl Casey - Overdrive.mp3', 'Rock', 181, 'rock synth overdrive energy'],
+        ['replicant', 'Karl Casey - Replicant.mp3', 'Ambient', 101, 'ambient replicant future'],
+        ['system-failure', 'Karl Casey - System Failure.mp3', 'Cinematique', 223, 'cinematic tension glitch'],
+        ['the-grid', 'Karl Casey - The Grid.mp3', 'Beats', 75, 'beats grid electronic'],
+        ['tokyo-rain', 'Karl Casey - Tokyo Rain.mp3', 'Chill', 216, 'chill rain tokyo lofi'],
+        ['virtual-reality', 'Karl Casey - Virtual Reality.mp3', 'Electronique', 37, 'electronic virtual reality'],
     ];
+
+    const tracks = files.map(([id, fileName, trackGenre, duration, tags]) => ({
+        id,
+        title: fileName.replace(/\.mp3$/, '').replace('Karl Casey - ', ''),
+        genre: trackGenre,
+        duration,
+        previewUrl: `/music/${encodeURIComponent(fileName)}`,
+        url: `/music/${encodeURIComponent(fileName)}`,
+        tags,
+    }));
 
     let filtered = tracks;
     if (genre) {

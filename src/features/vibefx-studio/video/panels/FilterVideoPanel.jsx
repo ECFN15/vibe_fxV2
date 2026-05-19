@@ -98,6 +98,7 @@ const FilterVideoPanel = () => {
                                     <input
                                         type="range"
                                         min={ctrl.min} max={ctrl.max}
+                                        aria-label={ctrl.label}
                                         value={filters[ctrl.key]}
                                         onChange={(e) => handleFilterChange(ctrl.key, parseInt(e.target.value))}
                                         className="w-full h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-indigo-500"

@@ -106,6 +106,81 @@ function easeInOut(t) {
     return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
 }
 
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function buildFilterString(filters = {}) {
+    const brightness = clamp(filters.brightness ?? 100, 0, 200);
+    const contrast = clamp(filters.contrast ?? 100, 0, 200);
+    const saturation = clamp(filters.saturation ?? 100, 0, 200);
+    return `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%)`;
+}
+
+function applyPostFilters(ctx, filters = {}, w, h) {
+    const temperature = clamp(filters.temperature ?? 0, -100, 100);
+    if (temperature !== 0) {
+        ctx.save();
+        ctx.globalCompositeOperation = temperature > 0 ? 'soft-light' : 'screen';
+        ctx.globalAlpha = Math.min(0.28, Math.abs(temperature) / 260);
+        ctx.fillStyle = temperature > 0 ? '#ffb36b' : '#5ea8ff';
+        ctx.fillRect(0, 0, w, h);
+        ctx.restore();
+    }
+
+    const vignette = clamp(filters.vignette ?? 0, 0, 100);
+    if (vignette > 0) {
+        ctx.save();
+        const gradient = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.22, w / 2, h / 2, Math.max(w, h) * 0.72);
+        gradient.addColorStop(0, 'rgba(0,0,0,0)');
+        gradient.addColorStop(1, `rgba(0,0,0,${vignette / 130})`);
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, w, h);
+        ctx.restore();
+    }
+
+    const grain = clamp(filters.grain ?? 0, 0, 100);
+    if (grain > 0) {
+        ctx.save();
+        ctx.globalAlpha = grain / 650;
+        ctx.fillStyle = '#ffffff';
+        const count = Math.round((w * h / 9000) * (grain / 20));
+        for (let i = 0; i < count; i += 1) {
+            ctx.fillRect(Math.random() * w, Math.random() * h, 1, 1);
+        }
+        ctx.restore();
+    }
+}
+
+function drawFilteredSource(ctx, source, clip, w, h) {
+    ctx.save();
+    ctx.filter = buildFilterString(clip?.filters);
+    ctx.drawImage(source, 0, 0, w, h);
+    ctx.restore();
+    applyPostFilters(ctx, clip?.filters, w, h);
+}
+
+function makeFilteredFrame(source, clip, w, h) {
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    drawFilteredSource(ctx, source, clip, w, h);
+    return canvas;
+}
+
+function getActiveTimelineTransition(transitionItems = [], globalTime) {
+    if (!Array.isArray(transitionItems) || transitionItems.length === 0) return null;
+    return transitionItems
+        .filter((item) => {
+            const start = item.startTime || 0;
+            const end = item.endTime || start + (item.duration || 0);
+            return globalTime >= start && globalTime <= end;
+        })
+        .sort((a, b) => (a.startTime || 0) - (b.startTime || 0))
+        .at(-1) || null;
+}
+
 /**
  * Renders a transition between two frames on the canvas
  * @param {CanvasRenderingContext2D} ctx
@@ -408,6 +483,10 @@ export class PlaybackEngine {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.players = new Map();
+        this.audioPlayers = new Map();
+        this.audioSourceNodes = new Map();
+        this.audioDestinationNodes = new Set();
+        this.audioContext = null;
         this.animFrameId = null;
         this.onTimeUpdate = null;
         this.isPlaying = false;
@@ -473,9 +552,80 @@ export class PlaybackEngine {
         this.players.set(clip.id, video);
     }
 
+    async loadAudioTrack(track) {
+        if (!track?.url || this.audioPlayers.has(track.id)) return;
+        const audio = new Audio(track.url);
+        audio.preload = 'auto';
+        audio.volume = (track.volume ?? 100) / 100;
+
+        await new Promise((resolve) => {
+            let resolved = false;
+            const done = () => {
+                if (resolved) return;
+                resolved = true;
+                cleanup();
+                resolve();
+            };
+            const cleanup = () => {
+                window.clearTimeout(timeout);
+                audio.removeEventListener('canplay', done);
+                audio.removeEventListener('loadeddata', done);
+                audio.removeEventListener('error', done);
+            };
+            const timeout = window.setTimeout(done, 2500);
+            audio.addEventListener('canplay', done);
+            audio.addEventListener('loadeddata', done);
+            audio.addEventListener('error', done);
+            audio.load();
+        });
+
+        this.audioPlayers.set(track.id, audio);
+    }
+
     async loadAllClips(clips) {
         // Use allSettled to continue even if some clips fail to load
         await Promise.allSettled(clips.map(clip => this.loadClip(clip)));
+    }
+
+    async loadAllAudioTracks(audioTracks = []) {
+        await Promise.allSettled(audioTracks.map(track => this.loadAudioTrack(track)));
+    }
+
+    getOrCreateAudioContext(AudioContextCtor) {
+        if (!AudioContextCtor) return null;
+        if (!this.audioContext || this.audioContext.state === 'closed') {
+            this.audioContext = new AudioContextCtor();
+        }
+        return this.audioContext;
+    }
+
+    connectAudioToDestination(audioContext, destination) {
+        if (!audioContext || !destination) return () => {};
+        const connected = [];
+        const connectPlayer = (player) => {
+            if (!player || this.audioDestinationNodes.has(destination)) return;
+            let source = this.audioSourceNodes.get(player);
+            if (!source) {
+                source = audioContext.createMediaElementSource(player);
+                this.audioSourceNodes.set(player, source);
+            }
+            if (source.context !== audioContext) return;
+            source.connect(destination);
+            source.connect(audioContext.destination);
+            connected.push(source);
+        };
+
+        this.players.forEach(connectPlayer);
+        this.audioPlayers.forEach(connectPlayer);
+        this.audioDestinationNodes.add(destination);
+
+        return () => {
+            connected.forEach((source) => {
+                try { source.disconnect(destination); } catch { /* already disconnected */ }
+                try { source.disconnect(audioContext.destination); } catch { /* already disconnected */ }
+            });
+            this.audioDestinationNodes.delete(destination);
+        };
     }
 
     getActiveClipAtTime(clips, transitions, globalTime) {
@@ -512,7 +662,7 @@ export class PlaybackEngine {
         return null;
     }
 
-    renderFrame(clips, transitions, globalTime) {
+    renderFrame(clips, transitions, globalTime, transitionItems = []) {
         const result = this.getActiveClipAtTime(clips, transitions, globalTime);
         if (!result) {
             this.ctx.fillStyle = '#000';
@@ -538,21 +688,40 @@ export class PlaybackEngine {
                 player.currentTime = localTime;
             }
 
-            if (transitionProgress >= 0 && transitionProgress <= 1 && nextClip && transition) {
+            const timelineTransition = getActiveTimelineTransition(transitionItems, globalTime);
+            if (timelineTransition) {
+                const transitionStart = timelineTransition.startTime || 0;
+                const transitionDuration = Math.max(0.1, timelineTransition.duration || ((timelineTransition.endTime || 0) - transitionStart) || 0.5);
+                const transitionEnd = timelineTransition.endTime || transitionStart + transitionDuration;
+                const timelineProgress = clamp((globalTime - transitionStart) / transitionDuration, 0, 1);
+                const targetResult = this.getActiveClipAtTime(clips, transitions, Math.min(transitionEnd, globalTime + transitionDuration));
+                const targetPlayer = this.players.get(targetResult?.clip?.id) || player;
+                const targetClip = targetResult?.clip || clip;
+                const targetLocalTime = targetResult?.localTime ?? localTime;
+
+                const fromFrame = makeFilteredFrame(player, clip, w, h);
+                if (targetPlayer && Math.abs(targetPlayer.currentTime - targetLocalTime) > 0.05) {
+                    targetPlayer.currentTime = targetLocalTime;
+                }
+                const toFrame = makeFilteredFrame(targetPlayer, targetClip, w, h);
+                renderTransition(this.ctx, fromFrame, toFrame, timelineProgress, timelineTransition.type, w, h);
+            } else if (transitionProgress >= 0 && transitionProgress <= 1 && nextClip && transition) {
                 const nextPlayer = this.players.get(nextClip.id);
                 if (nextPlayer) {
                     const nextLocalTime = nextClip.trimStart + transitionProgress * ((nextClip.trimEnd - nextClip.trimStart) / (nextClip.speed || 1)) * 0.1;
                     if (Math.abs(nextPlayer.currentTime - nextLocalTime) > 0.05) {
                         nextPlayer.currentTime = nextLocalTime;
                     }
-                    // Render real transition
-                    renderTransition(this.ctx, player, nextPlayer, transitionProgress, transition.type, w, h);
+                    // Render real transition using filtered frame snapshots.
+                    const fromFrame = makeFilteredFrame(player, clip, w, h);
+                    const toFrame = makeFilteredFrame(nextPlayer, nextClip, w, h);
+                    renderTransition(this.ctx, fromFrame, toFrame, transitionProgress, transition.type, w, h);
                 } else {
                     // Next clip not loaded, draw current
-                    this.ctx.drawImage(player, 0, 0, w, h);
+                    drawFilteredSource(this.ctx, player, clip, w, h);
                 }
             } else {
-                this.ctx.drawImage(player, 0, 0, w, h);
+                drawFilteredSource(this.ctx, player, clip, w, h);
             }
         } catch (err) {
             // Draw black if any canvas error occurs
@@ -562,18 +731,54 @@ export class PlaybackEngine {
         }
     }
 
-    startPlayback(clips, transitions, getCurrentTime, setCurrentTime, totalDuration, playbackSpeed = 1) {
+    syncClipAudio(clips, transitions, globalTime, playbackSpeed = 1) {
+        const activeResult = this.getActiveClipAtTime(clips, transitions, globalTime);
+        this.players.forEach((player, id) => {
+            const isActive = activeResult?.clip?.id === id;
+            if (!isActive) {
+                player.pause();
+                return;
+            }
+            const clip = activeResult.clip;
+            player.volume = (clip.volume ?? 100) / 100;
+            player.playbackRate = (clip.speed || 1) * playbackSpeed;
+            if (Math.abs(player.currentTime - activeResult.localTime) > 0.18) {
+                player.currentTime = activeResult.localTime;
+            }
+            if (player.paused) player.play().catch(() => {});
+        });
+    }
+
+    syncExternalAudio(audioTracks = [], globalTime, playbackSpeed = 1) {
+        this.audioPlayers.forEach((audio, id) => {
+            const track = audioTracks.find(item => item.id === id);
+            if (!track) {
+                audio.pause();
+                return;
+            }
+            const start = track.startTime || 0;
+            const end = track.endTime || start + (track.duration || 0);
+            const isActive = globalTime >= start && globalTime <= end;
+            if (!isActive) {
+                audio.pause();
+                return;
+            }
+
+            const localTime = Math.max(0, globalTime - start);
+            audio.volume = (track.volume ?? 100) / 100;
+            audio.playbackRate = playbackSpeed;
+            if (Math.abs(audio.currentTime - localTime) > 0.18) {
+                audio.currentTime = localTime;
+            }
+            if (audio.paused) audio.play().catch(() => {});
+        });
+    }
+
+    startPlayback(clips, transitions, getCurrentTime, setCurrentTime, totalDuration, playbackSpeed = 1, audioTracks = [], transitionItems = []) {
         this.isPlaying = true;
         let lastTimestamp = null;
-
-        const activeResult = this.getActiveClipAtTime(clips, transitions, getCurrentTime());
-        if (activeResult) {
-            const player = this.players.get(activeResult.clip.id);
-            if (player) {
-                player.playbackRate = (activeResult.clip.speed || 1) * playbackSpeed;
-                player.play().catch(() => {});
-            }
-        }
+        this.syncClipAudio(clips, transitions, getCurrentTime(), playbackSpeed);
+        this.syncExternalAudio(audioTracks, getCurrentTime(), playbackSpeed);
 
         const tick = (timestamp) => {
             if (!this.isPlaying) return;
@@ -581,7 +786,6 @@ export class PlaybackEngine {
             if (lastTimestamp !== null) {
                 const delta = (timestamp - lastTimestamp) / 1000 * playbackSpeed;
                 const newTime = Math.min(getCurrentTime() + delta, totalDuration);
-                setCurrentTime(newTime);
 
                 if (newTime >= totalDuration) {
                     this.stopPlayback();
@@ -589,7 +793,10 @@ export class PlaybackEngine {
                     return;
                 }
 
-                this.renderFrame(clips, transitions, newTime);
+                this.renderFrame(clips, transitions, newTime, transitionItems);
+                setCurrentTime(newTime);
+                this.syncClipAudio(clips, transitions, newTime, playbackSpeed);
+                this.syncExternalAudio(audioTracks, newTime, playbackSpeed);
             }
 
             lastTimestamp = timestamp;
@@ -606,10 +813,11 @@ export class PlaybackEngine {
             this.animFrameId = null;
         }
         this.players.forEach(player => { player.pause(); });
+        this.audioPlayers.forEach(player => { player.pause(); });
     }
 
-    seekTo(clips, transitions, time) {
-        this.renderFrame(clips, transitions, time);
+    seekTo(clips, transitions, time, transitionItems = []) {
+        this.renderFrame(clips, transitions, time, transitionItems);
     }
 
     dispose() {
@@ -618,7 +826,15 @@ export class PlaybackEngine {
             player.pause();
             player.src = '';
         });
+        this.audioPlayers.forEach((player) => {
+            player.pause();
+            player.src = '';
+        });
         this.players.clear();
+        this.audioPlayers.clear();
+        this.audioSourceNodes.clear();
+        this.audioContext?.close?.();
+        this.audioContext = null;
     }
 }
 

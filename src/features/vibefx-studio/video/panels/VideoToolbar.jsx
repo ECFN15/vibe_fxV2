@@ -57,6 +57,7 @@ const VideoToolbar = ({ onImportClick }) => {
                 {/* Import button */}
                 <button
                     onClick={onImportClick}
+                    aria-label="Ajouter"
                     className="flex flex-col items-center justify-center gap-0.5 px-2.5 py-1 rounded-sm transition-all min-w-[48px] h-9 text-neutral-500 hover:text-white hover:bg-white/5 border border-transparent mr-1"
                     title="Ajouter"
                 >
@@ -81,6 +82,7 @@ const VideoToolbar = ({ onImportClick }) => {
                             }}
                             disabled={isDisabled}
                             title={tool.label}
+                            aria-label={tool.label}
                             className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-sm transition-all min-w-[48px] h-9
                                 ${isActive
                                     ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30'

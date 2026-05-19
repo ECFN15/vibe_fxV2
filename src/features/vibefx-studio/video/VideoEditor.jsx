@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useRef, useCallback, useEffect } from 'react';
 import useVideoStore from './store/videoStore';
 import { loadVideoFile, extractThumbnails } from './engine/VideoEngine';
@@ -16,34 +18,46 @@ import { Upload } from 'lucide-react';
 
 const VideoEditor = () => {
     const fileInputRef = useRef(null);
-    const { addClip, clips, activePanel, undo, redo } = useVideoStore();
+    const { addClip, updateClip, clips, activePanel, undo, redo } = useVideoStore();
 
     const handleImportClick = () => fileInputRef.current?.click();
 
-    const handleFileSelect = useCallback(async (e) => {
-        const files = Array.from(e.target.files);
+    const importFiles = useCallback(async (files) => {
         for (const file of files) {
             if (!file.type.startsWith('video/')) continue;
             try {
                 const meta = await loadVideoFile(file);
-                const thumbnails = await extractThumbnails(meta.url, meta.duration, 10);
-                addClip({ file: meta.file, url: meta.url, name: meta.name.replace(/\.[^.]+$/, ''), duration: meta.duration, thumbnails });
-            } catch (err) { /* ignore */ }
+                const clipId = crypto.randomUUID?.() || Math.random().toString(36).slice(2, 10);
+                addClip({
+                    id: clipId,
+                    file: meta.file,
+                    url: meta.url,
+                    name: meta.name.replace(/\.[^.]+$/, ''),
+                    duration: meta.duration,
+                    thumbnails: [],
+                });
+
+                const thumbCount = meta.duration > 90 ? 4 : meta.duration > 30 ? 6 : 8;
+                extractThumbnails(meta.url, meta.duration, thumbCount)
+                    .then((thumbnails) => updateClip(clipId, { thumbnails }))
+                    .catch((err) => console.warn('Thumbnail extraction failed:', err));
+            } catch (err) {
+                console.warn('Video import failed:', err);
+            }
         }
+    }, [addClip, updateClip]);
+
+    const handleFileSelect = useCallback(async (e) => {
+        const files = Array.from(e.target.files);
+        await importFiles(files);
         e.target.value = '';
-    }, [addClip]);
+    }, [importFiles]);
 
     const handleDrop = useCallback(async (e) => {
         e.preventDefault();
         const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('video/'));
-        for (const file of files) {
-            try {
-                const meta = await loadVideoFile(file);
-                const thumbnails = await extractThumbnails(meta.url, meta.duration, 10);
-                addClip({ file: meta.file, url: meta.url, name: meta.name.replace(/\.[^.]+$/, ''), duration: meta.duration, thumbnails });
-            } catch (err) { /* ignore */ }
-        }
-    }, [addClip]);
+        await importFiles(files);
+    }, [importFiles]);
 
     const handleDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; };
 

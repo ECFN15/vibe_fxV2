@@ -31,14 +31,15 @@ const ANIMATION_OUT = [
     { id: 'scale', name: 'Retrecir' },
 ];
 
-// Preload all fonts
-GOOGLE_FONTS.forEach(f => loadGoogleFont(f));
-
 const TextPanel = () => {
     const {
         textOverlays, addTextOverlay, updateTextOverlay, removeTextOverlay,
         setActivePanel, currentTime, totalDuration, selectedTextId, setSelectedTextId
     } = useVideoStore();
+
+    useEffect(() => {
+        GOOGLE_FONTS.forEach(f => loadGoogleFont(f));
+    }, []);
 
     const handleAdd = () => {
         addTextOverlay({
@@ -53,7 +54,7 @@ const TextPanel = () => {
             <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
                 <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Texte</h3>
                 <div className="flex items-center gap-2">
-                    <button onClick={handleAdd} className="text-indigo-400 hover:text-indigo-300 transition" title="Ajouter un texte">
+                    <button onClick={handleAdd} className="text-indigo-400 hover:text-indigo-300 transition" title="Ajouter un texte" aria-label="Ajouter un texte">
                         <Plus size={14} />
                     </button>
                     <button onClick={() => setActivePanel(null)} className="text-neutral-500 hover:text-white transition">
@@ -112,6 +113,7 @@ const TextOverlayEditor = ({ text, isSelected, onSelect, onUpdate, onDelete }) =
                 type="text"
                 value={text.content}
                 onChange={(e) => onUpdate({ content: e.target.value })}
+                aria-label="Contenu du texte"
                 className="w-full bg-neutral-900 border border-neutral-800 rounded-sm px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none"
                 style={{ fontFamily: `"${text.font}", sans-serif` }}
                 placeholder="Votre texte..."
@@ -212,6 +214,7 @@ const TextOverlayEditor = ({ text, isSelected, onSelect, onUpdate, onDelete }) =
                     <select
                         value={text.animation || 'fade'}
                         onChange={(e) => onUpdate({ animation: e.target.value })}
+                        aria-label="Animation d'entree du texte"
                         className="w-full bg-neutral-900 border border-neutral-800 rounded-sm px-2 py-1 text-[10px] text-neutral-300 font-mono"
                         onClick={(e) => e.stopPropagation()}
                     >
@@ -223,6 +226,7 @@ const TextOverlayEditor = ({ text, isSelected, onSelect, onUpdate, onDelete }) =
                     <select
                         value={text.animationOut || 'fade'}
                         onChange={(e) => onUpdate({ animationOut: e.target.value })}
+                        aria-label="Animation de sortie du texte"
                         className="w-full bg-neutral-900 border border-neutral-800 rounded-sm px-2 py-1 text-[10px] text-neutral-300 font-mono"
                         onClick={(e) => e.stopPropagation()}
                     >
@@ -239,6 +243,7 @@ const TextOverlayEditor = ({ text, isSelected, onSelect, onUpdate, onDelete }) =
                         type="number"
                         value={parseFloat(text.startTime.toFixed(1))}
                         onChange={(e) => onUpdate({ startTime: Math.max(0, parseFloat(e.target.value) || 0) })}
+                        aria-label="Debut du texte"
                         step={0.1} min={0}
                         className="w-full bg-neutral-900 border border-neutral-800 rounded-sm px-2 py-1 text-[10px] text-neutral-300 font-mono tabular-nums"
                         onClick={(e) => e.stopPropagation()}
@@ -250,6 +255,7 @@ const TextOverlayEditor = ({ text, isSelected, onSelect, onUpdate, onDelete }) =
                         type="number"
                         value={parseFloat(text.endTime.toFixed(1))}
                         onChange={(e) => onUpdate({ endTime: Math.max(text.startTime + 0.1, parseFloat(e.target.value) || 0) })}
+                        aria-label="Fin du texte"
                         step={0.1} min={0}
                         className="w-full bg-neutral-900 border border-neutral-800 rounded-sm px-2 py-1 text-[10px] text-neutral-300 font-mono tabular-nums"
                         onClick={(e) => e.stopPropagation()}

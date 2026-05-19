@@ -8,9 +8,12 @@ import { Film, Music, Type, Plus, Sparkles, Volume2, Minus, ZoomIn } from 'lucid
 
 export const PIXELS_PER_SECOND_BASE = 80;
 const TRACK_HEADER_WIDTH = 56;
+const TIMELINE_MIN_ZOOM = 0.03;
+const TRIM_EDGE_HITBOX = 56;
 
 const TRACK_CONFIG = {
     video:  { height: 64,  label: 'Video',  icon: Film,     color: 'indigo',  bgActive: 'bg-indigo-500/5',  borderColor: 'border-indigo-500/20' },
+    transitions: { height: 42, label: 'Trans', icon: Sparkles, color: 'purple', bgActive: 'bg-purple-500/5', borderColor: 'border-purple-500/20' },
     text:   { height: 48,  label: 'Texte',  icon: Type,     color: 'amber',   bgActive: 'bg-amber-500/5',   borderColor: 'border-amber-500/20' },
     audio:  { height: 48,  label: 'Audio',  icon: Volume2,  color: 'emerald', bgActive: 'bg-emerald-500/5', borderColor: 'border-emerald-500/20' },
     music:  { height: 48,  label: 'Musique', icon: Music,   color: 'purple',  bgActive: 'bg-purple-500/5',  borderColor: 'border-purple-500/20' },
@@ -20,9 +23,10 @@ const Timeline = ({ onImportClick }) => {
     const {
         clips, zoom, setZoom, scrollX, setScrollX,
         audioTracks, textOverlays, seekTo, totalDuration,
-        transitions, setActivePanel, selectedClipId,
+        transitions, transitionItems, setActivePanel, selectedClipId,
         setSelectedClipId, selectedTextId, setSelectedTextId,
-        currentTime, reorderClips
+        selectedTransitionId, setSelectedTransitionId,
+        currentTime, reorderClips, updateClip
     } = useVideoStore();
 
     const containerRef = useRef(null);
@@ -39,7 +43,7 @@ const Timeline = ({ onImportClick }) => {
             const mouseX = e.clientX - (rect?.left || 0) + scrollX;
             const timeAtMouse = mouseX / pps;
 
-            const newZoom = Math.max(0.1, Math.min(10, zoom + (e.deltaY > 0 ? -0.15 : 0.15)));
+            const newZoom = Math.max(TIMELINE_MIN_ZOOM, Math.min(10, zoom + (e.deltaY > 0 ? -0.15 : 0.15)));
             const newPps = PIXELS_PER_SECOND_BASE * newZoom;
             const newScrollX = Math.max(0, timeAtMouse * newPps - (e.clientX - (rect?.left || 0)));
 
@@ -101,6 +105,25 @@ const Timeline = ({ onImportClick }) => {
 
     /* ── Pan drag on background ── */
     const panRef = useRef(null);
+    const dragClipIndexRef = useRef(null);
+    const previousClipCountRef = useRef(0);
+    const [activeTrim, setActiveTrim] = useState(null);
+
+    useEffect(() => {
+        const previousClipCount = previousClipCountRef.current;
+        previousClipCountRef.current = clips.length;
+        if (clips.length <= previousClipCount || totalDuration <= 0) return;
+
+        const trackWidth = containerRef.current?.clientWidth || viewportWidth;
+        const availableWidth = Math.max(320, trackWidth - TRACK_HEADER_WIDTH - 48);
+        const currentWidth = totalDuration * pps;
+        if (currentWidth <= availableWidth * 1.4) return;
+
+        const fittedZoom = Math.max(TIMELINE_MIN_ZOOM, Math.min(1, availableWidth / (totalDuration * PIXELS_PER_SECOND_BASE)));
+        setZoom(fittedZoom);
+        setScrollX(0);
+    }, [clips.length, totalDuration, pps, setZoom, setScrollX, viewportWidth]);
+
     const handlePanStart = useCallback((e) => {
         if (e.target.dataset.trackBg || e.target.dataset.trackArea) {
             panRef.current = { startX: e.clientX, startScrollX: scrollX };
@@ -111,7 +134,92 @@ const Timeline = ({ onImportClick }) => {
         const dx = e.clientX - panRef.current.startX;
         setScrollX(Math.max(0, panRef.current.startScrollX - dx));
     }, [setScrollX]);
-    const handlePanEnd = useCallback(() => { panRef.current = null; }, []);
+    const startClipTrim = useCallback((e, clip, edge) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        dragClipIndexRef.current = null;
+        panRef.current = null;
+        setSelectedClipId(clip.id);
+        setActiveTrim({ clipId: clip.id, edge });
+
+        const startX = e.clientX;
+        const startTrimStart = clip.trimStart;
+        const startTrimEnd = clip.trimEnd;
+        const speed = clip.speed || 1;
+        const minDuration = Math.min(0.15, Math.max(0.05, clip.originalDuration / 1000));
+        let frameId = null;
+        let pendingClientX = e.clientX;
+
+        const applyTrim = () => {
+            frameId = null;
+            const delta = ((pendingClientX - startX) / pps) * speed;
+            if (edge === 'start') {
+                const trimStart = Math.max(0, Math.min(startTrimEnd - minDuration, startTrimStart + delta));
+                updateClip(clip.id, { trimStart });
+            } else {
+                const trimEnd = Math.max(startTrimStart + minDuration, Math.min(clip.originalDuration, startTrimEnd + delta));
+                updateClip(clip.id, { trimEnd });
+            }
+        };
+
+        const handleMove = (ev) => {
+            pendingClientX = ev.clientX;
+            if (frameId === null) frameId = window.requestAnimationFrame(applyTrim);
+        };
+
+        const handleUp = (ev) => {
+            pendingClientX = ev.clientX;
+            if (frameId !== null) {
+                window.cancelAnimationFrame(frameId);
+                frameId = null;
+            }
+            applyTrim();
+            setActiveTrim(null);
+            window.removeEventListener('pointermove', handleMove);
+            window.removeEventListener('pointerup', handleUp);
+            window.removeEventListener('pointercancel', handleUp);
+        };
+
+        window.addEventListener('pointermove', handleMove);
+        window.addEventListener('pointerup', handleUp);
+        window.addEventListener('pointercancel', handleUp);
+    }, [pps, setSelectedClipId, updateClip]);
+
+    const handleClipPointerDown = useCallback((e, index, clip) => {
+        if (e.button !== 0) return;
+        const trimEdge = e.target.closest('[data-trim-edge]')?.dataset.trimEdge;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const edgeZone = Math.min(TRIM_EDGE_HITBOX, Math.max(28, rect.width * 0.3));
+
+        if (trimEdge === 'start' || x <= edgeZone) {
+            startClipTrim(e, clip, 'start');
+            return;
+        }
+        if (trimEdge === 'end' || x >= rect.width - edgeZone) {
+            startClipTrim(e, clip, 'end');
+            return;
+        }
+
+        e.stopPropagation();
+        dragClipIndexRef.current = index;
+
+        const handleGlobalPointerUp = (ev) => {
+            const fromIndex = dragClipIndexRef.current;
+            dragClipIndexRef.current = null;
+            const target = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-clip-index]');
+            const targetIndex = target ? Number(target.dataset.clipIndex) : NaN;
+            if (Number.isNaN(fromIndex) || Number.isNaN(targetIndex) || fromIndex === targetIndex) return;
+            reorderClips(fromIndex, targetIndex);
+        };
+
+        window.addEventListener('pointerup', handleGlobalPointerUp, { once: true });
+    }, [reorderClips, startClipTrim]);
+
+    const handlePanEnd = useCallback((e) => {
+        panRef.current = null;
+    }, []);
 
     return (
         <div className="flex flex-col bg-neutral-950 border-t border-neutral-800 select-none shrink-0">
@@ -145,6 +253,7 @@ const Timeline = ({ onImportClick }) => {
                     {Object.entries(TRACK_CONFIG).map(([key, config]) => {
                         const Icon = config.icon;
                         const hasItems = key === 'video' ? clips.length > 0
+                            : key === 'transitions' ? transitionItems.length > 0
                             : key === 'text' ? textOverlays.length > 0
                             : key === 'audio' ? false
                             : audioTracks.length > 0;
@@ -157,6 +266,7 @@ const Timeline = ({ onImportClick }) => {
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     if (key === 'text') setActivePanel('text');
+                                    else if (key === 'transitions') setActivePanel('transitions');
                                     else if (key === 'music') setActivePanel('music');
                                     else if (key === 'audio') setActivePanel('audio');
                                     else if (key === 'video') onImportClick?.();
@@ -193,8 +303,17 @@ const Timeline = ({ onImportClick }) => {
                                         key={clip.id}
                                         className="absolute top-1 bottom-1"
                                         style={{ left: `${pos.left}px`, width: `${pos.width}px` }}
+                                        data-clip-index={i}
+                                        role="button"
+                                        tabIndex={0}
+                                        aria-label={`Clip ${i + 1}: ${clip.name}`}
+                                        onPointerDown={(e) => handleClipPointerDown(e, i, clip)}
                                     >
-                                        <Clip clip={clip} index={i} pps={pps} />
+                                        <Clip
+                                            clip={clip}
+                                            index={i}
+                                            activeTrimEdge={activeTrim?.clipId === clip.id ? activeTrim.edge : null}
+                                        />
 
                                         {/* Transition indicator between this and next clip */}
                                         {i < clips.length - 1 && transitions[`${clip.id}->${clips[i+1].id}`] && (
@@ -235,7 +354,41 @@ const Timeline = ({ onImportClick }) => {
                             )}
                         </div>
 
-                        {/* ═══ TEXT TRACK ═══ */}
+                        {/* Transition track */}
+                        <div
+                            className="relative border-b border-neutral-800/50"
+                            style={{ height: `${TRACK_CONFIG.transitions.height}px` }}
+                            data-track-area="transitions"
+                        >
+                            <div className="absolute inset-0 bg-purple-500/[0.02]" data-track-bg="1" />
+
+                            {transitionItems.map(item => (
+                                <TrackItem
+                                    key={item.id}
+                                    item={item}
+                                    type="transition"
+                                    pps={pps}
+                                    trackHeight={TRACK_CONFIG.transitions.height}
+                                    color="purple"
+                                    label={`${item.icon || '*'} ${item.name}`}
+                                    isSelected={item.id === selectedTransitionId}
+                                    onSelect={() => { setSelectedTransitionId(item.id); setActivePanel('transitions'); }}
+                                />
+                            ))}
+
+                            {transitionItems.length === 0 && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setActivePanel('transitions'); }}
+                                    className="absolute inset-0 flex items-center justify-center group"
+                                >
+                                    <span className="flex items-center gap-1.5 text-[9px] font-mono text-neutral-700 group-hover:text-purple-400/70 transition">
+                                        <Plus size={10} /> Ajouter une transition
+                                    </span>
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Text track */}
                         <div
                             className="relative border-b border-neutral-800/50"
                             style={{ height: `${TRACK_CONFIG.text.height}px` }}
@@ -364,12 +517,12 @@ const Timeline = ({ onImportClick }) => {
             <div className="flex items-center justify-between px-3 h-6 border-t border-neutral-800/50 bg-neutral-950">
                 <div className="flex items-center gap-2">
                     <span className="text-[8px] font-mono text-neutral-600 uppercase">
-                        {clips.length} clip{clips.length !== 1 ? 's' : ''} / {textOverlays.length} texte{textOverlays.length !== 1 ? 's' : ''} / {audioTracks.length} piste{audioTracks.length !== 1 ? 's' : ''}
+                        {clips.length} clip{clips.length !== 1 ? 's' : ''} / {transitionItems.length} transition{transitionItems.length !== 1 ? 's' : ''} / {textOverlays.length} texte{textOverlays.length !== 1 ? 's' : ''} / {audioTracks.length} piste{audioTracks.length !== 1 ? 's' : ''}
                     </span>
                 </div>
                 <div className="flex items-center gap-1.5">
                     <button
-                        onClick={() => setZoom(Math.max(0.1, zoom - 0.3))}
+                        onClick={() => setZoom(Math.max(TIMELINE_MIN_ZOOM, zoom - 0.3))}
                         className="w-5 h-5 flex items-center justify-center text-neutral-600 hover:text-white transition rounded-sm hover:bg-neutral-800"
                     >
                         <Minus size={10} />
@@ -381,9 +534,9 @@ const Timeline = ({ onImportClick }) => {
                         />
                         <input
                             type="range"
-                            min={0.1}
+                            min={TIMELINE_MIN_ZOOM}
                             max={5}
-                            step={0.1}
+                            step={0.01}
                             value={zoom}
                             onChange={(e) => setZoom(parseFloat(e.target.value))}
                             className="absolute inset-0 w-full opacity-0 cursor-pointer"

@@ -5,6 +5,7 @@ import { PlaybackEngine } from '../engine/VideoEngine';
 // Load Google Font dynamically
 const loadedFonts = new Set();
 export function loadGoogleFont(fontName) {
+    if (typeof document === 'undefined') return;
     if (loadedFonts.has(fontName)) return;
     loadedFonts.add(fontName);
     const link = document.createElement('link');
@@ -14,7 +15,7 @@ export function loadGoogleFont(fontName) {
 }
 
 // Draw text overlays on canvas
-function drawTextOverlays(canvas, textOverlays, currentTime, selectedTextId) {
+export function drawTextOverlays(canvas, textOverlays, currentTime, selectedTextId) {
     if (!canvas || !textOverlays || textOverlays.length === 0) return;
     const ctx = canvas.getContext('2d');
     const w = canvas.width;
@@ -153,17 +154,24 @@ const VideoPreview = () => {
     const dragRef = useRef(null);
 
     const {
-        clips, transitions, isPlaying, totalDuration,
+        clips, transitions, transitionItems, isPlaying, totalDuration,
         playbackSpeed, setCurrentTime, textOverlays,
-        selectedTextId, setSelectedTextId, updateTextOverlay
+        selectedTextId, setSelectedTextId, updateTextOverlay,
+        audioTracks, setPreviewCanvas, setPreviewEngine
     } = useVideoStore();
 
     // Init PlaybackEngine
     useEffect(() => {
         if (!canvasRef.current) return;
+        setPreviewCanvas(canvasRef.current);
         engineRef.current = new PlaybackEngine(canvasRef.current);
-        return () => { engineRef.current?.dispose(); };
-    }, []);
+        setPreviewEngine(engineRef.current);
+        return () => {
+            setPreviewCanvas(null);
+            setPreviewEngine(null);
+            engineRef.current?.dispose();
+        };
+    }, [setPreviewCanvas, setPreviewEngine]);
 
     // Load clips and render
     useEffect(() => {
@@ -171,11 +179,14 @@ const VideoPreview = () => {
         
         // Load all clips, then render current frame
         // Use allSettled so we always render even if some clips fail
-        Promise.allSettled(clips.map(clip => engineRef.current.loadClip(clip))).then(() => {
+        Promise.allSettled([
+            ...clips.map(clip => engineRef.current.loadClip(clip)),
+            ...audioTracks.map(track => engineRef.current.loadAudioTrack(track)),
+        ]).then(() => {
             if (!engineRef.current || !canvasRef.current) return;
             const time = useVideoStore.getState().currentTime;
-            const transitions = useVideoStore.getState().transitions;
-            engineRef.current.renderFrame(clips, transitions, time);
+            const { transitions, transitionItems } = useVideoStore.getState();
+            engineRef.current.renderFrame(clips, transitions, time, transitionItems);
             const { textOverlays, selectedTextId } = useVideoStore.getState();
             drawTextOverlays(canvasRef.current, textOverlays, time, selectedTextId);
         }).catch(err => {
@@ -183,10 +194,10 @@ const VideoPreview = () => {
             // Still render the frame even on error
             if (engineRef.current && canvasRef.current) {
                 const time = useVideoStore.getState().currentTime;
-                engineRef.current.renderFrame(clips, useVideoStore.getState().transitions, time);
+                engineRef.current.renderFrame(clips, useVideoStore.getState().transitions, time, useVideoStore.getState().transitionItems);
             }
         });
-    }, [clips]);
+    }, [clips, audioTracks]);
 
     // Play/pause
     useEffect(() => {
@@ -202,13 +213,15 @@ const VideoPreview = () => {
                     }
                 },
                 totalDuration,
-                playbackSpeed
+                playbackSpeed,
+                audioTracks,
+                transitionItems
             );
         } else {
             engineRef.current.stopPlayback();
         }
         return () => { engineRef.current?.stopPlayback(); };
-    }, [isPlaying, clips, transitions, totalDuration, playbackSpeed]);
+    }, [isPlaying, clips, transitions, transitionItems, totalDuration, playbackSpeed, audioTracks, setCurrentTime]);
 
     // Render on seek
     useEffect(() => {
@@ -219,7 +232,7 @@ const VideoPreview = () => {
                 ctx.fillStyle = 'black';
                 ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
             } else {
-                engineRef.current.seekTo(clips, transitions, time);
+                engineRef.current.seekTo(clips, transitions, time, transitionItems);
             }
             if (canvasRef.current) {
                 drawTextOverlays(canvasRef.current, textOverlays, time, selectedTextId);
@@ -230,13 +243,13 @@ const VideoPreview = () => {
         renderCurrentTime(useVideoStore.getState().currentTime);
 
         const unsub = useVideoStore.subscribe((state, prevState) => {
-            if ((state.currentTime !== prevState.currentTime || state.textOverlays !== prevState.textOverlays || state.selectedTextId !== prevState.selectedTextId) && !state.isPlaying) {
+            if ((state.currentTime !== prevState.currentTime || state.transitionItems !== prevState.transitionItems || state.textOverlays !== prevState.textOverlays || state.selectedTextId !== prevState.selectedTextId) && !state.isPlaying) {
                 requestAnimationFrame(() => renderCurrentTime(state.currentTime));
             }
         });
 
         return unsub;
-    }, [isPlaying, clips, transitions, textOverlays, selectedTextId, showGuides]);
+    }, [isPlaying, clips, transitions, transitionItems, textOverlays, selectedTextId, showGuides]);
 
     // Resize canvas
     useLayoutEffect(() => {
@@ -264,7 +277,7 @@ const VideoPreview = () => {
                     ctx.fillStyle = 'black';
                     ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
                 } else if (engineRef.current) {
-                    engineRef.current.seekTo(clips, transitions, time);
+                    engineRef.current.seekTo(clips, transitions, time, transitionItems);
                 }
                 drawTextOverlays(canvasRef.current, textOverlays, time, selectedTextId);
             }
@@ -274,7 +287,7 @@ const VideoPreview = () => {
         observer.observe(containerRef.current);
         resize();
         return () => observer.disconnect();
-    }, [isPlaying, clips, transitions, textOverlays, selectedTextId]);
+    }, [isPlaying, clips, transitions, transitionItems, textOverlays, selectedTextId]);
 
     // Text drag on canvas
     const getCanvasCoords = useCallback((e) => {

@@ -1,63 +1,17 @@
-import React, { useState, useRef } from 'react';
+import React from 'react';
 import useVideoStore from '../store/videoStore';
 import { formatTime } from '../engine/VideoEngine';
 
-const Clip = ({ clip, pps }) => {
-    const { selectedClipId, setSelectedClipId, updateClip } = useVideoStore();
+const Clip = ({ clip, index, activeTrimEdge }) => {
+    const { selectedClipId, setSelectedClipId } = useVideoStore();
     const clipDuration = (clip.trimEnd - clip.trimStart) / (clip.speed || 1);
 
     const isSelected = selectedClipId === clip.id;
-    const [isTrimming, setIsTrimming] = useState(null);
-    const [tempTrimStart, setTempTrimStart] = useState(null);
-    const [tempTrimEnd, setTempTrimEnd] = useState(null);
-
-    const trimStartX = useRef(0);
-    const trimStartValue = useRef(0);
-
-    const activeTrimStart = tempTrimStart !== null ? tempTrimStart : clip.trimStart;
-    const activeTrimEnd = tempTrimEnd !== null ? tempTrimEnd : clip.trimEnd;
-    const activeDuration = (activeTrimEnd - activeTrimStart) / (clip.speed || 1);
-
-    const handleTrimStart = (e, edge) => {
-        e.stopPropagation();
-        setIsTrimming(edge);
-        trimStartX.current = e.clientX;
-        trimStartValue.current = edge === 'start' ? clip.trimStart : clip.trimEnd;
-
-        const onMove = (ev) => {
-            const delta = (ev.clientX - trimStartX.current) / pps * (clip.speed || 1);
-            if (edge === 'start') {
-                const v = Math.max(0, Math.min(activeTrimEnd - 0.1, trimStartValue.current + delta));
-                setTempTrimStart(v);
-            } else {
-                const v = Math.max(activeTrimStart + 0.1, Math.min(clip.originalDuration, trimStartValue.current + delta));
-                setTempTrimEnd(v);
-            }
-        };
-
-        const onUp = () => {
-            setIsTrimming(null);
-            window.removeEventListener('pointermove', onMove);
-            window.removeEventListener('pointerup', onUp);
-            setTempTrimStart((cs) => {
-                setTempTrimEnd((ce) => {
-                    const fs = cs !== null ? cs : clip.trimStart;
-                    const fe = ce !== null ? ce : clip.trimEnd;
-                    if (fs !== clip.trimStart || fe !== clip.trimEnd) {
-                        updateClip(clip.id, { trimStart: fs, trimEnd: fe });
-                    }
-                    return null;
-                });
-                return null;
-            });
-        };
-
-        window.addEventListener('pointermove', onMove);
-        window.addEventListener('pointerup', onUp);
-    };
+    const isTrimming = Boolean(activeTrimEdge);
 
     return (
         <div
+            data-testid={`video-clip-${index}`}
             className={`relative w-full h-full rounded-sm overflow-hidden cursor-pointer select-none group
                 ${isSelected
                     ? 'ring-2 ring-indigo-500 ring-offset-1 ring-offset-neutral-950 z-10'
@@ -101,27 +55,35 @@ const Clip = ({ clip, pps }) => {
 
             {/* Left trim handle */}
             <div
-                className={`absolute left-0 top-0 bottom-0 w-2.5 cursor-col-resize z-10 flex items-center justify-center
-                    transition-colors ${isTrimming === 'start' ? 'bg-indigo-500/50' : 'hover:bg-indigo-500/30'}`}
-                onPointerDown={(e) => handleTrimStart(e, 'start')}
+                data-testid={`video-clip-${index}-trim-start`}
+                data-trim-handle="1"
+                data-trim-edge="start"
+                aria-label={`Raccourcir le debut du clip ${clip.name}`}
+                title="Raccourcir le debut"
+                className={`absolute left-0 top-0 bottom-0 w-12 cursor-ew-resize z-20 flex items-center justify-start pl-1 touch-none
+                    transition-colors ${activeTrimEdge === 'start' ? 'bg-indigo-500/60' : 'bg-gradient-to-r from-black/45 to-transparent hover:from-indigo-500/45'}`}
             >
-                <div className="w-0.5 h-5 bg-white/40 rounded-full" />
+                <div className={`w-1 h-8 rounded-full ${activeTrimEdge === 'start' ? 'bg-white' : 'bg-white/70 group-hover:bg-white'}`} />
             </div>
 
             {/* Right trim handle */}
             <div
-                className={`absolute right-0 top-0 bottom-0 w-2.5 cursor-col-resize z-10 flex items-center justify-center
-                    transition-colors ${isTrimming === 'end' ? 'bg-indigo-500/50' : 'hover:bg-indigo-500/30'}`}
-                onPointerDown={(e) => handleTrimStart(e, 'end')}
+                data-testid={`video-clip-${index}-trim-end`}
+                data-trim-handle="1"
+                data-trim-edge="end"
+                aria-label={`Raccourcir la fin du clip ${clip.name}`}
+                title="Raccourcir la fin"
+                className={`absolute right-0 top-0 bottom-0 w-12 cursor-ew-resize z-20 flex items-center justify-end pr-1 touch-none
+                    transition-colors ${activeTrimEdge === 'end' ? 'bg-indigo-500/60' : 'bg-gradient-to-l from-black/45 to-transparent hover:from-indigo-500/45'}`}
             >
-                <div className="w-0.5 h-5 bg-white/40 rounded-full" />
+                <div className={`w-1 h-8 rounded-full ${activeTrimEdge === 'end' ? 'bg-white' : 'bg-white/70 group-hover:bg-white'}`} />
             </div>
 
             {/* Trim duration overlay */}
             {isTrimming && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/40 z-20 pointer-events-none">
                     <span className="text-[11px] font-mono text-white tabular-nums font-bold">
-                        {formatTime(activeDuration)}
+                        {formatTime(clipDuration)}
                     </span>
                 </div>
             )}

@@ -47,6 +47,7 @@ const SpeedPanel = () => {
                     <div className="space-y-2">
                         <input
                             type="range" min={0.1} max={5} step={0.05}
+                            aria-label="Vitesse du clip"
                             value={currentSpeed}
                             onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
                             className="w-full h-1.5 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-indigo-500"

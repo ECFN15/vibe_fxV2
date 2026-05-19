@@ -12,20 +12,24 @@ const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, 
 
     return (
         <header className={`border-b backdrop-blur-md sticky top-0 z-20 shrink-0 transition-colors duration-300 ${isDarkMode ? 'border-neutral-800 bg-black/90' : 'border-gray-200 bg-white/90'}`}>
-            <div className="max-w-[1920px] mx-auto px-6 h-14 flex items-center justify-between">
-                <div className="flex items-center gap-4 min-w-[150px]">
+            <div className="max-w-[1920px] mx-auto px-2 sm:px-6 h-14 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 sm:gap-4 min-w-0 sm:min-w-[150px] shrink-0">
                     <div className="w-8 h-8 bg-indigo-600 flex items-center justify-center shadow-[0_0_15px_rgba(79,70,229,0.3)]">
                         <Camera size={16} className="text-white" />
                     </div>
                     <h1 className="text-lg font-mono font-bold tracking-tighter uppercase hidden sm:block">Vibe<span className="text-indigo-500">_OS</span></h1>
                     <div className="h-4 w-px bg-neutral-700 mx-2 hidden sm:block"></div>
-                    <button onClick={() => setIsDarkMode(!isDarkMode)} className={`p-1.5 transition-all duration-300 ${isDarkMode ? 'text-neutral-400 hover:text-white' : 'text-gray-500 hover:text-black'}`}>
+                    <button
+                        onClick={() => setIsDarkMode(!isDarkMode)}
+                        aria-label={isDarkMode ? 'Activer le mode clair' : 'Activer le mode sombre'}
+                        className={`p-1.5 transition-all duration-300 ${isDarkMode ? 'text-neutral-400 hover:text-white' : 'text-gray-500 hover:text-black'}`}
+                    >
                         {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
                     </button>
                     <MusicPlayer isDarkMode={isDarkMode} />
                 </div>
 
-                <div className="flex h-full items-center gap-1">
+                <div className="flex-1 min-w-0 flex h-full items-center gap-1 overflow-x-auto scrollbar-hide md:justify-center">
                     {[
                         { id: 'studio', icon: 'Zap', label: 'Studio' },
                         { id: 'fusion', icon: 'Layers', label: 'Fusion' },
@@ -34,14 +38,20 @@ const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, 
                         { id: 'vision-pro', icon: 'Aperture', label: 'Vision' },
                         { id: 'video', icon: 'Film', label: 'Video' }
                     ].map(tab => (
-                        <button key={tab.id} onClick={() => setView(tab.id)} className={`relative h-full flex items-center gap-2 px-6 text-[10px] uppercase font-mono tracking-widest transition-all duration-300 border-b-2 ${view === tab.id ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5' : tab.id === 'video' ? 'border-transparent text-purple-500 hover:text-purple-400 hover:bg-purple-500/5' : 'border-transparent text-neutral-500 hover:text-white hover:bg-white/5'}`}>
+                        <button
+                            key={tab.id}
+                            onClick={() => setView(tab.id)}
+                            aria-label={tab.label}
+                            title={tab.label}
+                            className={`relative h-full shrink-0 flex items-center gap-2 px-3 md:px-6 text-[10px] uppercase font-mono tracking-widest transition-all duration-300 border-b-2 ${view === tab.id ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5' : tab.id === 'video' ? 'border-transparent text-purple-500 hover:text-purple-400 hover:bg-purple-500/5' : 'border-transparent text-neutral-500 hover:text-white hover:bg-white/5'}`}
+                        >
                             {getIcon(tab.icon)} <span className="hidden md:inline">{tab.label}</span>
                             {tab.id === 'video' && <span className="text-[7px] bg-purple-500/20 text-purple-400 px-1 py-px font-mono uppercase tracking-wider hidden lg:inline">New</span>}
                         </button>
                     ))}
                 </div>
 
-                <div className="flex gap-4 min-w-[150px] justify-end items-center">
+                <div className="flex gap-2 sm:gap-4 min-w-0 sm:min-w-[150px] justify-end items-center shrink-0">
                     {onOpenPublications && (
                         <button onClick={onOpenPublications} className={`hidden lg:block text-[10px] uppercase font-mono tracking-widest px-3 py-1 transition-colors duration-200 border ${isDarkMode ? 'border-neutral-800 text-neutral-500 hover:text-white hover:border-indigo-500/50' : 'border-gray-200 text-gray-500 hover:text-black'}`}>Publications</button>
                     )}
@@ -51,7 +61,7 @@ const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, 
                             <Send size={14} /> Publication
                         </button>
                     )}
-                    <button onClick={onExport} disabled={!hasImages} className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-1.5 text-xs font-mono font-medium hover:bg-indigo-500 transition shadow-[0_0_20px_rgba(79,70,229,0.4)] disabled:opacity-50 disabled:shadow-none uppercase tracking-wide clip-path-polygon">
+                    <button onClick={onExport} disabled={!hasImages} className="flex items-center gap-2 bg-indigo-600 text-white px-3 sm:px-5 py-1.5 text-xs font-mono font-medium hover:bg-indigo-500 transition shadow-[0_0_20px_rgba(79,70,229,0.4)] disabled:opacity-50 disabled:shadow-none uppercase tracking-wide clip-path-polygon">
                         <Download size={14} /> <span className="hidden sm:inline">Export</span>
                     </button>
                 </div>

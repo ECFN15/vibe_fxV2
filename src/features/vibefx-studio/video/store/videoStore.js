@@ -3,7 +3,7 @@ import { create } from 'zustand';
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 // Snapshot keys for undo/redo
-const SNAPSHOT_KEYS = ['clips', 'transitions', 'textOverlays', 'audioTracks', 'selectedClipId', 'selectedTextId'];
+const SNAPSHOT_KEYS = ['clips', 'transitions', 'transitionItems', 'textOverlays', 'audioTracks', 'selectedClipId', 'selectedTextId', 'selectedTransitionId'];
 
 const useVideoStore = create((set, get) => ({
     // === PROJECT ===
@@ -63,10 +63,21 @@ const useVideoStore = create((set, get) => ({
         const state = get();
         pushHistory(state);
         set((s) => {
+            const cutTransitions = s.clips.slice(0, -1).map((clip, index) => (
+                s.transitions[`${clip.id}->${s.clips[index + 1].id}`] || null
+            ));
             const clips = [...s.clips];
             const [moved] = clips.splice(fromIndex, 1);
             clips.splice(toIndex, 0, moved);
-            return { clips, totalDuration: computeTotalDuration(clips, s.transitions) };
+            const transitions = Object.fromEntries(
+                cutTransitions
+                    .map((transition, index) => {
+                        if (!transition || !clips[index + 1]) return null;
+                        return [`${clips[index].id}->${clips[index + 1].id}`, transition];
+                    })
+                    .filter(Boolean)
+            );
+            return { clips, transitions, totalDuration: computeTotalDuration(clips, transitions) };
         });
     },
 
@@ -112,6 +123,9 @@ const useVideoStore = create((set, get) => ({
 
     // === TRANSITIONS (between adjacent clips) ===
     transitions: {},
+    transitionItems: [],
+    selectedTransitionId: null,
+    setSelectedTransitionId: (id) => set({ selectedTransitionId: id }),
 
     setTransition: (fromId, toId, transition) => {
         const state = get();
@@ -121,6 +135,56 @@ const useVideoStore = create((set, get) => ({
             const transitions = { ...s.transitions, [key]: transition };
             return { transitions, totalDuration: computeTotalDuration(s.clips, transitions) };
         });
+    },
+
+    addTransitionItem: (transition) => {
+        const state = get();
+        pushHistory(state);
+        const duration = Math.max(0.1, transition.duration || transition.defaultDuration || 0.5);
+        const startTime = Math.max(0, transition.startTime ?? state.currentTime ?? 0);
+        const id = transition.id || uid();
+        set((s) => ({
+            transitionItems: [...s.transitionItems, {
+                id,
+                type: transition.type,
+                name: transition.name || transition.type || 'Transition',
+                icon: transition.icon || '*',
+                category: transition.category || 'basic',
+                startTime,
+                endTime: startTime + duration,
+                duration,
+            }],
+            selectedTransitionId: id,
+        }));
+    },
+
+    updateTransitionItem: (id, updates) => set((s) => ({
+        transitionItems: s.transitionItems.map((item) => {
+            if (item.id !== id) return item;
+            const next = { ...item, ...updates };
+            const startTime = Math.max(0, next.startTime || 0);
+            let endTime = next.endTime;
+            let duration = next.duration;
+
+            if (Object.prototype.hasOwnProperty.call(updates, 'duration') && !Object.prototype.hasOwnProperty.call(updates, 'endTime')) {
+                duration = Math.max(0.1, updates.duration || 0.1);
+                endTime = startTime + duration;
+            } else {
+                endTime = Math.max(startTime + 0.1, endTime || startTime + (duration || 0.5));
+                duration = Math.max(0.1, endTime - startTime);
+            }
+
+            return { ...next, startTime, endTime, duration };
+        }),
+    })),
+
+    removeTransitionItem: (id) => {
+        const state = get();
+        pushHistory(state);
+        set((s) => ({
+            transitionItems: s.transitionItems.filter(item => item.id !== id),
+            selectedTransitionId: s.selectedTransitionId === id ? null : s.selectedTransitionId,
+        }));
     },
 
     removeTransition: (fromId, toId) => {
@@ -222,10 +286,14 @@ const useVideoStore = create((set, get) => ({
     // === TIMELINE ===
     zoom: 1,
     scrollX: 0,
-    setZoom: (z) => set({ zoom: Math.max(0.1, Math.min(10, z)) }),
+    setZoom: (z) => set({ zoom: Math.max(0.03, Math.min(10, z)) }),
     setScrollX: (x) => set({ scrollX: x }),
 
     // === EXPORT ===
+    previewCanvas: null,
+    setPreviewCanvas: (canvas) => set({ previewCanvas: canvas }),
+    previewEngine: null,
+    setPreviewEngine: (engine) => set({ previewEngine: engine }),
     exportFormat: 'mp4',
     exportPreset: 'youtube',
     exportProgress: 0,
