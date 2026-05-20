@@ -3,7 +3,7 @@ import { Monitor, ArrowLeft, Sliders, Palette, Film, Contrast, RotateCcw, Shield
 import { CAMERA_BRANDS } from '../../data/constants';
 import { DEFAULT_FILTERS } from '../../hooks/useStudioFilters';
 import { buildVisionProfileModel, normalizeVisionFilters } from '../../utils/visionColorScience';
-import { applyFusedPixelOps, applySmartphoneOutputGuards } from '../../utils/canvasUtils';
+import { applyFusedPixelOps, applySafeGlobalTint, applySmartphoneOutputGuards } from '../../utils/canvasUtils';
 import ControlGroup from '../ui/ControlGroup';
 
 const FAVORITES_STORAGE_KEY = 'vibefx.vision.favoriteProfiles';
@@ -20,6 +20,190 @@ const normalizeCustomProfileName = (value, fallback) => {
     return cleaned || fallback;
 };
 const isIdentityToneCurve = (curve) => !curve || curve.every((value, index) => value === TONE_CURVE_BASE[index]);
+
+function getImageRecommendationSignals(metrics = {}) {
+    const tonalRange = Math.max(0, (metrics.lumaP95 || 0) - (metrics.lumaP05 || 0));
+    const lowLight = (metrics.meanLuma || 0) < 86 && (metrics.lumaP95 || 0) < 205;
+    const portrait = (metrics.skinToneRatio || 0) > 0.035 || (metrics.skinToneConfidence || 0) > 0.018;
+    const landscape = (metrics.skyToneRatio || 0) > 0.08 || (metrics.foliageToneRatio || 0) > 0.08;
+    const saturated = (metrics.highSaturationRatio || 0) > 0.08 || (metrics.maxSaturation || 0) > 0.92;
+    const flat = tonalRange > 0 && tonalRange < 118;
+    const warm = (metrics.warmToneRatio || 0) > 0.08;
+    const neutralHeavy = (metrics.protectedNeutralRatio || 0) > 0.22;
+
+    return { tonalRange, lowLight, portrait, landscape, saturated, flat, warm, neutralHeavy };
+}
+
+function getImageRecommendationSignalTags(signals = {}) {
+    const tags = [];
+    if (signals.portrait) tags.push('peau');
+    if (signals.landscape) tags.push('ciel/verts');
+    if (signals.lowLight) tags.push('basse lumiere');
+    if (signals.saturated) tags.push('deja saturee');
+    if (signals.flat) tags.push('image plate');
+    if (signals.warm) tags.push('tons chauds');
+    if (signals.neutralHeavy) tags.push('neutres');
+    return tags.length ? tags : ['polyvalent'];
+}
+
+function scoreProfileForImage(profile, signals) {
+    const family = profile?.vision?.family || '';
+    let score = family === 'Natural Clean' ? 10 : 0;
+    const reasons = [];
+
+    if (signals.portrait && family === 'Portrait Skin') {
+        score += 42;
+        reasons.push('peau detectee');
+    }
+    if (signals.landscape && family === 'Landscape Vivid Safe') {
+        score += 40;
+        reasons.push('ciel/verts');
+    }
+    if (signals.lowLight && family === 'Cinema Night') {
+        score += 38;
+        reasons.push('basse lumiere');
+    }
+    if (signals.saturated && ['Natural Clean', 'Chrome Street', 'Film Soft'].includes(family)) {
+        score += 24;
+        reasons.push('saturation deja haute');
+    }
+    if (signals.saturated && family === 'Landscape Vivid Safe') score -= 18;
+    if (signals.flat && ['Natural Clean', 'Chrome Street'].includes(family)) {
+        score += 22;
+        reasons.push('image plate');
+    }
+    if (signals.flat && family === 'Editorial Matte') score -= 14;
+    if (signals.warm && family === 'Film Soft') {
+        score += 18;
+        reasons.push('tons chauds');
+    }
+    if (signals.neutralHeavy && family === 'Natural Clean') {
+        score += 14;
+        reasons.push('neutres a preserver');
+    }
+    if (!signals.portrait && !signals.landscape && !signals.lowLight && family === 'Natural Clean') {
+        score += 18;
+        reasons.push('polyvalent');
+    }
+    if (profile?.vision?.strength === 'experimental') score -= 16;
+    if (profile?.vision?.strength === 'strong' && signals.saturated) score -= 10;
+
+    return {
+        score,
+        reason: reasons.slice(0, 2).join(' + ') || profile?.vision?.previewTags?.[0] || 'safe smartphone',
+    };
+}
+
+function getActiveProfileContentWarnings(profile, metrics = {}) {
+    if (!profile?.vision || !metrics) return [];
+    const signals = getImageRecommendationSignals(metrics);
+    const family = profile.vision.family;
+    const parameters = profile.vision.parameters || {};
+    const warnings = [];
+
+    if (signals.saturated && (family === 'Landscape Vivid Safe' || profile.vision.strength === 'strong' || profile.vision.strength === 'experimental')) {
+        warnings.push('image deja saturee : surveiller verts/cyans');
+    }
+    if (signals.portrait && !['Portrait Skin', 'Natural Clean', 'Film Soft'].includes(family)) {
+        warnings.push('peau detectee : dosage prudent');
+    }
+    if (signals.flat && family === 'Editorial Matte') {
+        warnings.push('image plate : risque voile gris');
+    }
+    if (signals.lowLight && ['Landscape Vivid Safe', 'Chrome Street'].includes(family)) {
+        warnings.push('basse lumiere : proteger ombres');
+    }
+    if (signals.neutralHeavy && ((parameters.shadowTintIntensity || 0) > 10 || (parameters.highlightTintIntensity || 0) > 8 || (parameters.tintIntensity || 0) > 6)) {
+        warnings.push('neutres nombreux : teintes a controler');
+    }
+
+    return warnings.slice(0, 3);
+}
+
+const clampNumber = (value, min, max) => Math.max(min, Math.min(max, Number.isFinite(value) ? value : min));
+
+function buildVisionSafetyActions({
+    diagnosticWarnings = [],
+    diagnosticDelta = null,
+    activeContentWarnings = [],
+    isActiveIntensityOutOfRange = false,
+    clampedActiveIntensity = 100,
+    currentFilters = {},
+    activeVisionProfile = null,
+}) {
+    const text = [...diagnosticWarnings, ...activeContentWarnings].join(' ').toLowerCase();
+    const actions = [];
+    const addAction = (id, label, detail, patch) => {
+        if (actions.some(action => action.id === id)) return;
+        actions.push({ id, label, detail, patch });
+    };
+
+    if (isActiveIntensityOutOfRange) {
+        addAction('dose', 'Dose sure', `${clampedActiveIntensity}%`, {
+            filterIntensity: clampedActiveIntensity,
+        });
+    }
+
+    if (
+        /saturation|saturee|ciel|verts|rouges|oranges|cyans/.test(text)
+        || (diagnosticDelta?.highSaturationDelta || 0) > 0.08
+        || Math.max(
+            diagnosticDelta?.skyHighSaturationDelta || 0,
+            diagnosticDelta?.foliageHighSaturationDelta || 0,
+            diagnosticDelta?.warmHighSaturationDelta || 0,
+        ) > 0.12
+    ) {
+        addAction('chroma', 'Calmer chroma', 'sat zones', {
+            saturation: Math.min(currentFilters?.saturation ?? 100, 110),
+            vibrance: Math.min(currentFilters?.vibrance ?? 0, 18),
+            skySaturation: Math.min(currentFilters?.skySaturation ?? 0, -10),
+            foliageSaturation: Math.min(currentFilters?.foliageSaturation ?? 0, -10),
+            warmSaturation: Math.min(currentFilters?.warmSaturation ?? 0, -8),
+        });
+    }
+
+    if (/voile|range|plate/.test(text) || diagnosticDelta?.greyVeilRisk) {
+        addAction('veil', 'Retirer voile', 'range utile', {
+            fadedBlacks: Math.min(currentFilters?.fadedBlacks ?? 0, 3),
+            contrast: Math.max(currentFilters?.contrast ?? 100, 106),
+            shadows: Math.min(currentFilters?.shadows ?? 0, 18),
+        });
+    }
+
+    if (/hautes|clip|blanc/.test(text) || (diagnosticDelta?.channelClipHighDelta || 0) > 0.025) {
+        addAction('highlights', 'Sauver HL', 'rolloff', {
+            highlights: Math.min(currentFilters?.highlights ?? 0, -14),
+            brightness: Math.min(currentFilters?.brightness ?? 100, 104),
+            halation: Math.min(currentFilters?.halation ?? 0, 10),
+        });
+    }
+
+    if (/noirs|ombres|basse lumiere/.test(text) || (diagnosticDelta?.channelClipLowDelta || 0) > 0.05) {
+        addAction('shadows', 'Ouvrir ombres', 'detail', {
+            shadows: Math.max(currentFilters?.shadows ?? 0, 14),
+            dehaze: Math.min(currentFilters?.dehaze ?? 0, 16),
+            contrast: Math.min(currentFilters?.contrast ?? 100, 118),
+        });
+    }
+
+    if (/peau/.test(text) || (diagnosticDelta?.skinHueShiftDeg || 0) > 18 || Math.abs(diagnosticDelta?.skinSaturationDelta || 0) > 0.12) {
+        addAction('skin', 'Proteger peau', 'hue/sat', {
+            skinSaturation: clampNumber(currentFilters?.skinSaturation ?? 0, -8, 6),
+            warmSaturation: Math.min(currentFilters?.warmSaturation ?? 0, 0),
+            filterIntensity: Math.min(currentFilters?.filterIntensity ?? 100, activeVisionProfile?.vision?.recommendedIntensity || 85),
+        });
+    }
+
+    if (/neutres|teintes/.test(text) || (diagnosticDelta?.protectedNeutralBiasDelta || 0) > 18) {
+        addAction('neutrals', 'Nettoyer neutres', 'tints', {
+            tintIntensity: Math.min(currentFilters?.tintIntensity ?? 0, 4),
+            shadowTintIntensity: Math.min(currentFilters?.shadowTintIntensity ?? 0, 8),
+            highlightTintIntensity: Math.min(currentFilters?.highlightTintIntensity ?? 0, 6),
+        });
+    }
+
+    return actions.slice(0, 4);
+}
 
 function renderVisionProfilePreview(sourceImage, profile) {
     if (!sourceImage || typeof document === 'undefined') return null;
@@ -63,12 +247,7 @@ function renderVisionProfilePreview(sourceImage, profile) {
     applyFusedPixelOps(ctx, PREVIEW_WIDTH, PREVIEW_HEIGHT, filters);
 
     if (filters.tintIntensity > 0) {
-        ctx.save();
-        ctx.globalCompositeOperation = 'overlay';
-        ctx.fillStyle = filters.tintColor;
-        ctx.globalAlpha = filters.tintIntensity / 100;
-        ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-        ctx.restore();
+        applySafeGlobalTint(ctx, PREVIEW_WIDTH, PREVIEW_HEIGHT, filters.tintColor, filters.tintIntensity, filters.safeSmartphone !== false);
     }
 
     if (filters.vignette > 0) {
@@ -228,7 +407,7 @@ const VisionPanel = ({
         const query = profileSearch.trim().toLowerCase();
         return Object.entries(groupedProfiles).reduce((acc, [category, profiles]) => {
             acc[category] = profiles.filter(profile => {
-                const searchable = `${profile.name} ${profile.desc} ${profile.vision.family} ${profile.vision.intent} ${profile.vision.previewTags.join(' ')} ${profile.vision.bestFor} ${profile.vision.avoidFor} ${profile.vision.safetyRules.join(' ')} ${profile.vision.technicalNotes.join(' ')}`.toLowerCase();
+                const searchable = `${profile.name} ${profile.desc} ${profile.vision.family} ${profile.vision.intent} ${profile.vision.inspirationLabel} ${profile.vision.previewTags.join(' ')} ${profile.vision.bestFor} ${profile.vision.avoidFor} ${profile.vision.safetyRules.join(' ')} ${profile.vision.technicalNotes.join(' ')}`.toLowerCase();
                 const matchesSearch = !query || searchable.includes(query);
                 const matchesFamily = familyFilter === 'all' || profile.vision.family === familyFilter;
                 const matchesFavorite = !favoriteOnly || favoriteSet.has(profile.profileId);
@@ -244,7 +423,52 @@ const VisionPanel = ({
             .flat()
             .find(profile => profile.name === activeProfileName) || null
     ), [activeProfileName, groupedProfiles]);
-
+    const favoriteCompareProfiles = useMemo(() => (
+        Object.values(groupedProfiles)
+            .flat()
+            .filter(profile => favoriteSet.has(profile.profileId))
+            .slice(0, 6)
+    ), [favoriteSet, groupedProfiles]);
+    const imageRecommendedProfiles = useMemo(() => {
+        const sourceMetrics = visionDiagnostics?.source;
+        if (!sourceMetrics) return [];
+        const signals = getImageRecommendationSignals(sourceMetrics);
+        return Object.values(groupedProfiles)
+            .flat()
+            .map(profile => ({
+                ...profile,
+                imageRecommendation: scoreProfileForImage(profile, signals),
+            }))
+            .filter(profile => profile.imageRecommendation.score > 12)
+            .sort((a, b) => b.imageRecommendation.score - a.imageRecommendation.score)
+            .slice(0, 4);
+    }, [groupedProfiles, visionDiagnostics]);
+    const imageRecommendationSignalTags = useMemo(() => (
+        visionDiagnostics?.source
+            ? getImageRecommendationSignalTags(getImageRecommendationSignals(visionDiagnostics.source))
+            : []
+    ), [visionDiagnostics]);
+    const currentIntensity = filters?.filterIntensity !== undefined ? filters.filterIntensity : 100;
+    const activeIntensityRange = activeVisionProfile?.vision?.intensityRange || null;
+    const clampedActiveIntensity = activeIntensityRange
+        ? Math.max(activeIntensityRange[0], Math.min(activeIntensityRange[1], currentIntensity))
+        : currentIntensity;
+    const isActiveIntensityOutOfRange = Boolean(activeIntensityRange && clampedActiveIntensity !== currentIntensity);
+    const activeContentWarnings = useMemo(() => (
+        activeVisionProfile?.vision && visionDiagnostics
+            ? getActiveProfileContentWarnings(activeVisionProfile, visionDiagnostics.source)
+            : []
+    ), [activeVisionProfile, visionDiagnostics]);
+    const activeContentSafeAlternative = useMemo(() => (
+        activeContentWarnings.length
+            ? imageRecommendedProfiles.find(profile => profile.profileId !== activeVisionProfile?.profileId) || null
+            : null
+    ), [activeContentWarnings.length, activeVisionProfile?.profileId, imageRecommendedProfiles]);
+    const diagnosticMitigationIntensity = activeVisionProfile?.vision
+        ? (isActiveIntensityOutOfRange
+            ? clampedActiveIntensity
+            : Math.min(currentIntensity, activeVisionProfile.vision.recommendedIntensity))
+        : currentIntensity;
     const getCurrentSnapshot = () => ({
         filters: { ...(filters || DEFAULT_FILTERS) },
         activeProfileName,
@@ -288,9 +512,9 @@ const VisionPanel = ({
         setActiveProfileName(next.activeProfileName);
     };
 
-    const handleApplyProfile = (profile) => {
+    const handleApplyProfile = (profile, options = {}) => {
         // Spread defaults first so new v3 params reset to neutral when switching profiles
-        const activeIntensity = filters?.filterIntensity !== undefined ? filters.filterIntensity : 100;
+        const activeIntensity = options.filterIntensity ?? (filters?.filterIntensity !== undefined ? filters.filterIntensity : 100);
         const profileParameters = profile?.vision?.parameters || profile?.parameters || profile?.filters || {};
         commitVisionChange(
             normalizeVisionFilters({ ...DEFAULT_FILTERS, ...profileParameters, safeSmartphone: true, filterIntensity: activeIntensity }),
@@ -304,6 +528,11 @@ const VisionPanel = ({
 
     const updateVisionFilters = (patch) => {
         commitVisionChange(normalizeVisionFilters({ ...filters, ...patch, safeSmartphone: true }));
+    };
+
+    const applyVisionSafetyAction = (action) => {
+        if (!action?.patch) return;
+        commitVisionChange(normalizeVisionFilters({ ...filters, ...action.patch, safeSmartphone: true }), activeProfileName);
     };
 
     const updateToneCurvePoint = (index, offset) => {
@@ -423,19 +652,45 @@ const VisionPanel = ({
     const modeButtonClass = (mode) => `min-h-8 flex-1 rounded-sm border px-3 text-[10px] font-mono uppercase tracking-widest transition ${visionMode === mode ? (isDarkMode ? 'border-cyan-400 bg-cyan-500/10 text-cyan-200' : 'border-cyan-300 bg-cyan-50 text-cyan-700') : (isDarkMode ? 'border-neutral-800 bg-black text-neutral-500 hover:border-neutral-600 hover:text-neutral-300' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-400 hover:text-gray-700')}`;
     const formatMetricPercent = (value) => `${Math.round(Math.max(0, value || 0) * 1000) / 10}%`;
     const formatMetricSigned = (value, digits = 1) => `${value > 0 ? '+' : ''}${Number(value || 0).toFixed(digits)}`;
-    const diagnosticWarnings = visionDiagnostics?.warnings || [];
+    const diagnosticWarnings = useMemo(() => visionDiagnostics?.warnings || [], [visionDiagnostics]);
     const diagnosticDelta = visionDiagnostics?.delta;
     const diagnosticRendered = visionDiagnostics?.rendered;
     const diagnosticPerformance = visionDiagnostics?.performance;
     const diagnosticToneRange = diagnosticRendered
         ? Math.max(0, Math.round((diagnosticRendered.lumaP95 || 0) - (diagnosticRendered.lumaP05 || 0)))
         : 0;
+    const diagnosticGreyVeilScore = Math.round(Math.max(0, Math.min(1, diagnosticDelta?.greyVeilScore || 0)) * 100);
+    const diagnosticHueZoneHighSatDelta = Math.max(
+        diagnosticDelta?.skyHighSaturationDelta || 0,
+        diagnosticDelta?.foliageHighSaturationDelta || 0,
+        diagnosticDelta?.warmHighSaturationDelta || 0,
+    );
     const diagnosticImageSize = diagnosticPerformance
         ? `${diagnosticPerformance.megapixels.toFixed(1)}MP`
         : '0.0MP';
     const diagnosticSampleSize = diagnosticPerformance
         ? `${diagnosticPerformance.sampleWidth}x${diagnosticPerformance.sampleHeight}`
         : '0x0';
+    const diagnosticPreviewSize = diagnosticPerformance
+        ? `${diagnosticPerformance.previewMegapixels.toFixed(1)}MP${diagnosticPerformance.isPreviewCapped ? ' cap' : ''}`
+        : '0.0MP';
+    const diagnosticSafetyActions = useMemo(() => buildVisionSafetyActions({
+        diagnosticWarnings,
+        diagnosticDelta,
+        activeContentWarnings,
+        isActiveIntensityOutOfRange,
+        clampedActiveIntensity,
+        currentFilters: filters,
+        activeVisionProfile,
+    }), [
+        activeContentWarnings,
+        activeVisionProfile,
+        clampedActiveIntensity,
+        diagnosticDelta,
+        diagnosticWarnings,
+        filters,
+        isActiveIntensityOutOfRange,
+    ]);
 
     return (
         <div className="flex-1 overflow-y-auto custom-scrollbar p-5 relative">
@@ -499,13 +754,15 @@ const VisionPanel = ({
                                     {[
                                         ['Clip hi', formatMetricPercent(diagnosticRendered?.channelClipHighRatio), formatMetricSigned((diagnosticDelta?.channelClipHighDelta || 0) * 100, 2)],
                                         ['Sat forte', formatMetricPercent(diagnosticRendered?.highSaturationRatio), formatMetricSigned((diagnosticDelta?.highSaturationDelta || 0) * 100, 2)],
+                                        ['Zones hue', formatMetricSigned(diagnosticHueZoneHighSatDelta * 100, 2), `chaud ${formatMetricSigned((diagnosticDelta?.warmClipHighDelta || 0) * 100, 2)}`],
                                         ['Noirs', formatMetricPercent(diagnosticRendered?.channelClipLowRatio), formatMetricSigned((diagnosticDelta?.channelClipLowDelta || 0) * 100, 2)],
-                                        ['Range', diagnosticToneRange, formatMetricSigned(diagnosticDelta?.lumaStdDevDelta || 0, 1)],
+                                        ['Range', diagnosticToneRange, formatMetricSigned(diagnosticDelta?.tonalRangeDelta || 0, 1)],
+                                        ['Voile', `${diagnosticGreyVeilScore}%`, `${Math.round((diagnosticDelta?.tonalRangeRatio || 1) * 100)}% rng`],
                                         ['Peau hue', `${Math.round(diagnosticDelta?.skinHueShiftDeg || 0)}deg`, formatMetricSigned(diagnosticDelta?.skinSaturationDelta || 0, 2)],
                                         ['Neutres', formatMetricSigned(diagnosticDelta?.protectedNeutralBiasDelta || 0, 1), formatMetricSigned(diagnosticDelta?.protectedNeutralChromaDelta || 0, 1)],
                                         ['Perf', `${diagnosticPerformance?.diagnosticMs || 0}ms`, diagnosticImageSize],
                                     ].map(([label, value, delta]) => (
-                                        <div key={label} data-testid={label === 'Perf' ? 'vision-diagnostics-performance' : undefined} className={`rounded-sm border px-2 py-2 ${isDarkMode ? 'border-neutral-800 bg-black/40' : 'border-white bg-white/70'}`}>
+                                        <div key={label} data-testid={label === 'Perf' ? 'vision-diagnostics-performance' : label === 'Voile' ? 'vision-diagnostics-grey-veil' : label === 'Zones hue' ? 'vision-diagnostics-hue-zones' : undefined} className={`rounded-sm border px-2 py-2 ${isDarkMode ? 'border-neutral-800 bg-black/40' : 'border-white bg-white/70'}`}>
                                             <div className={`text-[8px] font-mono uppercase tracking-widest ${isDarkMode ? 'text-neutral-600' : 'text-gray-400'}`}>{label}</div>
                                             <div className={`mt-1 flex items-end justify-between gap-2 font-mono ${isDarkMode ? 'text-neutral-200' : 'text-gray-800'}`}>
                                                 <span className="text-xs tabular-nums">{value}</span>
@@ -516,7 +773,72 @@ const VisionPanel = ({
                                 </div>
                                 {diagnosticPerformance && (
                                     <div data-testid="vision-diagnostics-performance-detail" className={`mt-2 text-[9px] font-mono uppercase tracking-wider ${isDarkMode ? 'text-neutral-600' : 'text-gray-400'}`}>
-                                        Render src {diagnosticPerformance.sourceRenderMs}ms - sample {diagnosticSampleSize} - step {diagnosticPerformance.sampleStep}
+                                        Render src {diagnosticPerformance.sourceRenderMs}ms - preview {diagnosticPreviewSize} - sample {diagnosticSampleSize} - step {diagnosticPerformance.sampleStep}
+                                    </div>
+                                )}
+                                {activeContentWarnings.length > 0 && (
+                                    <div data-testid="vision-active-content-warnings" className={`mt-3 rounded-sm border p-2 ${isDarkMode ? 'border-amber-400/30 bg-amber-500/10 text-amber-100' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                                        <div className="mb-1.5 flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-wider">
+                                            <AlertTriangle size={11} /> Profil actif vs image
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {activeContentWarnings.map(warning => (
+                                                <span key={warning} className={`rounded-sm border px-1.5 py-1 text-[9px] font-mono uppercase tracking-wider ${isDarkMode ? 'border-amber-400/30 bg-black/20' : 'border-amber-200 bg-white/70'}`}>
+                                                    {warning}
+                                                </span>
+                                            ))}
+                                        </div>
+                                        {activeContentSafeAlternative && (
+                                            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                                                <span className="text-[9px] font-mono uppercase tracking-wider">
+                                                    Alternative sure - {activeContentSafeAlternative.name} {activeContentSafeAlternative.vision.recommendedIntensity}%
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleApplyProfile(activeContentSafeAlternative, { filterIntensity: activeContentSafeAlternative.vision.recommendedIntensity })}
+                                                    data-testid="vision-apply-content-safe-alternative"
+                                                    className={`min-h-7 rounded-sm border px-2 text-[9px] font-mono uppercase tracking-wider transition ${isDarkMode ? 'border-amber-300/50 text-amber-100 hover:bg-amber-400/10' : 'border-amber-300 bg-white/80 text-amber-800 hover:bg-white'}`}
+                                                >
+                                                    Essayer
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                {diagnosticSafetyActions.length > 0 && (
+                                    <div data-testid="vision-diagnostics-safety-actions" className={`mt-3 rounded-sm border p-2 ${isDarkMode ? 'border-cyan-500/25 bg-black/30 text-cyan-100' : 'border-cyan-200 bg-white/75 text-cyan-800'}`}>
+                                        <div className="mb-2 flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-wider">
+                                            <ShieldCheck size={11} /> Recettes correctives
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {diagnosticSafetyActions.map(action => (
+                                                <button
+                                                    key={action.id}
+                                                    type="button"
+                                                    onClick={() => applyVisionSafetyAction(action)}
+                                                    data-testid={`vision-apply-safety-action-${action.id}`}
+                                                    className={`min-h-10 rounded-sm border px-2 py-1.5 text-left transition active:scale-[0.98] ${isDarkMode ? 'border-cyan-500/25 bg-cyan-500/5 hover:border-cyan-400/50 hover:bg-cyan-500/10' : 'border-cyan-200 bg-cyan-50/60 hover:bg-white'}`}
+                                                >
+                                                    <span className="block text-[9px] font-mono uppercase tracking-wider">{action.label}</span>
+                                                    <span className={`mt-0.5 block text-[8px] font-mono uppercase tracking-wider ${isDarkMode ? 'text-cyan-300/70' : 'text-cyan-700/70'}`}>{action.detail}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {activeVisionProfile?.vision && (diagnosticWarnings.length > 0 || isActiveIntensityOutOfRange) && (
+                                    <div data-testid="vision-diagnostics-mitigation" className={`mt-3 flex flex-wrap items-center justify-between gap-2 rounded-sm border px-2.5 py-2 ${isDarkMode ? 'border-cyan-500/30 bg-black/30 text-cyan-200' : 'border-cyan-200 bg-white/70 text-cyan-700'}`}>
+                                        <span className="text-[9px] font-mono uppercase tracking-wider">
+                                            Mitigation rapide - intensite {diagnosticMitigationIntensity}%
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleIntensityChange(diagnosticMitigationIntensity)}
+                                            data-testid="vision-apply-diagnostics-mitigation"
+                                            className={`min-h-7 rounded-sm border px-2 text-[9px] font-mono uppercase tracking-wider transition ${isDarkMode ? 'border-cyan-400/40 text-cyan-100 hover:bg-cyan-500/10' : 'border-cyan-300 text-cyan-700 hover:bg-cyan-50'}`}
+                                        >
+                                            Corriger
+                                        </button>
                                     </div>
                                 )}
                                 {diagnosticWarnings.length > 0 && (
@@ -540,7 +862,7 @@ const VisionPanel = ({
                             <ControlGroup
                                 label="Intensité globale"
                                 icon={<Sliders size={14} className="text-indigo-400" />}
-                                value={filters?.filterIntensity !== undefined ? filters.filterIntensity : 100}
+                                value={currentIntensity}
                                 onChange={handleIntensityChange}
                                 min={0}
                                 max={100}
@@ -559,6 +881,21 @@ const VisionPanel = ({
                                         className={`min-h-7 rounded-sm border px-2 text-[9px] font-mono uppercase tracking-wider transition ${isDarkMode ? 'border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10' : 'border-cyan-200 text-cyan-700 hover:bg-cyan-50'}`}
                                     >
                                         Appliquer
+                                    </button>
+                                </div>
+                            )}
+                            {isActiveIntensityOutOfRange && (
+                                <div className={`mt-2 flex flex-wrap items-center justify-between gap-2 rounded-sm border px-2.5 py-2 ${isDarkMode ? 'border-amber-500/40 bg-amber-500/10 text-amber-200' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                                    <span data-testid="vision-intensity-range-warning" className="text-[9px] font-mono uppercase tracking-wider">
+                                        Hors plage conseillee - revenir a {clampedActiveIntensity}%
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleIntensityChange(clampedActiveIntensity)}
+                                        data-testid="vision-apply-safe-range-intensity"
+                                        className={`min-h-7 rounded-sm border px-2 text-[9px] font-mono uppercase tracking-wider transition ${isDarkMode ? 'border-amber-400/50 text-amber-100 hover:bg-amber-500/10' : 'border-amber-300 text-amber-700 hover:bg-white/70'}`}
+                                    >
+                                        Ramener
                                     </button>
                                 </div>
                             )}
@@ -754,6 +1091,7 @@ const VisionPanel = ({
                                     <ControlGroup label="Saturation" icon={<Circle size={14} />} value={filters?.saturation !== undefined ? filters.saturation : 100} onChange={(v) => updateVisionFilters({ saturation: v })} min={45} max={120} isDarkMode={isDarkMode} testId="vision-expert-saturation" />
                                     <ControlGroup label="Vibrance" icon={<Palette size={14} />} value={filters?.vibrance || 0} onChange={(v) => updateVisionFilters({ vibrance: v })} min={-45} max={45} isDarkMode={isDarkMode} testId="vision-expert-vibrance" />
                                     <ControlGroup label="Peau sat" icon={<Circle size={14} />} value={filters?.skinSaturation || 0} onChange={(v) => updateVisionFilters({ skinSaturation: v })} min={-20} max={15} isDarkMode={isDarkMode} testId="vision-expert-skin-saturation" />
+                                    <ControlGroup label="Rouge/orange" icon={<Circle size={14} />} value={filters?.warmSaturation || 0} onChange={(v) => updateVisionFilters({ warmSaturation: v })} min={-35} max={18} isDarkMode={isDarkMode} testId="vision-expert-warm-saturation" />
                                     <ControlGroup label="Ciel bleu" icon={<Sunrise size={14} />} value={filters?.skySaturation || 0} onChange={(v) => updateVisionFilters({ skySaturation: v })} min={-35} max={25} isDarkMode={isDarkMode} testId="vision-expert-sky-saturation" />
                                     <ControlGroup label="Verts" icon={<Palette size={14} />} value={filters?.foliageSaturation || 0} onChange={(v) => updateVisionFilters({ foliageSaturation: v })} min={-35} max={22} isDarkMode={isDarkMode} testId="vision-expert-foliage-saturation" />
                                     <ControlGroup label="Clarte" icon={<Sparkles size={14} />} value={filters?.clarity || 0} onChange={(v) => updateVisionFilters({ clarity: v })} min={-25} max={30} isDarkMode={isDarkMode} testId="vision-expert-clarity" />
@@ -825,6 +1163,89 @@ const VisionPanel = ({
                             </button>
                         </div>
                         <div className={`text-[10px] font-mono uppercase tracking-widest ${isDarkMode ? 'text-neutral-600' : 'text-gray-400'}`}>{visibleProfileCount} profils visibles</div>
+                        {imageRecommendedProfiles.length > 0 && (
+                            <div data-testid="vision-image-recommendations-rail" className={`rounded-sm border p-2 ${isDarkMode ? 'border-cyan-500/20 bg-cyan-500/5' : 'border-cyan-200 bg-cyan-50/60'}`}>
+                                <div className={`mb-2 flex items-center justify-between gap-2 text-[9px] font-mono uppercase tracking-widest ${isDarkMode ? 'text-cyan-300/80' : 'text-cyan-700'}`}>
+                                    <span className="inline-flex items-center gap-1.5"><Crosshair size={10} /> Recommandes image</span>
+                                    <span>{imageRecommendedProfiles.length}</span>
+                                </div>
+                                {imageRecommendationSignalTags.length > 0 && (
+                                    <div data-testid="vision-image-signal-tags" className="mb-2 flex flex-wrap gap-1.5">
+                                        {imageRecommendationSignalTags.map(tag => (
+                                            <span key={tag} className={`rounded-sm border px-1.5 py-1 text-[8px] font-mono uppercase tracking-wider ${isDarkMode ? 'border-cyan-500/20 text-cyan-200/80' : 'border-cyan-200 bg-white/80 text-cyan-700'}`}>
+                                                {tag}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+                                <div className="grid grid-cols-2 gap-2">
+                                    {imageRecommendedProfiles.map(profile => (
+                                        <button
+                                            key={`image-recommendation-${profile.profileId}`}
+                                            type="button"
+                                            onClick={() => handleApplyProfile(profile, { filterIntensity: profile.vision.recommendedIntensity })}
+                                            aria-label={`Appliquer recommandation image ${profile.name}`}
+                                            data-testid={`vision-image-recommendation-${profile.profileId}`}
+                                            data-active={activeProfileName === profile.name}
+                                            className={`group min-h-16 rounded-sm border p-2 text-left transition active:scale-[0.98] ${activeProfileName === profile.name ? (isDarkMode ? 'border-cyan-400 bg-cyan-500/10' : 'border-cyan-300 bg-white') : (isDarkMode ? 'border-neutral-800 bg-black/30 hover:border-cyan-500/50 hover:bg-neutral-900/80' : 'border-gray-200 bg-white/70 hover:border-cyan-300')}`}
+                                        >
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="min-w-0">
+                                                    <div className={`truncate text-[10px] font-bold ${isDarkMode ? 'text-neutral-200 group-hover:text-white' : 'text-gray-800'}`}>{profile.name}</div>
+                                                    <div className={`mt-1 truncate text-[8px] font-mono uppercase tracking-wider ${isDarkMode ? 'text-neutral-500' : 'text-gray-500'}`}>{profile.vision.family}</div>
+                                                </div>
+                                                <span className={`shrink-0 rounded-sm border px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider ${isDarkMode ? 'border-cyan-500/30 text-cyan-200' : 'border-cyan-200 text-cyan-700'}`}>
+                                                    {profile.vision.recommendedIntensity}%
+                                                </span>
+                                            </div>
+                                            <div className={`mt-2 text-[9px] font-mono uppercase tracking-wider ${isDarkMode ? 'text-cyan-300/70' : 'text-cyan-700/80'}`}>
+                                                {profile.imageRecommendation.reason}
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {favoriteCompareProfiles.length > 0 && (
+                            <div data-testid="vision-favorite-compare-rail" className={`rounded-sm border p-2 ${isDarkMode ? 'border-neutral-800 bg-black/30' : 'border-gray-200 bg-white/70'}`}>
+                                <div className={`mb-2 flex items-center justify-between gap-2 text-[9px] font-mono uppercase tracking-widest ${isDarkMode ? 'text-neutral-500' : 'text-gray-400'}`}>
+                                    <span className="inline-flex items-center gap-1.5"><Star size={10} fill="currentColor" /> Comparer favoris</span>
+                                    <span>{favoriteCompareProfiles.length}/6</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {favoriteCompareProfiles.map(profile => (
+                                        <button
+                                            key={`favorite-compare-${profile.profileId}`}
+                                            type="button"
+                                            onClick={() => handleApplyProfile(profile)}
+                                            aria-label={`Comparer favori ${profile.name}`}
+                                            data-testid={`vision-favorite-compare-${profile.profileId}`}
+                                            data-active={activeProfileName === profile.name}
+                                            className={`group flex min-h-20 gap-2 rounded-sm border p-1.5 text-left transition active:scale-[0.98] ${activeProfileName === profile.name ? (isDarkMode ? 'border-cyan-400 bg-cyan-500/10' : 'border-cyan-300 bg-cyan-50') : (isDarkMode ? 'border-neutral-800 hover:border-neutral-600 hover:bg-neutral-900/80' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50')}`}
+                                        >
+                                            <div className={`h-[58px] w-20 shrink-0 overflow-hidden rounded-sm border ${isDarkMode ? 'border-neutral-800 bg-neutral-950' : 'border-gray-200 bg-gray-50'}`}>
+                                                {profilePreviews[profile.profileId] ? (
+                                                    <img
+                                                        src={profilePreviews[profile.profileId]}
+                                                        alt=""
+                                                        className="h-full w-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className={`flex h-full items-center px-2 text-[8px] font-mono uppercase tracking-widest ${isDarkMode ? 'text-neutral-700' : 'text-gray-300'}`}>Preview</div>
+                                                )}
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <div className={`truncate text-[10px] font-bold ${isDarkMode ? 'text-neutral-200 group-hover:text-white' : 'text-gray-800'}`}>{profile.name}</div>
+                                                <div className={`mt-1 truncate text-[8px] font-mono uppercase tracking-wider ${isDarkMode ? 'text-neutral-500' : 'text-gray-500'}`}>{profile.vision.family}</div>
+                                                <div className={`mt-2 inline-flex rounded-sm border px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider ${isDarkMode ? 'border-neutral-700 text-neutral-400' : 'border-gray-200 text-gray-500'}`}>
+                                                    {profile.vision.recommendedIntensity}%
+                                                </div>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="space-y-6 pb-6">
@@ -886,6 +1307,9 @@ const VisionPanel = ({
                                                         </div>
                                                     </div>
                                                     <p className={`text-[10px] font-mono leading-relaxed mt-1 ${isDarkMode ? 'text-neutral-500 group-hover:text-neutral-400' : 'text-gray-500 group-hover:text-gray-600'}`}>{profile.desc}</p>
+                                                    <div data-testid={`vision-profile-inspiration-${profile.profileId}`} className={`mt-2 inline-flex rounded-sm border px-1.5 py-1 text-[9px] font-mono uppercase tracking-wider ${isDarkMode ? 'border-cyan-500/20 text-cyan-300/80' : 'border-cyan-200 text-cyan-700'}`}>
+                                                        {profile.vision.inspirationLabel}
+                                                    </div>
                                                     <div className="mt-3 flex flex-wrap gap-1.5">
                                                         <span className={`inline-flex items-center gap-1 rounded-sm border px-1.5 py-1 text-[9px] font-mono uppercase tracking-wider ${getStrengthClass(profile.vision.strength)}`}>
                                                             {profile.vision.strength === 'experimental' && <AlertTriangle size={10} />}

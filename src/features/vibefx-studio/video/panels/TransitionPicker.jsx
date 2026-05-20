@@ -2,25 +2,30 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { X, Clock, Crosshair, Trash2 } from 'lucide-react';
 import useVideoStore from '../store/videoStore';
 import { TRANSITIONS, TRANSITION_CATEGORIES, formatTime } from '../engine/VideoEngine';
+import { isTrackLocked, normalizeTransitionItems } from '../model/timelineModel';
 
 const TransitionPicker = () => {
     const {
         clips, transitionItems, selectedTransitionId, setSelectedTransitionId,
         addTransitionItem, updateTransitionItem, removeTransitionItem,
-        setActivePanel, currentTime, totalDuration
+        setActivePanel, currentTime, totalDuration, tracks
     } = useVideoStore();
 
     const [activeCategory, setActiveCategory] = useState('basic');
+    const normalizedTransitionItems = useMemo(() => (
+        normalizeTransitionItems(transitionItems, totalDuration)
+    ), [totalDuration, transitionItems]);
     const selectedTransition = useMemo(() => {
         if (selectedTransitionId) {
-            return transitionItems.find(item => item.id === selectedTransitionId) || null;
+            return normalizedTransitionItems.find(item => item.id === selectedTransitionId) || null;
         }
-        return transitionItems[0] || null;
-    }, [selectedTransitionId, transitionItems]);
+        return normalizedTransitionItems[0] || null;
+    }, [normalizedTransitionItems, selectedTransitionId]);
 
     const [duration, setDuration] = useState(selectedTransition?.duration || 0.5);
     const filteredTransitions = TRANSITIONS.filter(t => t.category === activeCategory);
     const hasClips = clips.length > 0;
+    const transitionsLocked = isTrackLocked(tracks, 'transition-main');
 
     useEffect(() => {
         if (selectedTransition) setDuration(selectedTransition.duration || 0.5);
@@ -33,6 +38,7 @@ const TransitionPicker = () => {
 
     const applyTransition = (transition) => {
         const nextDuration = duration || transition.defaultDuration || 0.5;
+        if (transitionsLocked) return;
         if (selectedTransition) {
             updateTransitionItem(selectedTransition.id, {
                 type: transition.id,
@@ -56,6 +62,7 @@ const TransitionPicker = () => {
     };
 
     const addAtCursor = () => {
+        if (transitionsLocked) return;
         const transition = TRANSITIONS.find(t => t.category === activeCategory) || TRANSITIONS[0];
         const startTime = clampTransitionStart(currentTime, duration || transition.defaultDuration || 0.5);
         addTransitionItem({
@@ -71,13 +78,14 @@ const TransitionPicker = () => {
     const updateDuration = (value) => {
         const nextDuration = parseFloat(value);
         setDuration(nextDuration);
-        if (selectedTransition) {
+        if (selectedTransition && !transitionsLocked) {
             updateTransitionItem(selectedTransition.id, { duration: nextDuration });
         }
     };
 
     const clearTransition = () => {
         if (!selectedTransition) return;
+        if (transitionsLocked) return;
         removeTransitionItem(selectedTransition.id);
     };
 
@@ -118,22 +126,26 @@ const TransitionPicker = () => {
                     <span className="text-[8px] font-mono text-neutral-600 uppercase tracking-widest">Placees</span>
                     <button
                         onClick={addAtCursor}
+                        disabled={transitionsLocked}
                         className="flex items-center gap-1 text-[8px] font-mono text-purple-300 hover:text-white border border-purple-500/25 hover:border-purple-400/60 rounded-sm px-2 py-1 transition"
                     >
                         <Crosshair size={10} /> Ajouter au curseur
                     </button>
                 </div>
 
-                {transitionItems.length === 0 ? (
+                {normalizedTransitionItems.length === 0 ? (
                     <p className="text-[9px] font-mono text-neutral-600 leading-relaxed">
                         Choisissez une animation ci-dessous: elle sera creee au temps courant, puis deplacable sur la timeline Effets.
                     </p>
                 ) : (
                     <div className="space-y-1 max-h-28 overflow-y-auto custom-scrollbar">
-                        {transitionItems.map(item => (
+                        {normalizedTransitionItems.map(item => (
                             <button
                                 key={item.id}
                                 onClick={() => setSelectedTransitionId(item.id)}
+                                data-testid="transition-picker-item"
+                                data-transition-start={item.start.toFixed(3)}
+                                data-transition-duration={item.duration.toFixed(3)}
                                 className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-sm border text-left transition-all ${
                                     item.id === selectedTransition?.id
                                         ? 'bg-purple-600/15 border-purple-500/30 text-purple-300'
@@ -143,7 +155,7 @@ const TransitionPicker = () => {
                                 <span className="text-[10px] shrink-0">{item.icon}</span>
                                 <span className="text-[9px] font-mono truncate flex-1">{item.name}</span>
                                 <span className="text-[8px] font-mono text-neutral-600 tabular-nums">
-                                    {formatTime(item.startTime)} - {formatTime(item.endTime)}
+                                    {formatTime(item.start)} - {formatTime(item.start + item.duration)}
                                 </span>
                             </button>
                         ))}
@@ -160,7 +172,8 @@ const TransitionPicker = () => {
                     </div>
                     <button
                         onClick={clearTransition}
-                        className="flex items-center gap-1 text-[8px] font-mono text-neutral-600 hover:text-red-400 transition uppercase"
+                        disabled={transitionsLocked}
+                        className="flex items-center gap-1 text-[8px] font-mono text-neutral-600 hover:text-red-400 transition uppercase disabled:opacity-40 disabled:hover:text-neutral-600"
                     >
                         <Trash2 size={10} /> Retirer
                     </button>
@@ -173,8 +186,9 @@ const TransitionPicker = () => {
                 <input
                     type="range" min={0.1} max={2} step={0.1} value={duration}
                     aria-label="Duree de transition"
+                    disabled={transitionsLocked}
                     onChange={(e) => updateDuration(e.target.value)}
-                    className="flex-1 h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-purple-500"
+                    className="flex-1 h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-purple-500 disabled:cursor-not-allowed disabled:opacity-45"
                 />
                 <span className="text-[10px] font-mono text-neutral-400 tabular-nums w-8 text-right">{duration.toFixed(1)}s</span>
             </div>
@@ -203,6 +217,7 @@ const TransitionPicker = () => {
                             <button
                                 key={transition.id}
                                 onClick={() => applyTransition(transition)}
+                                disabled={transitionsLocked}
                                 aria-label={transition.name}
                                 className={`flex flex-col items-center gap-1.5 p-2.5 rounded-sm border transition-all group ${
                                     isActive

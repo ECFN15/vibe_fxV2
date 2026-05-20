@@ -17,6 +17,9 @@ export const dynamic = "force-dynamic";
 
 const scraperDir = () => path.join(process.cwd(), "scripts", "midjourney-scraper");
 const downloadsDir = () => path.join(scraperDir(), "downloads");
+const ENABLE_MIDJOURNEY_LIBRARY = process.env.VIBEFX_ENABLE_MIDJOURNEY_LIBRARY === "true";
+const ALLOW_UNSAFE_PROD_MIDJOURNEY_LIBRARY =
+  process.env.VIBEFX_ALLOW_UNSAFE_MIDJOURNEY_LIBRARY_IN_PROD === "true";
 
 const CATEGORY_LABELS = {
   people: { label: "People", order: 0 },
@@ -58,7 +61,28 @@ function json(data, status = 200) {
   return Response.json(data, { status });
 }
 
+function isMidjourneyLibraryEnabled() {
+  if (process.env.NODE_ENV !== "production") return true;
+  return ENABLE_MIDJOURNEY_LIBRARY && ALLOW_UNSAFE_PROD_MIDJOURNEY_LIBRARY;
+}
+
+function disabledResponse() {
+  return Response.json(
+    {
+      error: "midjourney_library_disabled",
+      message:
+        "Midjourney scraper/proxy routes are disabled in production. Use official provider APIs through the server AI gateway instead.",
+    },
+    {
+      status: 410,
+      headers: { "Cache-Control": "no-store" },
+    }
+  );
+}
+
 export function themesResponse() {
+  if (!isMidjourneyLibraryEnabled()) return disabledResponse();
+
   const categories = {};
   const themeCounts = getAllThemeCounts();
 
@@ -94,6 +118,8 @@ export function themesResponse() {
 }
 
 export function catalogResponse(request) {
+  if (!isMidjourneyLibraryEnabled()) return disabledResponse();
+
   const url = new URL(request.url);
   const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
   const limit = Math.min(1000, Math.max(1, parseInt(url.searchParams.get("limit") || "200", 10)));
@@ -103,6 +129,8 @@ export function catalogResponse(request) {
 }
 
 export async function deleteCatalogResponse(_request, { params }) {
+  if (!isMidjourneyLibraryEnabled()) return disabledResponse();
+
   const resolvedParams = await params;
   const jobId = resolvedParams?.jobId;
   if (!jobId) return json({ error: "Missing jobId" }, 400);
@@ -126,6 +154,8 @@ export async function deleteCatalogResponse(_request, { params }) {
 }
 
 export async function resetResponse() {
+  if (!isMidjourneyLibraryEnabled()) return disabledResponse();
+
   resetAll();
   await clearDownloadedImages(downloadsDir());
   return json({ success: true, message: "All data cleared" });
@@ -148,10 +178,14 @@ async function clearDownloadedImages(dir) {
 }
 
 export function statusResponse() {
+  if (!isMidjourneyLibraryEnabled()) return disabledResponse();
+
   return json(state().scrapingStatus);
 }
 
 export async function scrapeResponse(request) {
+  if (!isMidjourneyLibraryEnabled()) return disabledResponse();
+
   const current = state();
   if (current.scraperProcess) {
     return json({ error: "Scraping already in progress" }, 400);
@@ -240,6 +274,8 @@ function updateScrapeStatus(text) {
 }
 
 export async function imageResponse(_request, { params }) {
+  if (!isMidjourneyLibraryEnabled()) return disabledResponse();
+
   const resolvedParams = await params;
   const segments = resolvedParams?.path || [];
   if (segments.length < 3) return json({ error: "Invalid image path" }, 400);
@@ -285,6 +321,8 @@ async function fileResponse(filePath) {
 }
 
 export async function proxyImageResponse(request) {
+  if (!isMidjourneyLibraryEnabled()) return disabledResponse();
+
   const url = new URL(request.url).searchParams.get("url");
   if (!url || (!url.includes("cdn.midjourney.com") && !url.includes("midjourney.com"))) {
     return json({ error: "Only Midjourney CDN URLs are allowed" }, 400);
@@ -314,15 +352,21 @@ async function proxyMidjourneyVariants(urls) {
 }
 
 export function reclassifyStatusResponse() {
+  if (!isMidjourneyLibraryEnabled()) return disabledResponse();
+
   return json(state().reclassifyStatus);
 }
 
 export function resetReclassifyResponse() {
+  if (!isMidjourneyLibraryEnabled()) return disabledResponse();
+
   state().reclassifyStatus = { status: "idle", progress: 0, total: 0, changed: 0, message: "", changes: [] };
   return json({ success: true });
 }
 
 export async function reclassifyResponse() {
+  if (!isMidjourneyLibraryEnabled()) return disabledResponse();
+
   const current = state();
   if (current.reclassifyStatus.status === "running") return json({ error: "Reclassification already in progress" }, 400);
   current.reclassifyStatus = { status: "running", progress: 0, total: 0, changed: 0, message: "Starting...", changes: [] };

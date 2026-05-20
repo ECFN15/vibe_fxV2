@@ -1,11 +1,12 @@
 import React from 'react';
 import { Scissors, Type, Sparkles, Music, Gauge, Download, Filter, Trash2, Plus, Library } from 'lucide-react';
 import useVideoStore from '../store/videoStore';
+import { resolveTimelineRenderPlan } from '../model/timelineModel';
 
 const VideoToolbar = ({ onImportClick }) => {
     const {
         clips, selectedClipId,
-        splitClip, removeClip, activePanel, setActivePanel, transitions
+        splitClip, removeClip, activePanel, setActivePanel
     } = useVideoStore();
 
     const hasClips = clips.length > 0;
@@ -14,24 +15,20 @@ const VideoToolbar = ({ onImportClick }) => {
         if (!selectedClipId) return;
         const state = useVideoStore.getState();
         const currentTime = state.currentTime;
-        let elapsed = 0;
-        for (let i = 0; i < clips.length; i++) {
-            const c = clips[i];
-            const dur = (c.trimEnd - c.trimStart) / (c.speed || 1);
-            let transitionDur = 0;
-            if (i < clips.length - 1) {
-                const key = `${c.id}->${clips[i + 1].id}`;
-                if (transitions[key]) transitionDur = transitions[key].duration || 0;
-            }
-            if (c.id === selectedClipId) {
-                if (currentTime >= elapsed && currentTime <= elapsed + dur) {
-                    const localTime = c.trimStart + (currentTime - elapsed) * (c.speed || 1);
-                    splitClip(c.id, localTime);
-                }
-                return;
-            }
-            elapsed += (dur - transitionDur);
-        }
+        const plan = resolveTimelineRenderPlan(state);
+        const clip = plan.clips.find(item => item.id === selectedClipId);
+        if (!clip) return;
+
+        const start = Number(clip.start ?? clip.startTime ?? 0);
+        const duration = Number(clip.duration || 0);
+        const end = start + duration;
+        if (currentTime < start || currentTime > end) return;
+
+        const speed = Number(clip.speed) || 1;
+        const trimStart = Number(clip.trimStart) || 0;
+        const trimEnd = Number(clip.trimEnd) || trimStart;
+        const localTime = Math.max(trimStart, Math.min(trimEnd, trimStart + (currentTime - start) * speed));
+        splitClip(clip.id, localTime);
     };
 
     const handleDelete = () => {
@@ -53,12 +50,12 @@ const VideoToolbar = ({ onImportClick }) => {
 
     return (
         <div className="shrink-0 border-t border-neutral-800 bg-neutral-950 select-none">
-            <div className="flex items-center gap-1 px-3 h-12 overflow-x-auto scrollbar-hide">
+            <div className="flex items-center gap-1 px-3 h-14 overflow-x-auto scrollbar-hide">
                 {/* Import button */}
                 <button
                     onClick={onImportClick}
                     aria-label="Ajouter"
-                    className="flex flex-col items-center justify-center gap-0.5 px-2.5 py-1 rounded-sm transition-all min-w-[48px] h-9 text-neutral-500 hover:text-white hover:bg-white/5 border border-transparent mr-1"
+                    className="flex flex-col items-center justify-center gap-0.5 px-2.5 py-1 rounded-sm transition-all min-w-[48px] h-11 text-neutral-500 hover:text-white hover:bg-white/5 border border-transparent mr-1"
                     title="Ajouter"
                 >
                     <Plus size={14} />
@@ -83,7 +80,7 @@ const VideoToolbar = ({ onImportClick }) => {
                             disabled={isDisabled}
                             title={tool.label}
                             aria-label={tool.label}
-                            className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-sm transition-all min-w-[48px] h-9
+                            className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-sm transition-all min-w-[48px] h-11
                                 ${isActive
                                     ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30'
                                     : 'text-neutral-500 hover:text-white hover:bg-white/5 border border-transparent'

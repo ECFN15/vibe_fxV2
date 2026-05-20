@@ -16,6 +16,7 @@ export const DEFAULT_FILTERS = {
     shadows: 0,
     vibrance: 0,
     skinSaturation: 0,
+    warmSaturation: 0,
     skySaturation: 0,
     foliageSaturation: 0,
     temperature: 0,

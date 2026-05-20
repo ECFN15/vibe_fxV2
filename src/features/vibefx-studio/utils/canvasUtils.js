@@ -138,6 +138,20 @@ function getSkinProtection(r, g, b, lum, chroma) {
     return 1 - 0.5 * hueWeight * channelShape;
 }
 
+function getSafeTemperatureWeight(lum, chroma) {
+    const neutralWeight = Math.max(0.28, smoothstep(8, 42, chroma));
+    const highlightPurity = 1 - smoothstep(218, 252, lum) * 0.82;
+    const shadowPurity = smoothstep(14, 42, lum);
+    return Math.max(0, Math.min(1, neutralWeight * highlightPurity * shadowPurity));
+}
+
+function getSafeHalationWeight(lum, chroma) {
+    const highlightWeight = smoothstep(198, 246, lum);
+    const colorSignal = smoothstep(14, 64, chroma);
+    const neutralSpecularGuard = 1 - (1 - colorSignal) * smoothstep(226, 252, lum) * 0.88;
+    return Math.max(0, Math.min(1, highlightWeight * Math.max(0.12, colorSignal) * neutralSpecularGuard));
+}
+
 function getSelectiveSaturationMask(range, r, g, b, lum, chroma) {
     if (chroma < 10) return 0;
     const hue = getHueDegrees(r, g, b);
@@ -146,6 +160,16 @@ function getSelectiveSaturationMask(range, r, g, b, lum, chroma) {
         const lumaMask = smoothstep(36, 72, lum) * (1 - smoothstep(228, 248, lum));
         const channelShape = r >= g * 0.86 && r >= b * 1.02 && g >= b * 0.76 ? 1 : 0.35;
         return hueMask * lumaMask * channelShape;
+    }
+    if (range === 'warm') {
+        const redMask = Math.max(getHueRangeMask(hue, 12, 34), getHueRangeMask(hue, 358, 24));
+        const orangeMask = getHueRangeMask(hue, 34, 32);
+        const hueMask = Math.max(redMask, orangeMask);
+        const lumaMask = smoothstep(32, 68, lum) * (1 - smoothstep(224, 250, lum));
+        const chromaMask = smoothstep(24, 54, chroma);
+        const skinShape = r >= g * 0.84 && r >= b * 1.02 && g >= b * 0.72 && lum > 46 && lum < 224;
+        const skinLike = skinShape && hue >= 16 && hue <= 55 ? 0.12 : skinShape && hue > 10 ? 0.35 : 1;
+        return hueMask * lumaMask * chromaMask * skinLike;
     }
     if (range === 'sky') {
         const hueMask = getHueRangeMask(hue, 210, 38);
@@ -283,6 +307,47 @@ export function applyPerceptualIntensityBlend(ctx, w, h, originalCanvas, intensi
     ctx.putImageData(current, 0, 0);
 }
 
+export function applySafeGlobalTint(ctx, w, h, tintColor, tintIntensity, safeSmartphone = true) {
+    if (!tintIntensity || tintIntensity <= 0) return;
+
+    if (!safeSmartphone) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'overlay';
+        ctx.fillStyle = tintColor;
+        ctx.globalAlpha = tintIntensity / 100;
+        ctx.fillRect(0, 0, w, h);
+        ctx.restore();
+        return;
+    }
+
+    const tintRgb = hexToRgb(tintColor || '#ffffff');
+    const imageData = ctx.getImageData(0, 0, w, h);
+    const d = imageData.data;
+    const baseAmount = Math.max(0, Math.min(0.18, tintIntensity / 100));
+
+    for (let i = 0; i < d.length; i += 4) {
+        const r = d[i];
+        const g = d[i + 1];
+        const b = d[i + 2];
+        const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+        const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+        const colorSignal = smoothstep(10, 58, chroma);
+        const neutralProtection = Math.max(0.08, colorSignal);
+        const highlightPurity = 1 - smoothstep(218, 252, lum) * 0.9;
+        const shadowPurity = smoothstep(14, 44, lum);
+        const skinProtection = getSkinProtection(r, g, b, lum, chroma);
+        const amount = baseAmount * neutralProtection * highlightPurity * shadowPurity * skinProtection;
+
+        if (amount <= 0.001) continue;
+
+        d[i] = linearToSrgb(srgbToLinear(r) * (1 - amount) + srgbToLinear(tintRgb.r) * amount);
+        d[i + 1] = linearToSrgb(srgbToLinear(g) * (1 - amount) + srgbToLinear(tintRgb.g) * amount);
+        d[i + 2] = linearToSrgb(srgbToLinear(b) * (1 - amount) + srgbToLinear(tintRgb.b) * amount);
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+}
+
 export function applySmartphoneOutputGuards(ctx, w, h, filters = {}) {
     const safeFilters = normalizeVisionFilters(filters);
     if (safeFilters.safeSmartphone === false || safeFilters.saturation === 0) return;
@@ -330,6 +395,7 @@ export function applyFusedPixelOps(ctx, w, h, filters) {
     const sh = safeFilters.shadows || 0;
     const vib = safeFilters.vibrance || 0;
     const skinSat = safeFilters.skinSaturation || 0;
+    const warmSat = safeFilters.warmSaturation || 0;
     const skySat = safeFilters.skySaturation || 0;
     const foliageSat = safeFilters.foliageSaturation || 0;
     const dh = safeFilters.dehaze || 0;
@@ -337,7 +403,7 @@ export function applyFusedPixelOps(ctx, w, h, filters) {
 
     if (!needsCurves && temp === 0 && faded === 0 && shTintInt === 0 &&
         hlTintInt === 0 && hl === 0 && sh === 0 && vib === 0 && skinSat === 0 &&
-        skySat === 0 && foliageSat === 0 && dh === 0 && sat === 100) return;
+        warmSat === 0 && skySat === 0 && foliageSat === 0 && dh === 0 && sat === 100) return;
 
     // ── Pre-compute outside the pixel loop ──
     const lutR = buildCurveLUT(safeFilters.toneCurveR);
@@ -385,9 +451,24 @@ export function applyFusedPixelOps(ctx, w, h, filters) {
 
         // 3. Temperature (physical blackbody)
         if (tempMul) {
-            r *= tempMul.rMul;
-            g *= tempMul.gMul;
-            b *= tempMul.bMul;
+            const sourceR = r;
+            const sourceG = g;
+            const sourceB = b;
+            const shiftedR = r * tempMul.rMul;
+            const shiftedG = g * tempMul.gMul;
+            const shiftedB = b * tempMul.bMul;
+            if (safeSmartphone) {
+                const lum = 0.299 * sourceR + 0.587 * sourceG + 0.114 * sourceB;
+                const chroma = Math.max(sourceR, sourceG, sourceB) - Math.min(sourceR, sourceG, sourceB);
+                const tempWeight = getSafeTemperatureWeight(lum, chroma);
+                r = sourceR + (shiftedR - sourceR) * tempWeight;
+                g = sourceG + (shiftedG - sourceG) * tempWeight;
+                b = sourceB + (shiftedB - sourceB) * tempWeight;
+            } else {
+                r = shiftedR;
+                g = shiftedG;
+                b = shiftedB;
+            }
         }
 
         // 4. Dehaze
@@ -457,8 +538,9 @@ export function applyFusedPixelOps(ctx, w, h, filters) {
             b = adjusted.b;
         }
 
-        if (skinSat !== 0 || skySat !== 0 || foliageSat !== 0) {
+        if (skinSat !== 0 || warmSat !== 0 || skySat !== 0 || foliageSat !== 0) {
             let adjusted = applySelectiveSaturation(r, g, b, skinSat, 'skin', safeSmartphone);
+            adjusted = applySelectiveSaturation(adjusted.r, adjusted.g, adjusted.b, warmSat, 'warm', safeSmartphone);
             adjusted = applySelectiveSaturation(adjusted.r, adjusted.g, adjusted.b, skySat, 'sky', safeSmartphone);
             adjusted = applySelectiveSaturation(adjusted.r, adjusted.g, adjusted.b, foliageSat, 'foliage', safeSmartphone);
             r = adjusted.r;
@@ -541,7 +623,7 @@ export function applySharpness(ctx, canvas, w, h, sharpness) {
 // ═══════════════════════════════════════════════════════════
 //  HALATION — CineStill signature glow (unchanged from v2)
 // ═══════════════════════════════════════════════════════════
-export function applyHalation(ctx, w, h, halation, halationColor) {
+export function applyHalation(ctx, w, h, halation, halationColor, safeSmartphone = true) {
     if (!halation || halation === 0) return;
     const haloRgb = hexToRgb(halationColor || '#ff4500');
     const imageData = ctx.getImageData(0, 0, w, h);
@@ -552,9 +634,15 @@ export function applyHalation(ctx, w, h, halation, halationColor) {
     const maskData = maskCtx.createImageData(w, h);
     const threshold = 200;
     for (let i = 0; i < imageData.data.length; i += 4) {
-        const lum = 0.299 * imageData.data[i] + 0.587 * imageData.data[i + 1] + 0.114 * imageData.data[i + 2];
+        const r = imageData.data[i];
+        const g = imageData.data[i + 1];
+        const b = imageData.data[i + 2];
+        const lum = 0.299 * r + 0.587 * g + 0.114 * b;
         if (lum > threshold) {
-            const strength = (lum - threshold) / (255 - threshold);
+            const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+            const strength = safeSmartphone
+                ? getSafeHalationWeight(lum, chroma)
+                : (lum - threshold) / (255 - threshold);
             maskData.data[i] = haloRgb.r;
             maskData.data[i + 1] = haloRgb.g;
             maskData.data[i + 2] = haloRgb.b;

@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Gauge } from 'lucide-react';
 import useVideoStore from '../store/videoStore';
+import { isTrackLocked } from '../model/timelineModel';
 
 const SPEED_PRESETS = [
     { value: 0.25, label: '0.25x', desc: 'Super Slow' },
@@ -14,12 +15,14 @@ const SPEED_PRESETS = [
 ];
 
 const SpeedPanel = () => {
-    const { selectedClipId, clips, updateClip, setActivePanel } = useVideoStore();
+    const { selectedClipId, clips, updateClip, setActivePanel, tracks } = useVideoStore();
 
     const clip = clips.find(c => c.id === selectedClipId);
     const currentSpeed = clip?.speed || 1;
+    const videoLocked = isTrackLocked(tracks, 'video-main');
 
     const handleSpeedChange = (speed) => {
+        if (videoLocked) return;
         if (!selectedClipId) return;
         updateClip(selectedClipId, { speed });
     };
@@ -49,8 +52,9 @@ const SpeedPanel = () => {
                             type="range" min={0.1} max={5} step={0.05}
                             aria-label="Vitesse du clip"
                             value={currentSpeed}
+                            disabled={videoLocked}
                             onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
-                            className="w-full h-1.5 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-indigo-500"
+                            className="w-full h-1.5 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-indigo-500 disabled:cursor-not-allowed disabled:opacity-45"
                         />
                         <div className="flex justify-between text-[8px] font-mono text-neutral-600">
                             <span>0.1x</span><span>1x</span><span>5x</span>
@@ -62,6 +66,7 @@ const SpeedPanel = () => {
                             <button
                                 key={preset.value}
                                 onClick={() => handleSpeedChange(preset.value)}
+                                disabled={videoLocked}
                                 className={`flex flex-col items-center gap-0.5 py-2 px-1 rounded-sm border transition-all
                                     ${currentSpeed === preset.value
                                         ? 'bg-indigo-600/15 border-indigo-500/40 text-indigo-400'

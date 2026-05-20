@@ -106,6 +106,16 @@ export default function Home() {
           <span className="vf-brand-mark" aria-hidden="true" />
           Vibe_fx
         </Link>
+        <div className="vf-nav-links" aria-label="Sections produit">
+          <Link href="/pricing">
+            <span className="vf-nav-link-dot" aria-hidden="true" />
+            Tarifs
+          </Link>
+          <Link href="/account">
+            <span className="vf-nav-link-dot" aria-hidden="true" />
+            Compte
+          </Link>
+        </div>
         <Link href="/studio" className="vf-nav-cta">
           Launch app
         </Link>
@@ -124,6 +134,9 @@ export default function Home() {
           <div className="vf-actions" aria-label="Actions principales">
             <Link href="/studio" className="vf-primary">
               Launch app
+            </Link>
+            <Link href="/pricing" className="vf-secondary">
+              Voir credits IA
             </Link>
           </div>
           <div className="vf-hero-stats" aria-label="Statuts du workflow">

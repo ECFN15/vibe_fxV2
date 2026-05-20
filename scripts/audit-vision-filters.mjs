@@ -7,6 +7,9 @@ const rendererPath = 'src/features/vibefx-studio/engine/studioRenderer.js';
 const defaultsPath = 'src/features/vibefx-studio/hooks/useStudioFilters.js';
 const canvasUtilsPath = 'src/features/vibefx-studio/utils/canvasUtils.js';
 const visionPanelPath = 'src/features/vibefx-studio/components/panels/VisionPanel.jsx';
+const visionMetricsPath = 'src/features/vibefx-studio/utils/visionMetrics.js';
+const studioAppPath = 'src/features/vibefx-studio/VibeFxStudio.jsx';
+const canvasRendererPath = 'src/features/vibefx-studio/hooks/useCanvasRenderer.js';
 
 const constantsSource = fs.readFileSync(constantsPath, 'utf8');
 const colorScienceSource = fs.readFileSync(colorSciencePath, 'utf8');
@@ -14,6 +17,9 @@ const rendererSource = fs.readFileSync(rendererPath, 'utf8');
 const defaultsSource = fs.readFileSync(defaultsPath, 'utf8');
 const canvasUtilsSource = fs.readFileSync(canvasUtilsPath, 'utf8');
 const visionPanelSource = fs.readFileSync(visionPanelPath, 'utf8');
+const visionMetricsSource = fs.readFileSync(visionMetricsPath, 'utf8');
+const studioAppSource = fs.readFileSync(studioAppPath, 'utf8');
+const canvasRendererSource = fs.readFileSync(canvasRendererPath, 'utf8');
 
 function extractArray(source, exportName) {
     const marker = `export const ${exportName} =`;
@@ -51,7 +57,7 @@ const riskProfilesMissingMetadata = [];
 const profileModelIssues = [];
 const profileModelRuntimeIssues = [];
 let profileCount = 0;
-const requiredProfileModelKeys = ['id', 'name', 'family', 'intent', 'bestFor', 'avoidFor', 'strength', 'parameters', 'recommendedIntensity', 'intensityRange', 'safetyRules', 'previewTags', 'technicalNotes'];
+const requiredProfileModelKeys = ['id', 'name', 'family', 'intent', 'bestFor', 'avoidFor', 'strength', 'parameters', 'recommendedIntensity', 'intensityRange', 'safetyRules', 'previewTags', 'technicalNotes', 'inspirationLabel'];
 
 for (const brand of cameraBrands) {
     for (const profile of brand.profiles || []) {
@@ -87,6 +93,9 @@ for (const brand of cameraBrands) {
         if ((model?.strength === 'strong' || model?.strength === 'experimental') && model.recommendedIntensity > 80) {
             profileModelRuntimeIssues.push(`${brand.id}/${profile.name}: strong look recommended above 80`);
         }
+        if (!/Inspire par|Direction esthetique|Profil personnel/.test(model?.inspirationLabel || '') || /reproduction exacte proprietaire/i.test(model?.inspirationLabel || '')) {
+            profileModelRuntimeIssues.push(`${brand.id}/${profile.name}: invalid inspirationLabel`);
+        }
 
         for (const key of Object.keys(filters)) {
             if (!supported.has(key)) {
@@ -114,11 +123,16 @@ const requiredRendererSignals = [
     'normalizeVisionFilters(filters)',
     'applyPerceptualIntensityBlend',
     'applySmartphoneOutputGuards',
-    "quality === 'low'",
+    'applySafeGlobalTint(ctx, w, h, safeFilters.tintColor, safeFilters.tintIntensity, safeFilters.safeSmartphone !== false)',
+    'applyHalation(ctx, w, h, safeFilters.halation, safeFilters.halationColor, safeFilters.safeSmartphone !== false)',
+    'const doColorPixelOps = true',
+    "const doSpatialPixelOps = quality !== 'low'",
+    '`saturate(100%)`',
 ];
 
 const requiredSupportedFilterKeys = [
     'skinSaturation',
+    'warmSaturation',
     'skySaturation',
     'foliageSaturation',
     'toneCurveMaster',
@@ -126,8 +140,12 @@ const requiredSupportedFilterKeys = [
 
 const requiredCanvasSignals = [
     'getSelectiveSaturationMask',
+    'getSafeTemperatureWeight',
+    'getSafeHalationWeight',
+    'applySafeGlobalTint',
     'applySelectiveSaturation',
     "applySelectiveSaturation(r, g, b, skinSat, 'skin'",
+    "applySelectiveSaturation(adjusted.r, adjusted.g, adjusted.b, warmSat, 'warm'",
     "applySelectiveSaturation(adjusted.r, adjusted.g, adjusted.b, skySat, 'sky'",
     "applySelectiveSaturation(adjusted.r, adjusted.g, adjusted.b, foliageSat, 'foliage'",
     'fitRgbToGamut',
@@ -135,6 +153,7 @@ const requiredCanvasSignals = [
 
 const requiredVisionPanelSignals = [
     'vision-expert-skin-saturation',
+    'vision-expert-warm-saturation',
     'vision-expert-sky-saturation',
     'vision-expert-foliage-saturation',
     'vision-expert-tone-curve',
@@ -143,16 +162,97 @@ const requiredVisionPanelSignals = [
     'profile.vision.parameters',
     'vision-recommended-intensity',
     'vision-apply-recommended-intensity',
+    'vision-intensity-range-warning',
+    'vision-apply-safe-range-intensity',
+    'vision-diagnostics-mitigation',
+    'vision-apply-diagnostics-mitigation',
+    'vision-profile-inspiration-',
+    'vision-diagnostics-grey-veil',
+    'vision-diagnostics-hue-zones',
+    'favoriteCompareProfiles',
+    'vision-favorite-compare-rail',
+    'vision-favorite-compare-',
+    'getImageRecommendationSignals',
+    'getImageRecommendationSignalTags',
+    'scoreProfileForImage',
+    'getActiveProfileContentWarnings',
+    'activeContentWarnings',
+    'activeContentSafeAlternative',
+    'vision-active-content-warnings',
+    'vision-apply-content-safe-alternative',
+    'buildVisionSafetyActions',
+    'diagnosticSafetyActions',
+    'applyVisionSafetyAction',
+    'vision-diagnostics-safety-actions',
+    'vision-apply-safety-action-',
+    'imageRecommendedProfiles',
+    'imageRecommendationSignalTags',
+    'vision-image-signal-tags',
+    "handleApplyProfile(profile, { filterIntensity: profile.vision.recommendedIntensity })",
+    'vision-image-recommendations-rail',
+    'vision-image-recommendation-',
+];
+
+const requiredMetricsSignals = [
+    'greyVeilScore',
+    'tonalRangeRatio',
+    'shadowLiftDelta',
+    'midtoneLiftDelta',
+    'skinToneWeight',
+    'skinToneConfidence',
+    'skyToneRatio',
+    'foliageToneRatio',
+    'warmToneRatio',
+    'skyHighSaturationDelta',
+    'foliageHighSaturationDelta',
+    'warmClipHighDelta',
+];
+
+const requiredStudioWarningSignals = [
+    'ciel a verifier',
+    'verts a verifier',
+    'rouges/oranges a verifier',
+];
+
+const requiredStudioAppSignals = [
+    '__vibefxVisionQualityProbe',
+    "renderPipeline(probeCanvas, previewDimensions.width, previewDimensions.height, true, quality)",
+    "renderQualityCanvas('high')",
+    "renderQualityCanvas('low')",
+    'previewMegapixels',
+    'isPreviewCapped',
+];
+
+const requiredCanvasRendererSignals = [
+    'MAX_INTERACTIVE_PREVIEW_MEGAPIXELS',
+    'capCanvasDimensions',
+    'getPreviewCanvasDimensions',
+    "view === 'studio' || view === 'vision-pro'",
 ];
 
 const missingRendererSignals = requiredRendererSignals.filter((signal) => !rendererSource.includes(signal));
+const rendererRuntimeIssues = [];
+if (!/if\s*\(\s*doPixelOps\s*\)\s*\{[\s\S]{0,180}applyFusedPixelOps\(ctx,\s*w,\s*h,\s*safeFilters\)/.test(rendererSource)) {
+    rendererRuntimeIssues.push('low/high color pixel pass must use doPixelOps');
+}
+if (!/if\s*\(\s*doSpatialPixelOpsForQuality\s*\)\s*\{[\s\S]{0,360}applyClarity\(ctx,\s*targetCanvas,\s*w,\s*h,\s*safeFilters\.clarity\)/.test(rendererSource)) {
+    rendererRuntimeIssues.push('spatial effects must stay gated by quality');
+}
+if (!/if\s*\(\s*doPixelOps\s*\)\s*\{[\s\S]{0,120}applySmartphoneOutputGuards\(ctx,\s*w,\s*h,\s*safeFilters\)/.test(rendererSource)) {
+    rendererRuntimeIssues.push('output guards must use doPixelOps');
+}
 const missingSupportedKeys = requiredSupportedFilterKeys.filter((key) => !supported.has(key));
 const missingCanvasSignals = requiredCanvasSignals.filter((signal) => !canvasUtilsSource.includes(signal));
 const missingVisionPanelSignals = requiredVisionPanelSignals.filter((signal) => !visionPanelSource.includes(signal));
+const missingMetricsSignals = requiredMetricsSignals.filter((signal) => !visionMetricsSource.includes(signal));
+const missingStudioAppSignals = requiredStudioAppSignals.filter((signal) => !studioAppSource.includes(signal));
+const missingCanvasRendererSignals = requiredCanvasRendererSignals.filter((signal) => !canvasRendererSource.includes(signal));
+const missingStudioWarningSignals = requiredStudioWarningSignals.filter((signal) => !studioAppSource.includes(signal));
 const missingDefaultSignals = [
     'safeSmartphone: true',
     "profileStrength: 'safe'",
     'skinSaturation: 0',
+    'warmSaturation: 0',
     'skySaturation: 0',
     'foliageSaturation: 0',
 ].filter((signal) => !defaultsSource.includes(signal));
@@ -160,9 +260,14 @@ const missingDefaultSignals = [
 if (
     unsupported.length ||
     missingRendererSignals.length ||
+    rendererRuntimeIssues.length ||
     missingSupportedKeys.length ||
     missingCanvasSignals.length ||
     missingVisionPanelSignals.length ||
+    missingMetricsSignals.length ||
+    missingStudioAppSignals.length ||
+    missingCanvasRendererSignals.length ||
+    missingStudioWarningSignals.length ||
     missingDefaultSignals.length ||
     riskProfilesMissingMetadata.length ||
     profileModelIssues.length ||
@@ -171,9 +276,14 @@ if (
     console.error('Vision filter audit failed.');
     if (unsupported.length) console.error(`Unsupported preset keys:\n- ${unsupported.join('\n- ')}`);
     if (missingRendererSignals.length) console.error(`Renderer signals missing: ${missingRendererSignals.join(', ')}`);
+    if (rendererRuntimeIssues.length) console.error(`Renderer runtime issues:\n- ${rendererRuntimeIssues.join('\n- ')}`);
     if (missingSupportedKeys.length) console.error(`Supported filter keys missing: ${missingSupportedKeys.join(', ')}`);
     if (missingCanvasSignals.length) console.error(`Canvas selective/guard signals missing: ${missingCanvasSignals.join(', ')}`);
     if (missingVisionPanelSignals.length) console.error(`Vision panel controls missing: ${missingVisionPanelSignals.join(', ')}`);
+    if (missingMetricsSignals.length) console.error(`Vision metrics signals missing: ${missingMetricsSignals.join(', ')}`);
+    if (missingStudioAppSignals.length) console.error(`Vision app signals missing: ${missingStudioAppSignals.join(', ')}`);
+    if (missingCanvasRendererSignals.length) console.error(`Canvas renderer preview cap signals missing: ${missingCanvasRendererSignals.join(', ')}`);
+    if (missingStudioWarningSignals.length) console.error(`Vision diagnostic warning signals missing: ${missingStudioWarningSignals.join(', ')}`);
     if (missingDefaultSignals.length) console.error(`Default filter signals missing: ${missingDefaultSignals.join(', ')}`);
     if (riskProfilesMissingMetadata.length) console.error(`Risk profiles missing explicit strength/bestFor/avoidFor:\n- ${riskProfilesMissingMetadata.join('\n- ')}`);
     if (profileModelIssues.length) console.error(`Vision profile model issues:\n- ${profileModelIssues.join('\n- ')}`);
@@ -193,4 +303,8 @@ console.log('Risk profile metadata OK: every detected risky profile declares str
 console.log('Vision selective controls OK: supported keys, defaults, pixel masks and UI controls are wired.');
 console.log(`Vision profile model OK: ${requiredProfileModelKeys.join(', ')} are generated for every profile.`);
 console.log('Vision profile runtime OK: UI consumes canonical normalized parameters.');
+console.log('Vision image recommendations OK: diagnostic metrics drive a ranked profile rail.');
+console.log('Vision active profile warnings OK: source metrics are checked against the active profile family and strength.');
+console.log('Vision favorites UX OK: quick compare rail is wired to current-image previews and profile application.');
+console.log('Vision preview performance OK: studio/Vision interactive canvases are capped without changing full-resolution export paths.');
 console.log('Note: corpus-based perceptual validation still requires real smartphone fixtures.');

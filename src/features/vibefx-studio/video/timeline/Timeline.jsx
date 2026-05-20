@@ -1,22 +1,23 @@
-import React, { useRef, useCallback, useEffect, useState } from 'react';
+import React, { useRef, useCallback, useEffect, useMemo, useState } from 'react';
 import useVideoStore from '../store/videoStore';
 import Clip from './Clip';
 import Playhead from './Playhead';
 import Ruler from './Ruler';
 import TrackItem from './TrackItem';
-import { Film, Music, Type, Plus, Sparkles, Volume2, Minus, ZoomIn } from 'lucide-react';
+import { Eye, EyeOff, Film, Lock, Magnet, Music, Type, Plus, Sparkles, Volume2, VolumeX, Minus, Unlock, ZoomIn } from 'lucide-react';
+import { buildTimelineModel, buildTimelineSnapPoints, DEFAULT_SNAP_THRESHOLD_SECONDS } from '../model/timelineModel';
 
 export const PIXELS_PER_SECOND_BASE = 80;
-const TRACK_HEADER_WIDTH = 56;
+const TRACK_HEADER_WIDTH = 74;
 const TIMELINE_MIN_ZOOM = 0.03;
 const TRIM_EDGE_HITBOX = 56;
 
 const TRACK_CONFIG = {
-    video:  { height: 64,  label: 'Video',  icon: Film,     color: 'indigo',  bgActive: 'bg-indigo-500/5',  borderColor: 'border-indigo-500/20' },
-    transitions: { height: 52, label: 'Effet', icon: Sparkles, color: 'purple', bgActive: 'bg-purple-500/5', borderColor: 'border-purple-500/20' },
-    text:   { height: 48,  label: 'Texte',  icon: Type,     color: 'amber',   bgActive: 'bg-amber-500/5',   borderColor: 'border-amber-500/20' },
-    audio:  { height: 48,  label: 'Audio',  icon: Volume2,  color: 'emerald', bgActive: 'bg-emerald-500/5', borderColor: 'border-emerald-500/20' },
-    music:  { height: 48,  label: 'Musique', icon: Music,   color: 'purple',  bgActive: 'bg-purple-500/5',  borderColor: 'border-purple-500/20' },
+    video:  { id: 'video-main', height: 64,  label: 'Video',  icon: Film,     color: 'indigo',  bgActive: 'bg-indigo-500/5',  borderColor: 'border-indigo-500/20', canMute: false },
+    transitions: { id: 'transition-main', height: 52, label: 'Effet', icon: Sparkles, color: 'purple', bgActive: 'bg-purple-500/5', borderColor: 'border-purple-500/20', canMute: false },
+    text:   { id: 'text-main', height: 48,  label: 'Texte',  icon: Type,     color: 'amber',   bgActive: 'bg-amber-500/5',   borderColor: 'border-amber-500/20', canMute: false },
+    audio:  { id: 'audio-main', height: 48,  label: 'Audio',  icon: Volume2,  color: 'emerald', bgActive: 'bg-emerald-500/5', borderColor: 'border-emerald-500/20', canHide: false },
+    music:  { id: 'music-main', height: 48,  label: 'Musique', icon: Music,   color: 'purple',  bgActive: 'bg-purple-500/5',  borderColor: 'border-purple-500/20', canHide: false },
 };
 
 const Timeline = ({ onImportClick }) => {
@@ -26,7 +27,11 @@ const Timeline = ({ onImportClick }) => {
         transitions, transitionItems, setActivePanel, selectedClipId,
         setSelectedClipId, selectedTextId, setSelectedTextId,
         selectedTransitionId, setSelectedTransitionId,
-        currentTime, reorderClips, updateClip
+        selectedAudioTrackId, setSelectedAudioTrackId,
+        currentTime, reorderClips, updateClip,
+        updateTimelineItem,
+        tracks, setTrackState, snapEnabled, setSnapEnabled,
+        beginHistoryTransaction, commitHistoryTransaction
     } = useVideoStore();
 
     const containerRef = useRef(null);
@@ -62,8 +67,9 @@ const Timeline = ({ onImportClick }) => {
             setSelectedClipId(null);
             setSelectedTextId(null);
             setSelectedTransitionId(null);
+            setSelectedAudioTrackId(null);
         }
-    }, [scrollX, pps, totalDuration, seekTo, setSelectedClipId, setSelectedTextId, setSelectedTransitionId]);
+    }, [scrollX, pps, totalDuration, seekTo, setSelectedClipId, setSelectedTextId, setSelectedTransitionId, setSelectedAudioTrackId]);
 
     /* ── Touch: pinch-zoom + pan ── */
     useEffect(() => {
@@ -103,7 +109,69 @@ const Timeline = ({ onImportClick }) => {
     const dragClipIndexRef = useRef(null);
     const previousClipCountRef = useRef(0);
     const [activeTrim, setActiveTrim] = useState(null);
-    const clipPositions = computeClipPositions(clips, transitions, pps);
+    const [dropIndicatorIndex, setDropIndicatorIndex] = useState(null);
+    const [snapPreview, setSnapPreview] = useState(null);
+    const timelineModel = useMemo(() => buildTimelineModel({
+        clips,
+        transitions,
+        transitionItems,
+        textOverlays,
+        audioTracks,
+        tracks,
+        totalDuration,
+    }), [audioTracks, clips, textOverlays, totalDuration, tracks, transitions, transitionItems]);
+    const videoLaneItems = useMemo(() => (
+        timelineModel.items
+            .filter(item => item.type === 'video' && item.trackId === TRACK_CONFIG.video.id)
+            .map(hydrateTimelineItem)
+    ), [timelineModel]);
+    const transitionLaneItems = useMemo(() => (
+        timelineModel.items
+            .filter(item => item.type === 'transition' && item.trackId === TRACK_CONFIG.transitions.id)
+            .filter(item => item.params?.placement !== 'cut')
+            .map(hydrateTimelineItem)
+    ), [timelineModel]);
+    const textLaneItems = useMemo(() => (
+        timelineModel.items
+            .filter(item => item.type === 'text' && item.trackId === TRACK_CONFIG.text.id)
+            .map(hydrateTimelineItem)
+    ), [timelineModel]);
+    const musicLaneItems = useMemo(() => (
+        timelineModel.items
+            .filter(item => item.type === 'audio' && item.trackId === TRACK_CONFIG.music.id)
+            .map(hydrateTimelineItem)
+    ), [timelineModel]);
+    const selectedClip = videoLaneItems.find(clip => clip.id === selectedClipId) || null;
+    const selectedTransition = transitionLaneItems.find(item => item.id === selectedTransitionId) || null;
+    const selectedText = textLaneItems.find(item => item.id === selectedTextId) || null;
+    const selectedAudioTrack = musicLaneItems.find(item => item.id === selectedAudioTrackId) || null;
+    const selectedTimelineItem = useMemo(() => {
+        if (selectedTransition) return { kind: 'transition', item: selectedTransition, label: 'Transition' };
+        if (selectedText) return { kind: 'text', item: selectedText, label: 'Texte' };
+        if (selectedAudioTrack) return { kind: 'audio', item: selectedAudioTrack, label: 'Musique' };
+        return null;
+    }, [selectedAudioTrack, selectedText, selectedTransition]);
+    const snapPoints = useMemo(() => buildTimelineSnapPoints({
+        clips,
+        transitions,
+        totalDuration,
+        currentTime,
+    }), [clips, transitions, totalDuration, currentTime]);
+    const snapThresholdSeconds = useMemo(() => (
+        Math.max(DEFAULT_SNAP_THRESHOLD_SECONDS, 12 / Math.max(pps, 1))
+    ), [pps]);
+    const trackById = useMemo(() => Object.fromEntries(tracks.map(track => [track.id, track])), [tracks]);
+    const getTrackState = useCallback((key) => trackById[TRACK_CONFIG[key].id] || {
+        locked: false,
+        muted: false,
+        visible: true,
+    }, [trackById]);
+    const isTrackVisible = useCallback((key) => getTrackState(key).visible !== false, [getTrackState]);
+    const isTrackMuted = useCallback((key) => getTrackState(key).muted === true, [getTrackState]);
+    const isTrackLocked = useCallback((key) => getTrackState(key).locked === true, [getTrackState]);
+    const selectedTimelineItemLocked = selectedTimelineItem ? isTrackLocked(
+        selectedTimelineItem.kind === 'transition' ? 'transitions' : selectedTimelineItem.kind === 'audio' ? 'music' : selectedTimelineItem.kind
+    ) : false;
     const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
     const contentWidth = Math.max(totalDuration * pps + viewportWidth * 0.5, viewportWidth);
     const totalTrackHeight = Object.values(TRACK_CONFIG).reduce((sum, t) => sum + t.height, 0);
@@ -155,6 +223,10 @@ const Timeline = ({ onImportClick }) => {
         const previousUserSelect = document.body.style.userSelect;
 
         setSelectedClipId(clip.id);
+        setSelectedTextId(null);
+        setSelectedTransitionId(null);
+        setSelectedAudioTrackId(null);
+        beginHistoryTransaction(`trim-clip-${clip.id}`);
         setActiveTrim({ clipId: clip.id, edge });
         document.body.style.cursor = 'ew-resize';
         document.body.style.userSelect = 'none';
@@ -186,6 +258,7 @@ const Timeline = ({ onImportClick }) => {
             }
             applyTrim();
             setActiveTrim(null);
+            commitHistoryTransaction();
             if (captureTarget.releasePointerCapture && captureTarget.hasPointerCapture?.(ev.pointerId)) {
                 captureTarget.releasePointerCapture(ev.pointerId);
             }
@@ -205,10 +278,14 @@ const Timeline = ({ onImportClick }) => {
         window.addEventListener('pointerup', handleUp);
         window.addEventListener('pointercancel', handleUp);
         window.addEventListener('dragstart', handleDragStart, true);
-    }, [pps, setSelectedClipId, updateClip]);
+    }, [beginHistoryTransaction, commitHistoryTransaction, pps, setSelectedAudioTrackId, setSelectedClipId, setSelectedTextId, setSelectedTransitionId, updateClip]);
 
     const handleClipPointerDown = useCallback((e, index, clip) => {
         if (e.button !== 0) return;
+        if (isTrackLocked('video')) {
+            e.stopPropagation();
+            return;
+        }
         const trimEdge = e.target.closest('[data-trim-edge]')?.dataset.trimEdge;
         const rect = e.currentTarget.getBoundingClientRect();
         const x = e.clientX - rect.left;
@@ -225,22 +302,89 @@ const Timeline = ({ onImportClick }) => {
 
         e.stopPropagation();
         dragClipIndexRef.current = index;
+        setDropIndicatorIndex(index);
 
         const handleGlobalPointerUp = (ev) => {
             const fromIndex = dragClipIndexRef.current;
             dragClipIndexRef.current = null;
             const target = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-clip-index]');
             const targetIndex = target ? Number(target.dataset.clipIndex) : NaN;
+            setDropIndicatorIndex(null);
+            window.removeEventListener('pointermove', handleGlobalPointerMove);
+            window.removeEventListener('pointercancel', handleGlobalPointerCancel);
             if (Number.isNaN(fromIndex) || Number.isNaN(targetIndex) || fromIndex === targetIndex) return;
             reorderClips(fromIndex, targetIndex);
         };
 
+        const handleGlobalPointerMove = (ev) => {
+            const target = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-clip-index]');
+            const targetIndex = target ? Number(target.dataset.clipIndex) : NaN;
+            if (!Number.isNaN(targetIndex)) setDropIndicatorIndex(targetIndex);
+        };
+
+        const handleGlobalPointerCancel = () => {
+            dragClipIndexRef.current = null;
+            setDropIndicatorIndex(null);
+            window.removeEventListener('pointermove', handleGlobalPointerMove);
+        };
+
+        window.addEventListener('pointermove', handleGlobalPointerMove);
+        window.addEventListener('pointercancel', handleGlobalPointerCancel, { once: true });
         window.addEventListener('pointerup', handleGlobalPointerUp, { once: true });
-    }, [reorderClips, startClipTrim]);
+    }, [isTrackLocked, reorderClips, startClipTrim]);
 
     const handlePanEnd = useCallback((e) => {
         panRef.current = null;
     }, []);
+
+    const updateSelectedClipTimecode = useCallback((field, value) => {
+        if (!selectedClip) return;
+        if (isTrackLocked('video')) return;
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) return;
+        const minDuration = 0.15;
+        if (field === 'trimStart') {
+            updateClip(selectedClip.id, {
+                trimStart: Math.max(0, Math.min(selectedClip.trimEnd - minDuration, numeric)),
+            });
+        } else if (field === 'trimEnd') {
+            updateClip(selectedClip.id, {
+                trimEnd: Math.max(selectedClip.trimStart + minDuration, Math.min(selectedClip.originalDuration, numeric)),
+            });
+        }
+    }, [isTrackLocked, selectedClip, updateClip]);
+
+    const updateSelectedTimelineItemTimecode = useCallback((field, value) => {
+        if (!selectedTimelineItem) return;
+        const lockedKey = selectedTimelineItem.kind === 'transition' ? 'transitions' : selectedTimelineItem.kind === 'audio' ? 'music' : selectedTimelineItem.kind;
+        if (isTrackLocked(lockedKey)) return;
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) return;
+
+        const { item } = selectedTimelineItem;
+        const start = Number(item.startTime || 0);
+        const end = Number(item.endTime || start + (item.duration || 0.5));
+        const duration = Math.max(0.1, end - start);
+        const maxEnd = Math.max(0.1, totalDuration || end || duration);
+        let nextStart = start;
+        let nextEnd = end;
+
+        if (field === 'startTime') {
+            nextStart = Math.max(0, Math.min(maxEnd - 0.1, numeric));
+            nextEnd = Math.min(maxEnd, nextStart + duration);
+        } else if (field === 'duration') {
+            nextEnd = Math.min(maxEnd, nextStart + Math.max(0.1, numeric));
+        }
+
+        const updates = {
+            start: nextStart,
+            startTime: nextStart,
+            endTime: nextEnd,
+            duration: Math.max(0.1, nextEnd - nextStart),
+        };
+
+        updateTimelineItem(item.id, updates, { history: true });
+    }, [isTrackLocked, selectedTimelineItem, totalDuration, updateTimelineItem]);
 
     return (
         <div className="flex flex-col bg-neutral-950 border-t border-neutral-800 select-none shrink-0">
@@ -248,7 +392,7 @@ const Timeline = ({ onImportClick }) => {
             {/* ── Ruler ── */}
             <div className="flex h-7 border-b border-neutral-800">
                 {/* Header spacer */}
-                <div className="w-14 shrink-0 bg-neutral-950 border-r border-neutral-800 flex items-center justify-center">
+                <div className="w-[74px] shrink-0 bg-neutral-950 border-r border-neutral-800 flex items-center justify-center">
                     <span className="text-[7px] font-mono text-neutral-700 uppercase">Time</span>
                 </div>
                 {/* Ruler content */}
@@ -270,19 +414,23 @@ const Timeline = ({ onImportClick }) => {
                 onPointerLeave={handlePanEnd}
             >
                 {/* ── Fixed track headers (left column) ── */}
-                <div className="w-14 shrink-0 flex flex-col z-20 bg-neutral-950 border-r border-neutral-800">
+                <div className="w-[74px] shrink-0 flex flex-col z-20 bg-neutral-950 border-r border-neutral-800">
                     {Object.entries(TRACK_CONFIG).map(([key, config]) => {
                         const Icon = config.icon;
-                        const hasItems = key === 'video' ? clips.length > 0
-                            : key === 'transitions' ? transitionItems.length > 0
-                            : key === 'text' ? textOverlays.length > 0
+                        const track = getTrackState(key);
+                        const visible = track.visible !== false;
+                        const muted = track.muted === true;
+                        const locked = track.locked === true;
+                        const hasItems = key === 'video' ? videoLaneItems.length > 0
+                            : key === 'transitions' ? transitionLaneItems.length > 0
+                            : key === 'text' ? textLaneItems.length > 0
                             : key === 'audio' ? false
-                            : audioTracks.length > 0;
+                            : musicLaneItems.length > 0;
                         return (
                             <div
                                 key={key}
                                 className={`flex flex-col items-center justify-center gap-0.5 border-b border-neutral-800/50 cursor-pointer
-                                    hover:bg-neutral-900/50 transition ${hasItems ? '' : 'opacity-50'}`}
+                                    hover:bg-neutral-900/50 transition ${hasItems ? '' : 'opacity-50'} ${!visible || muted ? 'bg-neutral-900/70' : ''}`}
                                 style={{ height: `${config.height}px` }}
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -297,6 +445,48 @@ const Timeline = ({ onImportClick }) => {
                                 <span className={`text-[7px] font-mono uppercase tracking-wide text-${config.color}-500/50`}>
                                     {config.label}
                                 </span>
+                                <div className="mt-0.5 flex items-center gap-0.5">
+                                    {config.canHide !== false && (
+                                        <button
+                                            type="button"
+                                            aria-label={`${visible ? 'Masquer' : 'Afficher'} piste ${config.label}`}
+                                            data-testid={`track-${config.id}-visible`}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setTrackState(config.id, { visible: !visible });
+                                            }}
+                                            className={`grid h-4 w-4 place-items-center rounded-sm border border-neutral-800 ${visible ? 'text-neutral-500 hover:text-white' : 'text-red-300 bg-red-500/10'}`}
+                                        >
+                                            {visible ? <Eye size={9} /> : <EyeOff size={9} />}
+                                        </button>
+                                    )}
+                                    {config.canMute !== false && (
+                                        <button
+                                            type="button"
+                                            aria-label={`${muted ? 'Activer le son' : 'Muter'} piste ${config.label}`}
+                                            data-testid={`track-${config.id}-mute`}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setTrackState(config.id, { muted: !muted });
+                                            }}
+                                            className={`grid h-4 w-4 place-items-center rounded-sm border border-neutral-800 ${muted ? 'text-amber-300 bg-amber-500/10' : 'text-neutral-500 hover:text-white'}`}
+                                        >
+                                            {muted ? <VolumeX size={9} /> : <Volume2 size={9} />}
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        aria-label={`${locked ? 'Deverrouiller' : 'Verrouiller'} piste ${config.label}`}
+                                        data-testid={`track-${config.id}-lock`}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setTrackState(config.id, { locked: !locked });
+                                        }}
+                                        className={`grid h-4 w-4 place-items-center rounded-sm border border-neutral-800 ${locked ? 'text-cyan-300 bg-cyan-500/10' : 'text-neutral-500 hover:text-white'}`}
+                                    >
+                                        {locked ? <Lock size={9} /> : <Unlock size={9} />}
+                                    </button>
+                                </div>
                             </div>
                         );
                     })}
@@ -317,13 +507,12 @@ const Timeline = ({ onImportClick }) => {
                             <div className="absolute inset-0 bg-indigo-500/[0.02]" data-track-bg="1" />
 
                             {/* Clips positioned absolutely by their computed start positions */}
-                            {clips.map((clip, i) => {
-                                const pos = clipPositions[i];
+                            {videoLaneItems.map((clip, i) => {
                                 return (
                                     <div
                                         key={clip.id}
-                                        className="absolute top-1 bottom-1"
-                                        style={{ left: `${pos.left}px`, width: `${pos.width}px` }}
+                                        className={`absolute top-1 bottom-1 ${isTrackLocked('video') ? 'opacity-65 cursor-not-allowed' : ''} ${!isTrackVisible('video') ? 'opacity-45' : ''}`}
+                                        style={{ left: `${clip.start * pps}px`, width: `${Math.max(24, clip.duration * pps)}px` }}
                                         data-clip-index={i}
                                         role="button"
                                         tabIndex={0}
@@ -342,21 +531,33 @@ const Timeline = ({ onImportClick }) => {
                                 );
                             })}
 
+                            {dropIndicatorIndex !== null && (
+                                <div
+                                    data-testid="timeline-drop-indicator"
+                                    className="absolute top-0 bottom-0 z-30 w-0.5 bg-cyan-300 shadow-[0_0_10px_rgba(103,232,249,0.7)] pointer-events-none"
+                                    style={{ left: `${(videoLaneItems[dropIndicatorIndex]?.start || 0) * pps}px` }}
+                                >
+                                    <span className="absolute -top-5 left-1/2 -translate-x-1/2 rounded-sm border border-cyan-400/30 bg-neutral-950 px-1.5 py-0.5 text-[7px] font-mono uppercase tracking-widest text-cyan-200">
+                                        Drop
+                                    </span>
+                                </div>
+                            )}
+
                             {/* Add clip button */}
-                            {clips.length > 0 && (
+                            {videoLaneItems.length > 0 && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); onImportClick?.(); }}
                                     className="absolute top-1 bottom-1 flex items-center justify-center
                                         border border-dashed border-neutral-700/50 hover:border-indigo-500/40
                                         hover:bg-indigo-500/5 rounded-sm transition"
-                                    style={{ left: `${(clipPositions[clips.length - 1]?.left || 0) + (clipPositions[clips.length - 1]?.width || 0) + 4}px`, width: '40px' }}
+                                    style={{ left: `${((videoLaneItems.at(-1)?.start || 0) + (videoLaneItems.at(-1)?.duration || 0)) * pps + 4}px`, width: '40px' }}
                                 >
                                     <Plus size={14} className="text-neutral-600" />
                                 </button>
                             )}
 
                             {/* Empty state */}
-                            {clips.length === 0 && (
+                            {videoLaneItems.length === 0 && (
                                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                                     <span className="text-[9px] font-mono text-neutral-700 uppercase tracking-widest">
                                         Cliquez sur + pour importer une video
@@ -377,7 +578,7 @@ const Timeline = ({ onImportClick }) => {
                                 Timeline Effets
                             </div>
 
-                            {transitionItems.map(item => (
+                            {transitionLaneItems.map(item => (
                                 <TrackItem
                                     key={item.id}
                                     item={item}
@@ -387,11 +588,23 @@ const Timeline = ({ onImportClick }) => {
                                     color="purple"
                                     label={`${item.icon || '*'} ${item.name}`}
                                     isSelected={item.id === selectedTransitionId}
-                                    onSelect={() => { setSelectedTransitionId(item.id); setActivePanel('transitions'); }}
+                                    isLocked={isTrackLocked('transitions')}
+                                    snapEnabled={snapEnabled}
+                                    snapPoints={snapPoints}
+                                    snapThreshold={snapThresholdSeconds}
+                                    maxEnd={totalDuration}
+                                    onSnapPreview={setSnapPreview}
+                                    onSelect={() => {
+                                        setSelectedClipId(null);
+                                        setSelectedTextId(null);
+                                        setSelectedAudioTrackId(null);
+                                        setSelectedTransitionId(item.id);
+                                        setActivePanel('transitions');
+                                    }}
                                 />
                             ))}
 
-                            {transitionItems.length === 0 && (
+                            {transitionLaneItems.length === 0 && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setActivePanel('transitions'); }}
                                     className="absolute inset-0 flex items-center justify-center group"
@@ -411,7 +624,7 @@ const Timeline = ({ onImportClick }) => {
                         >
                             <div className="absolute inset-0 bg-amber-500/[0.02]" data-track-bg="1" />
 
-                            {textOverlays.map(text => (
+                            {textLaneItems.map(text => (
                                 <TrackItem
                                     key={text.id}
                                     item={text}
@@ -421,11 +634,23 @@ const Timeline = ({ onImportClick }) => {
                                     color="amber"
                                     label={text.content}
                                     isSelected={text.id === selectedTextId}
-                                    onSelect={() => { setSelectedTextId(text.id); setActivePanel('text'); }}
+                                    isLocked={isTrackLocked('text')}
+                                    snapEnabled={snapEnabled}
+                                    snapPoints={snapPoints}
+                                    snapThreshold={snapThresholdSeconds}
+                                    maxEnd={totalDuration}
+                                    onSnapPreview={setSnapPreview}
+                                    onSelect={() => {
+                                        setSelectedClipId(null);
+                                        setSelectedTransitionId(null);
+                                        setSelectedAudioTrackId(null);
+                                        setSelectedTextId(text.id);
+                                        setActivePanel('text');
+                                    }}
                                 />
                             ))}
 
-                            {textOverlays.length === 0 && (
+                            {textLaneItems.length === 0 && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setActivePanel('text'); }}
                                     className="absolute inset-0 flex items-center justify-center group"
@@ -446,24 +671,33 @@ const Timeline = ({ onImportClick }) => {
                             <div className="absolute inset-0 bg-emerald-500/[0.02]" data-track-bg="1" />
 
                             {/* Audio waveform placeholder for each clip */}
-                            {clips.map((clip, i) => {
-                                const pos = clipPositions[i];
+                            {videoLaneItems.map((clip, i) => {
                                 return (
                                     <div
                                         key={clip.id}
-                                        className={`absolute top-1 bottom-1 rounded-sm overflow-hidden cursor-pointer transition-all
+                                        className={`absolute top-1 bottom-1 rounded-sm overflow-hidden transition-all
+                                            ${isTrackLocked('audio') ? 'cursor-not-allowed opacity-65' : 'cursor-pointer'}
+                                            ${isTrackMuted('audio') ? 'opacity-45 grayscale' : ''}
                                             ${selectedClipId === clip.id ? 'ring-1 ring-emerald-500/50' : ''}`}
-                                        style={{ left: `${pos.left}px`, width: `${pos.width}px` }}
-                                        onClick={(e) => { e.stopPropagation(); setSelectedClipId(clip.id); setActivePanel('audio'); }}
+                                        style={{ left: `${clip.start * pps}px`, width: `${Math.max(24, clip.duration * pps)}px` }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (isTrackLocked('audio')) return;
+                                            setSelectedClipId(clip.id);
+                                            setSelectedTextId(null);
+                                            setSelectedTransitionId(null);
+                                            setSelectedAudioTrackId(null);
+                                            setActivePanel('audio');
+                                        }}
                                     >
                                         <div className="w-full h-full bg-emerald-900/20 border border-emerald-700/20 rounded-sm flex items-center px-2 relative overflow-hidden">
                                             {/* Fake waveform visualization */}
                                             <div className="absolute inset-0 flex items-center justify-center gap-px opacity-40">
-                                                {Array.from({ length: Math.min(80, Math.floor(pos.width / 3)) }, (_, j) => (
+                                                {Array.from({ length: Math.min(80, Math.floor(Math.max(24, clip.duration * pps) / 3)) }, (_, j) => (
                                                     <div
                                                         key={j}
                                                         className="w-0.5 bg-emerald-500/60 rounded-full shrink-0"
-                                                        style={{ height: `${12 + Math.sin(j * 0.5 + i) * 10 + Math.random() * 8}px` }}
+                                                        style={{ height: `${getWaveformBarHeight(clip.id || clip.name, j, i)}px` }}
                                                     />
                                                 ))}
                                             </div>
@@ -489,7 +723,7 @@ const Timeline = ({ onImportClick }) => {
                         >
                             <div className="absolute inset-0 bg-purple-500/[0.02]" data-track-bg="1" />
 
-                            {audioTracks.map(track => (
+                            {musicLaneItems.map(track => (
                                 <TrackItem
                                     key={track.id}
                                     item={track}
@@ -498,12 +732,24 @@ const Timeline = ({ onImportClick }) => {
                                     trackHeight={TRACK_CONFIG.music.height}
                                     color="purple"
                                     label={track.name}
-                                    isSelected={false}
-                                    onSelect={() => setActivePanel('audio')}
+                                    isSelected={track.id === selectedAudioTrackId}
+                                    isLocked={isTrackLocked('music')}
+                                    snapEnabled={snapEnabled}
+                                    snapPoints={snapPoints}
+                                    snapThreshold={snapThresholdSeconds}
+                                    maxEnd={totalDuration}
+                                    onSnapPreview={setSnapPreview}
+                                    onSelect={() => {
+                                        setSelectedClipId(null);
+                                        setSelectedTextId(null);
+                                        setSelectedTransitionId(null);
+                                        setSelectedAudioTrackId(track.id);
+                                        setActivePanel('audio');
+                                    }}
                                 />
                             ))}
 
-                            {audioTracks.length === 0 && (
+                            {musicLaneItems.length === 0 && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setActivePanel('music'); }}
                                     className="absolute inset-0 flex items-center justify-center group"
@@ -525,24 +771,115 @@ const Timeline = ({ onImportClick }) => {
                         className="absolute top-0 bottom-0 w-px bg-indigo-500/30 pointer-events-none z-10"
                         style={{ left: `${currentTime * pps - scrollX}px` }}
                     />
+                    {snapPreview && (
+                        <div
+                            data-testid="timeline-snap-indicator"
+                            className="absolute top-0 bottom-0 z-30 w-px bg-cyan-300/90 shadow-[0_0_10px_rgba(103,232,249,0.7)] pointer-events-none"
+                            style={{ left: `${snapPreview.time * pps - scrollX}px` }}
+                        >
+                            <span className="absolute top-1 left-1.5 rounded-sm border border-cyan-400/35 bg-neutral-950/95 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-widest text-cyan-200 whitespace-nowrap">
+                                Snap {snapPreview.label}
+                            </span>
+                        </div>
+                    )}
                 </div>
             </div>
 
             {/* ── Bottom bar: zoom + info ── */}
-            <div className="flex items-center justify-between px-3 h-6 border-t border-neutral-800/50 bg-neutral-950">
-                <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-3 px-3 min-h-10 border-t border-neutral-800/50 bg-neutral-950">
+                <div className="flex items-center gap-2 min-w-0">
                     <span className="text-[8px] font-mono text-neutral-600 uppercase">
-                        {clips.length} clip{clips.length !== 1 ? 's' : ''} / {transitionItems.length} transition{transitionItems.length !== 1 ? 's' : ''} / {textOverlays.length} texte{textOverlays.length !== 1 ? 's' : ''} / {audioTracks.length} piste{audioTracks.length !== 1 ? 's' : ''}
+                        {clips.length} clip{clips.length !== 1 ? 's' : ''} / {transitionLaneItems.length} transition{transitionLaneItems.length !== 1 ? 's' : ''} / {textLaneItems.length} texte{textLaneItems.length !== 1 ? 's' : ''} / {musicLaneItems.length} piste{musicLaneItems.length !== 1 ? 's' : ''}
                     </span>
+                    {selectedClip && (
+                        <div className="flex items-center gap-1.5 rounded-sm border border-neutral-800 bg-neutral-900/60 px-2 py-1">
+                            <span className="text-[8px] font-mono text-neutral-500 uppercase">Trim</span>
+                            <label className="flex items-center gap-1 text-[8px] font-mono text-neutral-500">
+                                In
+                                <input
+                                    aria-label="Timecode trim debut"
+                                    type="number"
+                                    min={0}
+                                    max={selectedClip.trimEnd - 0.15}
+                                    step={0.01}
+                                    value={Number(selectedClip.trimStart || 0).toFixed(2)}
+                                    disabled={isTrackLocked('video')}
+                                    onChange={(e) => updateSelectedClipTimecode('trimStart', e.target.value)}
+                                    className="w-16 rounded-sm border border-neutral-800 bg-black/60 px-1 py-0.5 text-[8px] text-neutral-200 tabular-nums focus:outline-none focus:border-indigo-400"
+                                />
+                            </label>
+                            <label className="flex items-center gap-1 text-[8px] font-mono text-neutral-500">
+                                Out
+                                <input
+                                    aria-label="Timecode trim fin"
+                                    type="number"
+                                    min={selectedClip.trimStart + 0.15}
+                                    max={selectedClip.originalDuration}
+                                    step={0.01}
+                                    value={Number(selectedClip.trimEnd || 0).toFixed(2)}
+                                    disabled={isTrackLocked('video')}
+                                    onChange={(e) => updateSelectedClipTimecode('trimEnd', e.target.value)}
+                                    className="w-16 rounded-sm border border-neutral-800 bg-black/60 px-1 py-0.5 text-[8px] text-neutral-200 tabular-nums focus:outline-none focus:border-indigo-400"
+                                />
+                            </label>
+                        </div>
+                    )}
+                    {selectedTimelineItem && (
+                        <div className="flex items-center gap-1.5 rounded-sm border border-cyan-500/20 bg-cyan-500/5 px-2 py-1">
+                            <span className="text-[8px] font-mono text-cyan-300/80 uppercase">{selectedTimelineItem.label}</span>
+                            <label className="flex items-center gap-1 text-[8px] font-mono text-neutral-500">
+                                Start
+                                <input
+                                    aria-label="Timecode item start"
+                                    type="number"
+                                    min={0}
+                                    max={Math.max(0, totalDuration - 0.1)}
+                                    step={0.01}
+                                    value={Number(selectedTimelineItem.item.startTime || 0).toFixed(2)}
+                                    disabled={selectedTimelineItemLocked}
+                                    onChange={(e) => updateSelectedTimelineItemTimecode('startTime', e.target.value)}
+                                    className="w-16 rounded-sm border border-neutral-800 bg-black/60 px-1 py-0.5 text-[8px] text-neutral-200 tabular-nums focus:outline-none focus:border-cyan-400"
+                                />
+                            </label>
+                            <label className="flex items-center gap-1 text-[8px] font-mono text-neutral-500">
+                                Dur
+                                <input
+                                    aria-label="Timecode item duration"
+                                    type="number"
+                                    min={0.1}
+                                    max={Math.max(0.1, totalDuration)}
+                                    step={0.01}
+                                    value={Math.max(0.1, Number((selectedTimelineItem.item.endTime || 0) - (selectedTimelineItem.item.startTime || 0))).toFixed(2)}
+                                    disabled={selectedTimelineItemLocked}
+                                    onChange={(e) => updateSelectedTimelineItemTimecode('duration', e.target.value)}
+                                    className="w-16 rounded-sm border border-neutral-800 bg-black/60 px-1 py-0.5 text-[8px] text-neutral-200 tabular-nums focus:outline-none focus:border-cyan-400"
+                                />
+                            </label>
+                        </div>
+                    )}
                 </div>
                 <div className="flex items-center gap-1.5">
                     <button
+                        type="button"
+                        aria-pressed={snapEnabled}
+                        data-testid="timeline-snap-toggle"
+                        onClick={() => setSnapEnabled(!snapEnabled)}
+                        className={`flex h-8 items-center gap-1 rounded-sm border px-2 text-[8px] font-mono uppercase tracking-widest transition ${
+                            snapEnabled
+                                ? 'border-cyan-400/40 bg-cyan-500/10 text-cyan-200'
+                                : 'border-neutral-800 bg-neutral-900/50 text-neutral-500 hover:border-neutral-600 hover:text-neutral-200'
+                        }`}
+                    >
+                        <Magnet size={10} />
+                        Snap
+                    </button>
+                    <button
                         onClick={() => setZoom(Math.max(TIMELINE_MIN_ZOOM, zoom - 0.3))}
-                        className="w-5 h-5 flex items-center justify-center text-neutral-600 hover:text-white transition rounded-sm hover:bg-neutral-800"
+                        className="w-11 h-8 flex items-center justify-center text-neutral-600 hover:text-white transition rounded-sm hover:bg-neutral-800"
                     >
                         <Minus size={10} />
                     </button>
-                    <div className="w-20 h-1 bg-neutral-800 rounded-full relative">
+                    <div className="w-20 h-3 bg-neutral-800 rounded-full relative">
                         <div
                             className="absolute top-0 left-0 h-full bg-indigo-500/40 rounded-full"
                             style={{ width: `${Math.min(100, (zoom / 5) * 100)}%` }}
@@ -559,7 +896,7 @@ const Timeline = ({ onImportClick }) => {
                     </div>
                     <button
                         onClick={() => setZoom(Math.min(10, zoom + 0.3))}
-                        className="w-5 h-5 flex items-center justify-center text-neutral-600 hover:text-white transition rounded-sm hover:bg-neutral-800"
+                        className="w-11 h-8 flex items-center justify-center text-neutral-600 hover:text-white transition rounded-sm hover:bg-neutral-800"
                     >
                         <ZoomIn size={10} />
                     </button>
@@ -570,30 +907,28 @@ const Timeline = ({ onImportClick }) => {
     );
 };
 
-/** Compute absolute pixel positions for each clip */
-function computeClipPositions(clips, transitions, pps) {
-    const positions = [];
-    let currentLeft = 0;
+function getWaveformBarHeight(seed = '', index = 0, lane = 0) {
+    const hash = String(seed).split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    const wave = Math.sin(index * 0.58 + lane * 0.9 + hash * 0.013);
+    const detail = Math.sin(index * 1.31 + hash * 0.021) * 0.5 + 0.5;
+    return Math.max(4, Math.round(12 + wave * 9 + detail * 7));
+}
 
-    for (let i = 0; i < clips.length; i++) {
-        const clip = clips[i];
-        const clipDur = (clip.trimEnd - clip.trimStart) / (clip.speed || 1);
-        const width = clipDur * pps;
-
-        positions.push({ left: currentLeft, width, duration: clipDur });
-
-        // Account for transition overlap with next clip
-        let overlapPx = 0;
-        if (i < clips.length - 1) {
-            const key = `${clip.id}->${clips[i + 1].id}`;
-            const tr = transitions[key];
-            if (tr) overlapPx = (tr.duration || 0) * pps;
-        }
-
-        currentLeft += width - overlapPx + 2; // 2px gap between clips
-    }
-
-    return positions;
+function hydrateTimelineItem(item) {
+    return {
+        ...(item.source || {}),
+        id: item.id,
+        trackId: item.trackId,
+        type: item.type,
+        start: item.start,
+        startTime: item.start,
+        endTime: item.start + item.duration,
+        duration: item.duration,
+        trimStart: item.trimStart,
+        trimEnd: item.trimEnd,
+        zIndex: item.zIndex,
+        params: item.params || {},
+    };
 }
 
 export default Timeline;

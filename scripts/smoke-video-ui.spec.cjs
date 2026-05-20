@@ -1,4 +1,5 @@
 const { test, expect } = require("@playwright/test");
+const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -26,6 +27,20 @@ function getVideoFixtures(limit = 2) {
 function getNamedFixture(fileName) {
   const fullPath = path.join(videoDir, fileName);
   return fs.existsSync(fullPath) ? fullPath : null;
+}
+
+function probeExportMetadata(filePath) {
+  const result = spawnSync("ffprobe", [
+    "-v", "error",
+    "-show_entries", "format=duration,size,format_name,bit_rate",
+    "-show_streams",
+    "-of", "json",
+    filePath,
+  ], { encoding: "utf8" });
+
+  if (result.error?.code === "ENOENT") return null;
+  expect(result.status, result.stderr || result.stdout).toBe(0);
+  return JSON.parse(result.stdout);
 }
 
 async function openVideoEditor(page) {
@@ -124,6 +139,21 @@ test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) =
   }, null, { timeout: 15000 });
   const sequenceRatio = await page.locator("canvas").evaluate((canvas) => canvas.width / canvas.height);
   expect(Math.abs(sequenceRatio - (1080 / 1920))).toBeLessThan(0.02);
+  await expect(page.getByTestId("video-safe-area-overlay")).toBeVisible();
+  const textVisibilityToggle = page.getByTestId("track-text-main-visible");
+  await expect(textVisibilityToggle).toBeVisible();
+  await textVisibilityToggle.click();
+  await expect(textVisibilityToggle).toHaveAttribute("aria-label", /Afficher piste Texte/i);
+  await textVisibilityToggle.click();
+  await expect(textVisibilityToggle).toHaveAttribute("aria-label", /Masquer piste Texte/i);
+  const musicMuteToggle = page.getByTestId("track-music-main-mute");
+  await musicMuteToggle.click();
+  await expect(musicMuteToggle).toHaveAttribute("aria-label", /Activer le son piste Musique/i);
+  await musicMuteToggle.click();
+  const videoLockToggle = page.getByTestId("track-video-main-lock");
+  await videoLockToggle.click();
+  await expect(videoLockToggle).toHaveAttribute("aria-label", /Deverrouiller piste Video/i);
+  await videoLockToggle.click();
 
   const firstClipName = path.basename(fixtures[0], ".mp4");
   const secondClipName = path.basename(fixtures[1], ".mp4");
@@ -137,11 +167,14 @@ test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) =
   await page.mouse.move(b2.x + Math.min(b2.width / 2, 80), b2.y + b2.height / 2);
   await page.mouse.down();
   await page.mouse.move(b1.x + b1.width / 2, b1.y + b1.height / 2, { steps: 12 });
+  await expect(page.getByTestId("timeline-drop-indicator")).toBeVisible();
   await page.mouse.up();
   await expect(page.getByRole("button", { name: /Clip 1:/ }).first()).toContainText(secondClipName);
   clip1 = page.getByRole("button", { name: /Clip 1:/ }).first();
 
   const beforeTrim = await page.getByTestId("video-clip-0").innerText();
+  const beforeTrimDuration = beforeTrim.match(/\d+:\d+(?:\.\d+)?/)?.[0];
+  expect(beforeTrimDuration).toBeTruthy();
   const trimHandle = page.getByTestId("video-clip-0-trim-end");
   const trimBox = await trimHandle.boundingBox();
   expect(trimBox).toBeTruthy();
@@ -149,7 +182,13 @@ test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) =
   await page.mouse.down();
   await page.mouse.move(trimBox.x - 120, trimBox.y + trimBox.height / 2, { steps: 8 });
   await page.mouse.up();
-  await expect(page.getByTestId("video-clip-0")).not.toContainText(beforeTrim);
+  await expect(page.getByTestId("video-clip-0")).not.toContainText(beforeTrimDuration);
+  await page.locator('button[title="Annuler (Ctrl+Z)"]').click();
+  await expect(page.getByTestId("video-clip-0")).toContainText(beforeTrimDuration);
+  await page.locator('button[title="Refaire (Ctrl+Shift+Z)"]').click();
+  await expect(page.getByTestId("video-clip-0")).not.toContainText(beforeTrimDuration);
+  await expect(page.getByLabel("Timecode trim debut")).toBeVisible();
+  await expect(page.getByLabel("Timecode trim fin")).toBeVisible();
 
   await clip1.click();
   const progressBar = page.locator(".h-1.bg-neutral-800.cursor-pointer").first();
@@ -159,12 +198,18 @@ test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) =
   await page.getByRole("button", { name: "Couper", exact: true }).click();
   await expect(page.locator("body")).toContainText(/3 clips/i);
 
-  await expect(page.getByRole("slider", { name: /deplacer le curseur de timeline/i })).toBeVisible();
+  const playheadSlider = page.getByRole("slider", { name: /deplacer le curseur de timeline/i });
+  await expect(playheadSlider).toBeVisible();
   await page.getByRole("button", { name: "Lire", exact: true }).click();
   await page.waitForTimeout(220);
   await dragPlayheadFast(page, 0.68);
-  await expect(page.getByRole("slider", { name: /deplacer le curseur de timeline/i })).toHaveAttribute("aria-valuenow", /[1-9]/);
+  await expect(playheadSlider).toHaveAttribute("aria-valuenow", /[1-9]/);
   await page.getByRole("button", { name: "Pause", exact: true }).click();
+  const timeAfterDrag = Number(await playheadSlider.getAttribute("aria-valuenow"));
+  await playheadSlider.focus();
+  await page.keyboard.press("ArrowLeft");
+  const timeAfterKeyboardNudge = Number(await playheadSlider.getAttribute("aria-valuenow"));
+  expect(timeAfterKeyboardNudge).toBeLessThan(timeAfterDrag);
 
   await page.getByRole("button", { name: "Vitesse", exact: true }).click();
   await page.getByRole("button", { name: /2x/i }).click();
@@ -195,14 +240,50 @@ test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) =
 
   const transitionItem = page.locator('[data-track-item-type="transition"]').first();
   const transitionBefore = await transitionItem.boundingBox();
+  const transitionStartBefore = Number(await transitionItem.getAttribute("data-track-item-start"));
   expect(transitionBefore).toBeTruthy();
   await page.mouse.move(transitionBefore.x + transitionBefore.width / 2, transitionBefore.y + transitionBefore.height / 2);
   await page.mouse.down();
   await page.mouse.move(transitionBefore.x + transitionBefore.width / 2 + 72, transitionBefore.y + transitionBefore.height / 2, { steps: 8 });
   await page.mouse.up();
   const transitionAfter = await transitionItem.boundingBox();
+  const transitionStartAfter = Number(await transitionItem.getAttribute("data-track-item-start"));
   expect(transitionAfter).toBeTruthy();
-  expect(transitionAfter.x).toBeGreaterThan(transitionBefore.x + 24);
+  expect(transitionStartAfter).toBeGreaterThan(transitionStartBefore);
+  const itemStartInput = page.getByLabel("Timecode item start");
+  const itemDurationInput = page.getByLabel("Timecode item duration");
+  await expect(itemStartInput).toBeVisible();
+  await expect(itemDurationInput).toBeVisible();
+  await itemDurationInput.fill("0.70");
+  await expect(transitionItem).toHaveAttribute("data-track-item-duration", /^0\.700$/);
+  const transitionPickerItem = page.getByTestId("transition-picker-item").first();
+  await expect(transitionPickerItem).toHaveAttribute("data-transition-duration", "0.700");
+
+  const snapToggle = page.getByTestId("timeline-snap-toggle");
+  await expect(snapToggle).toBeVisible();
+  await expect(snapToggle).toHaveAttribute("aria-pressed", "false");
+  await snapToggle.click();
+  await expect(snapToggle).toHaveAttribute("aria-pressed", "true");
+  const transitionForSnap = await transitionItem.boundingBox();
+  expect(transitionForSnap).toBeTruthy();
+  await page.mouse.move(transitionForSnap.x + transitionForSnap.width / 2, transitionForSnap.y + transitionForSnap.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(transitionForSnap.x - transitionForSnap.width, transitionForSnap.y + transitionForSnap.height / 2, { steps: 12 });
+  await expect(page.getByTestId("timeline-snap-indicator")).toBeVisible();
+  await page.mouse.up();
+  const transitionStartSnapped = Number(await transitionItem.getAttribute("data-track-item-start"));
+  expect(transitionStartSnapped).toBeLessThanOrEqual(transitionStartAfter);
+  await expect(transitionPickerItem).toHaveAttribute("data-transition-start", transitionStartSnapped.toFixed(3));
+  await page.getByTestId("track-transition-main-lock").click();
+  await expect(itemDurationInput).toBeDisabled();
+  await expect(page.getByLabel("Duree de transition").first()).toBeDisabled();
+  const lockedTransitionBox = await transitionItem.boundingBox();
+  expect(lockedTransitionBox).toBeTruthy();
+  await page.mouse.move(lockedTransitionBox.x + lockedTransitionBox.width / 2, lockedTransitionBox.y + lockedTransitionBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(lockedTransitionBox.x + lockedTransitionBox.width / 2 + 90, lockedTransitionBox.y + lockedTransitionBox.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await expect(transitionItem).toHaveAttribute("data-track-item-start", transitionStartSnapped.toFixed(3));
 
   await page.getByRole("button", { name: "Texte", exact: true }).click();
   await page.getByRole("button", { name: /Ajouter un texte/i }).first().click();
@@ -210,16 +291,30 @@ test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) =
   await expect(page.getByPlaceholder("Votre texte...").first()).toHaveValue("INTRO VIBE CUT");
 
   await page.getByRole("button", { name: "Musique", exact: true }).click();
+  await page.getByRole("button", { name: "Starter", exact: true }).click();
   await page.getByRole("button", { name: /Importer .* dans la timeline/i }).first().click({ force: true });
   await expect(page.locator("body")).toContainText(/1 piste/i);
+  await expect(page.locator('[data-track-item-type="audio"][data-waveform-status="ready"]').first()).toBeVisible({ timeout: 15000 });
 
+  const clipForAudioBox = await page.getByRole("button", { name: /Clip 1:/ }).first().boundingBox();
+  expect(clipForAudioBox).toBeTruthy();
+  await page.mouse.click(
+    clipForAudioBox.x + Math.min(clipForAudioBox.width - 18, Math.max(20, clipForAudioBox.width * 0.8)),
+    clipForAudioBox.y + clipForAudioBox.height / 2
+  );
   await page.getByRole("button", { name: "Audio", exact: true }).click();
   const clipVolume = page.locator('input[aria-label^="Volume du clip"]:visible').first();
   const trackVolume = page.locator('input[aria-label^="Volume de la piste"]:visible').first();
   await dragRange(page, clipVolume, 0.75);
   await dragRange(page, trackVolume, 0.625);
-  await expect(page.locator("body")).toContainText(/1[45]\d%/);
-  await expect(page.locator("body")).toContainText(/12\d%/);
+  const clipVolumeValue = Number(await clipVolume.inputValue());
+  const trackVolumeValue = Number(await trackVolume.inputValue());
+  expect(clipVolumeValue).toBeGreaterThanOrEqual(70);
+  expect(clipVolumeValue).toBeLessThanOrEqual(100);
+  expect(trackVolumeValue).toBeGreaterThanOrEqual(55);
+  expect(trackVolumeValue).toBeLessThanOrEqual(100);
+  await page.getByTestId("track-music-main-lock").click();
+  await expect(trackVolume).toBeDisabled();
 
   await page.getByRole("button", { name: "Exporter", exact: true }).click();
   await expect(page.locator("body")).toContainText("1080 x 1920");
@@ -231,8 +326,111 @@ test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) =
   const exportPath = path.join(os.tmpdir(), `vibecut-smoke-${Date.now()}.webm`);
   await download.saveAs(exportPath);
   expect(fs.statSync(exportPath).size).toBeGreaterThan(100_000);
+  const exportMetadata = probeExportMetadata(exportPath);
+  if (exportMetadata) {
+    const videoStream = exportMetadata.streams.find((stream) => stream.codec_type === "video");
+    const audioStream = exportMetadata.streams.find((stream) => stream.codec_type === "audio");
+    const duration = Number(exportMetadata.format.duration);
+    expect(videoStream?.width).toBe(1080);
+    expect(videoStream?.height).toBe(1920);
+    expect(audioStream?.codec_type).toBe("audio");
+    expect(duration).toBeGreaterThan(8);
+    expect(duration).toBeLessThan(25);
+  }
 
   expect(consoleIssues).toEqual([]);
+});
+
+test("Vibe_CUT stops failed exports without downloading partial recorder output", async ({ page }) => {
+  const fixtures = getVideoFixtures(1);
+  test.skip(fixtures.length < 1, "videotest/*.mp4 fixtures are not available locally");
+
+  await page.addInitScript(() => {
+    class FailingMediaRecorder {
+      static isTypeSupported(type) {
+        return typeof type === "string" && type.startsWith("video/webm");
+      }
+
+      constructor(stream, options = {}) {
+        this.stream = stream;
+        this.options = options;
+        this.state = "inactive";
+        this.ondataavailable = null;
+        this.onerror = null;
+        this.onstop = null;
+      }
+
+      start() {
+        this.state = "recording";
+        window.setTimeout(() => {
+          this.ondataavailable?.({
+            data: new Blob(["partial-export"], { type: this.options.mimeType || "video/webm" }),
+          });
+          this.onerror?.({ error: new Error("simulated recorder failure") });
+        }, 30);
+      }
+
+      stop() {
+        if (this.state === "inactive") return;
+        this.state = "inactive";
+        window.setTimeout(() => this.onstop?.(), 0);
+      }
+    }
+
+    window.MediaRecorder = FailingMediaRecorder;
+  });
+
+  let downloadFired = false;
+  page.on("download", () => {
+    downloadFired = true;
+  });
+
+  await openVideoEditor(page);
+  await page.locator('input[type=file][accept="video/*"]').setInputFiles(fixtures);
+  await page.waitForFunction(() => document.body.innerText.includes("1 CLIP"), null, { timeout: 120000 });
+
+  await page.getByRole("button", { name: "Exporter", exact: true }).click();
+  await page.getByRole("button", { name: "webm", exact: true }).click();
+  await page.getByRole("button", { name: /^Exporter$/ }).first().click();
+  await expect(page.locator("body")).toContainText("Export interrompu: simulated recorder failure", { timeout: 120000 });
+  await page.waitForTimeout(750);
+  expect(downloadFired).toBe(false);
+});
+
+test("Vibe_CUT shows WebM as the real export format when MP4 is unsupported", async ({ page }) => {
+  const fixtures = getVideoFixtures(1);
+  test.skip(fixtures.length < 1, "videotest/*.mp4 fixtures are not available locally");
+
+  await page.addInitScript(() => {
+    class WebmOnlyMediaRecorder {
+      static isTypeSupported(type) {
+        return typeof type === "string" && type.startsWith("video/webm");
+      }
+
+      constructor() {
+        this.state = "inactive";
+      }
+
+      start() {
+        this.state = "recording";
+      }
+
+      stop() {
+        this.state = "inactive";
+      }
+    }
+
+    window.MediaRecorder = WebmOnlyMediaRecorder;
+  });
+
+  await openVideoEditor(page);
+  await page.locator('input[type=file][accept="video/*"]').setInputFiles(fixtures);
+  await page.waitForFunction(() => document.body.innerText.includes("1 CLIP"), null, { timeout: 120000 });
+
+  await page.getByRole("button", { name: "Exporter", exact: true }).click();
+  await expect(page.getByRole("button", { name: /mp4 indispo/i })).toBeDisabled();
+  await expect(page.getByText(/MP4 MediaRecorder n'est pas supporte ici/i).first()).toBeVisible();
+  await expect(page.getByTestId("export-effective-format").first()).toHaveText("WEBM");
 });
 
 test("Vibe_CUT mobile viewport has no horizontal page overflow", async ({ page }) => {
@@ -249,6 +447,116 @@ test("Vibe_CUT mobile viewport has no horizontal page overflow", async ({ page }
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 2);
   expect(overflow).toBe(false);
+});
+
+test("Vibe_CUT guides verified free source imports from the music source list", async ({ page }) => {
+  await openVideoEditor(page);
+
+  await page.getByRole("button", { name: "Musique", exact: true }).click();
+  await expect(page.locator("body")).toContainText("Importer une nouvelle musique gratuite");
+  await expect(page.locator("body")).toContainText("Catalogue gratuit agrege");
+
+  await page.getByRole("button", { name: "Sources", exact: true }).click();
+  await page.getByRole("button", { name: /Importer cette source/i }).first().click();
+
+  await expect(page.locator("body")).toContainText("Importer une nouvelle musique gratuite");
+  await expect(page.locator('input[value="Pixabay Music"]').first()).toBeVisible();
+  await expect(page.locator('input[value="Pixabay Content License - import manuel verifie"]').first()).toBeVisible();
+  await expect(page.locator("body")).toContainText("Catalogue gratuit agrege");
+  await expect(page.getByPlaceholder("https://cdn.pixabay.com/.../track.mp3").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /Precharger et ecouter/i }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: /Ouvrir/i })).toHaveAttribute("href", "https://pixabay.com/music/");
+
+  const liveSearch = await page.request.get(`${baseUrl}/api/music/free-search?provider=openverse&q=ambient`);
+  expect(liveSearch.status()).toBe(200);
+  const livePayload = await liveSearch.json();
+  expect(Array.isArray(livePayload.providers)).toBe(true);
+  expect(livePayload.providers.some((provider) => provider.id === "openverse" && provider.configured)).toBe(true);
+  expect(livePayload.tracks.length).toBeGreaterThan(0);
+  expect(livePayload.tracks.every((track) => track.downloadAllowed && track.downloadUrl && track.licenseUrl && track.sourceUrl)).toBe(true);
+
+  const liveImport = await page.request.post(`${baseUrl}/api/music/import`, {
+    data: { audioUrl: livePayload.tracks[0].downloadUrl },
+  });
+  expect(liveImport.status()).toBe(200);
+  expect(liveImport.headers()["content-type"]).toMatch(/^audio\//);
+
+  const rejectedImport = await page.request.post(`${baseUrl}/api/music/import`, {
+    data: { audioUrl: "https://example.com/not-allowed.mp3" },
+  });
+  expect(rejectedImport.status()).toBe(400);
+});
+
+test("Vibe_CUT imports a mocked aggregator result through the preload pipeline", async ({ page }) => {
+  const audioFixture = path.join(process.cwd(), "public", "music", "Karl Casey - Virtual Reality.mp3");
+  test.skip(!fs.existsSync(audioFixture), "local music fixture is not available");
+
+  const audioBytes = fs.readFileSync(audioFixture);
+  await page.route("**/api/music/free-search?**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        provider: "all",
+        configured: true,
+        providers: [
+          { id: "openverse", label: "Openverse Audio", configured: true, count: 1, error: "" },
+          { id: "jamendo", label: "Jamendo Music", configured: false, count: 0, error: "JAMENDO_CLIENT_ID manquant." },
+        ],
+        tracks: [
+          {
+            id: "openverse-smoke-track",
+            provider: "openverse",
+            title: "Smoke CC Track",
+            artist: "Vibe Test Artist",
+            duration: 37,
+            image: "",
+            genre: "ambient",
+            previewUrl: "https://prod-1.storage.jamendo.com/?trackid=23557&format=mp32",
+            downloadUrl: "https://prod-1.storage.jamendo.com/?trackid=23557&format=mp32",
+            downloadAllowed: true,
+            sourceName: "Openverse / Jamendo",
+            sourceUrl: "https://www.jamendo.com/track/23557",
+            license: "Creative Commons BY",
+            licenseUrl: "https://creativecommons.org/licenses/by/3.0/",
+            attribution: "Smoke CC Track by Vibe Test Artist",
+            rightsStatus: "credit-required",
+            commercialUse: true,
+            socialUse: true,
+            contentIdWarning: "Smoke warning: verify source page before publishing.",
+            licenseSnapshotVersion: "openverse-smoke",
+          },
+        ],
+      }),
+    });
+  });
+  await page.route("**/api/music/import", async (route) => {
+    await route.fulfill({
+      status: 200,
+      headers: {
+        "content-type": "audio/mpeg",
+        "content-length": String(audioBytes.byteLength),
+        "x-vibefx-audio-source-url": "https://prod-1.storage.jamendo.com/?trackid=23557&format=mp32",
+      },
+      body: audioBytes,
+    });
+  });
+
+  await openVideoEditor(page);
+  await page.getByRole("button", { name: "Musique", exact: true }).click();
+  await expect(page.locator("body")).toContainText("Catalogue gratuit agrege");
+  const freeCatalogSearch = page.locator("form").filter({
+    has: page.getByRole("button", { name: "Chercher", exact: true }),
+  }).first();
+  await freeCatalogSearch.locator('input[placeholder="mood, genre, artiste..."]').fill("ambient");
+  await freeCatalogSearch.getByRole("button", { name: "Chercher", exact: true }).click();
+  await expect(page.locator("body")).toContainText("Smoke CC Track");
+  await page.getByRole("button", { name: "Precharger", exact: true }).first().click();
+  await expect(page.getByRole("button", { name: "Importer la piste prechargee" }).first()).toBeVisible({ timeout: 15000 });
+  await expect(page.getByPlaceholder("Ex: Pixabay Music, Jamendo, client...").first()).toHaveValue("Openverse / Jamendo");
+  await expect(page.getByPlaceholder("Nom de la licence ou numero de licence").first()).toHaveValue("Creative Commons BY");
+  await page.getByRole("button", { name: "Importer la piste prechargee" }).first().click();
+  await expect(page.locator("body")).toContainText(/1 piste/i);
 });
 
 test("Vibe_CUT auto-fits long clips so the trim handle stays reachable", async ({ page }) => {

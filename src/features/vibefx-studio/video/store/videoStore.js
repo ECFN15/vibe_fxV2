@@ -1,15 +1,72 @@
 import { create } from 'zustand';
+import { buildTimelineModel, clampVolumePercent, findTransitionItemOverlap, getDefaultTracks, getTrackForItemType, isTrackLocked as isTimelineTrackLocked } from '../model/timelineModel';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 // Snapshot keys for undo/redo
-const SNAPSHOT_KEYS = ['clips', 'transitions', 'transitionItems', 'textOverlays', 'audioTracks', 'selectedClipId', 'selectedTextId', 'selectedTransitionId', 'sequencePreset'];
+const SNAPSHOT_KEYS = ['clips', 'transitions', 'transitionItems', 'textOverlays', 'audioTracks', 'tracks', 'selectedClipId', 'selectedTextId', 'selectedTransitionId', 'selectedAudioTrackId', 'sequencePreset'];
 
 const useVideoStore = create((set, get) => ({
     // === PROJECT ===
     projectName: 'Untitled',
     setProjectName: (name) => set({ projectName: name }),
+
+    // === CANONICAL TIMELINE MODEL ===
+    tracks: getDefaultTracks(),
+    setTrackState: (id, updates) => set((s) => ({
+        tracks: s.tracks.map(track => track.id === id ? { ...track, ...updates } : track),
+    })),
+    getTimelineModel: () => {
+        const s = get();
+        return buildTimelineModel({
+            clips: s.clips,
+            transitions: s.transitions,
+            transitionItems: s.transitionItems,
+            textOverlays: s.textOverlays,
+            audioTracks: s.audioTracks,
+            tracks: s.tracks,
+            totalDuration: s.totalDuration,
+        });
+    },
+    updateTimelineItem: (id, updates, options = {}) => {
+        const state = get();
+        const timelineItem = state.getTimelineModel().items.find(item => item.id === id);
+        if (!timelineItem) return;
+        if (isTimelineTrackLocked(state.tracks, timelineItem.trackId)) return;
+
+        if (options.history) pushHistory(state);
+
+        const normalizedUpdates = {
+            ...updates,
+            ...normalizeTimelineItemUpdates(timelineItem, updates, state.totalDuration),
+        };
+
+        if (timelineItem.type === 'transition') {
+            get().updateTransitionItem(id, normalizedUpdates);
+            return;
+        }
+        if (timelineItem.type === 'text') {
+            get().updateTextOverlay(id, normalizedUpdates);
+            return;
+        }
+        if (timelineItem.type === 'audio') {
+            get().updateAudioTrack(id, normalizedUpdates);
+            return;
+        }
+        if (timelineItem.type === 'video') {
+            get().updateClip(id, pickClipTimelineUpdates(normalizedUpdates));
+        }
+    },
+    snapEnabled: false,
+    setSnapEnabled: (snapEnabled) => set({ snapEnabled }),
+    beginHistoryTransaction: (label = 'timeline-edit') => {
+        const state = get();
+        if (state._historyTransaction) return;
+        pushHistory(state, { force: true });
+        set({ _historyTransaction: { label, startedAt: Date.now() } });
+    },
+    commitHistoryTransaction: () => set({ _historyTransaction: null }),
 
     // === CLIPS ===
     clips: [],
@@ -18,6 +75,7 @@ const useVideoStore = create((set, get) => ({
 
     addClip: (clipData) => {
         const state = get();
+        if (isTimelineTrackLocked(state.tracks, 'video-main')) return;
         pushHistory(state);
         set((s) => {
             const newClip = {
@@ -42,6 +100,7 @@ const useVideoStore = create((set, get) => ({
 
     removeClip: (id) => {
         const state = get();
+        if (isTimelineTrackLocked(state.tracks, 'video-main')) return;
         pushHistory(state);
         set((s) => {
             const clips = s.clips.filter(c => c.id !== id);
@@ -65,6 +124,7 @@ const useVideoStore = create((set, get) => ({
 
     reorderClips: (fromIndex, toIndex) => {
         const state = get();
+        if (isTimelineTrackLocked(state.tracks, 'video-main')) return;
         pushHistory(state);
         set((s) => {
             const cutTransitions = s.clips.slice(0, -1).map((clip, index) => (
@@ -86,14 +146,23 @@ const useVideoStore = create((set, get) => ({
         });
     },
 
-    updateClip: (id, updates) => set((s) => {
-        const clips = s.clips.map(c => c.id === id ? { ...c, ...updates } : c);
+    updateClip: (id, updates, options = {}) => {
+        const state = get();
+        if (isTimelineTrackLocked(state.tracks, 'video-main')) return;
+        if (options.history) pushHistory(state);
+        set((s) => {
+        const normalizedUpdates = Object.prototype.hasOwnProperty.call(updates, 'volume')
+            ? { ...updates, volume: clampVolumePercent(updates.volume) }
+            : updates;
+        const clips = s.clips.map(c => c.id === id ? { ...c, ...normalizedUpdates } : c);
         const totalDuration = computeTotalDuration(clips, s.transitions);
         return { clips, totalDuration, currentTime: clamp(s.currentTime, 0, totalDuration) };
-    }),
+        });
+    },
 
     splitClip: (id, atTime) => {
         const state = get();
+        if (isTimelineTrackLocked(state.tracks, 'video-main')) return;
         pushHistory(state);
         set((s) => {
             const idx = s.clips.findIndex(c => c.id === id);
@@ -137,6 +206,7 @@ const useVideoStore = create((set, get) => ({
 
     setTransition: (fromId, toId, transition) => {
         const state = get();
+        if (isTimelineTrackLocked(state.tracks, getTrackForItemType('transition'))) return;
         pushHistory(state);
         set((s) => {
             const key = `${fromId}->${toId}`;
@@ -148,31 +218,48 @@ const useVideoStore = create((set, get) => ({
 
     addTransitionItem: (transition) => {
         const state = get();
-        pushHistory(state);
+        const trackId = transition.trackId || getTrackForItemType('transition');
+        if (isTimelineTrackLocked(state.tracks, trackId)) return;
         const duration = Math.max(0.1, transition.duration || transition.defaultDuration || 0.5);
-        const startTime = Math.max(0, transition.startTime ?? state.currentTime ?? 0);
+        const maxEnd = Math.max(0.1, state.totalDuration || 0.1);
+        const startTime = clamp(transition.startTime ?? state.currentTime ?? 0, 0, Math.max(0, maxEnd - duration));
         const id = transition.id || uid();
+        const nextItem = {
+            id,
+            type: transition.type,
+            start: startTime,
+            trackId,
+            fromItemId: transition.fromItemId || null,
+            toItemId: transition.toItemId || null,
+            params: transition.params || {},
+            name: transition.name || transition.type || 'Transition',
+            icon: transition.icon || '*',
+            category: transition.category || 'basic',
+            startTime,
+            endTime: startTime + duration,
+            duration,
+        };
+        if (findTransitionItemOverlap([...state.transitionItems, nextItem], state.totalDuration)) return;
+        pushHistory(state);
         set((s) => ({
-            transitionItems: [...s.transitionItems, {
-                id,
-                type: transition.type,
-                name: transition.name || transition.type || 'Transition',
-                icon: transition.icon || '*',
-                category: transition.category || 'basic',
-                startTime,
-                endTime: startTime + duration,
-                duration,
-            }],
+            transitionItems: [...s.transitionItems, nextItem],
             selectedTransitionId: id,
         }));
     },
 
-    updateTransitionItem: (id, updates) => set((s) => ({
-        transitionItems: s.transitionItems.map((item) => {
+    updateTransitionItem: (id, updates, options = {}) => {
+        const state = get();
+        const target = state.transitionItems.find(item => item.id === id);
+        if (!target) return;
+        if (isTimelineTrackLocked(state.tracks, target.trackId || getTrackForItemType('transition'))) return;
+        const nextTransitionItems = state.transitionItems.map((item) => {
             if (item.id !== id) return item;
             const next = { ...item, ...updates };
-            const maxEnd = Math.max(0.1, s.totalDuration || 0.1);
-            const startTime = clamp(next.startTime || 0, 0, Math.max(0, maxEnd - 0.1));
+            const maxEnd = Math.max(0.1, state.totalDuration || 0.1);
+            const requestedStart = Object.prototype.hasOwnProperty.call(updates, 'start') || Object.prototype.hasOwnProperty.call(updates, 'startTime')
+                ? (updates.start ?? updates.startTime)
+                : (next.start ?? next.startTime);
+            const startTime = clamp(requestedStart || 0, 0, Math.max(0, maxEnd - 0.1));
             let endTime = next.endTime;
             let duration = next.duration;
 
@@ -186,12 +273,27 @@ const useVideoStore = create((set, get) => ({
 
             endTime = Math.min(maxEnd, endTime);
             duration = Math.max(0.1, endTime - startTime);
-            return { ...next, startTime, endTime, duration };
-        }),
-    })),
+            return {
+                ...next,
+                start: startTime,
+                startTime,
+                endTime,
+                duration,
+                trackId: next.trackId || getTrackForItemType('transition'),
+                fromItemId: next.fromItemId || null,
+                toItemId: next.toItemId || null,
+                params: next.params || {},
+            };
+        });
+        if (findTransitionItemOverlap(nextTransitionItems, state.totalDuration)) return;
+        if (options.history) pushHistory(state);
+        set({ transitionItems: nextTransitionItems });
+    },
 
     removeTransitionItem: (id) => {
         const state = get();
+        const target = state.transitionItems.find(item => item.id === id);
+        if (target && isTimelineTrackLocked(state.tracks, target.trackId || getTrackForItemType('transition'))) return;
         pushHistory(state);
         set((s) => ({
             transitionItems: s.transitionItems.filter(item => item.id !== id),
@@ -201,6 +303,7 @@ const useVideoStore = create((set, get) => ({
 
     removeTransition: (fromId, toId) => {
         const state = get();
+        if (isTimelineTrackLocked(state.tracks, getTrackForItemType('transition'))) return;
         pushHistory(state);
         set((s) => {
             const key = `${fromId}->${toId}`;
@@ -213,39 +316,58 @@ const useVideoStore = create((set, get) => ({
 
     // === AUDIO TRACKS ===
     audioTracks: [],
+    selectedAudioTrackId: null,
+    setSelectedAudioTrackId: (id) => set({ selectedAudioTrackId: id }),
     addAudioTrack: (track) => {
         const state = get();
+        const trackId = track.trackId || getTrackForItemType('audio');
+        if (isTimelineTrackLocked(state.tracks, trackId)) return;
         pushHistory(state);
+        const id = track.id || uid();
         set((s) => ({
             audioTracks: [...s.audioTracks, {
-                id: uid(),
+                id,
                 name: track.name || 'Audio',
                 url: track.url,
                 file: track.file || null,
                 volume: 100,
+                trackId,
                 startTime: track.startTime || 0,
                 duration: track.duration || 10,
                 endTime: (track.startTime || 0) + (track.duration || 10),
                 ...track,
-                id: track.id || uid(),
-            }]
+                id,
+                volume: clampVolumePercent(track.volume ?? 100),
+            }],
+            selectedAudioTrackId: id,
         }));
     },
     removeAudioTrack: (id) => {
         const state = get();
+        const target = state.audioTracks.find(track => track.id === id);
+        if (target && isTimelineTrackLocked(state.tracks, target.trackId || getTrackForItemType('audio'))) return;
         pushHistory(state);
-        set((s) => ({ audioTracks: s.audioTracks.filter(t => t.id !== id) }));
+        set((s) => ({
+            audioTracks: s.audioTracks.filter(t => t.id !== id),
+            selectedAudioTrackId: s.selectedAudioTrackId === id ? null : s.selectedAudioTrackId,
+        }));
     },
-    updateAudioTrack: (id, updates) => set((s) => ({
+    updateAudioTrack: (id, updates, options = {}) => {
+        const state = get();
+        const target = state.audioTracks.find(track => track.id === id);
+        if (target && isTimelineTrackLocked(state.tracks, target.trackId || getTrackForItemType('audio'))) return;
+        if (options.history) pushHistory(state);
+        set((s) => ({
         audioTracks: s.audioTracks.map((track) => {
             if (track.id !== id) return track;
             const next = { ...track, ...updates };
             const maxEnd = Math.max(0.1, s.totalDuration || 0.1);
             const startTime = clamp(next.startTime || 0, 0, Math.max(0, maxEnd - 0.1));
             const endTime = Math.min(maxEnd, Math.max(startTime + 0.1, next.endTime || startTime + (next.duration || 0.1)));
-            return { ...next, startTime, endTime, duration: Math.max(0.1, endTime - startTime) };
+            return { ...next, startTime, endTime, duration: Math.max(0.1, endTime - startTime), volume: clampVolumePercent(next.volume ?? 100) };
         })
-    })),
+        }));
+    },
 
     // === TEXT OVERLAYS ===
     textOverlays: [],
@@ -254,12 +376,15 @@ const useVideoStore = create((set, get) => ({
 
     addTextOverlay: (text) => {
         const state = get();
+        const trackId = text.trackId || getTrackForItemType('text');
+        if (isTimelineTrackLocked(state.tracks, trackId)) return;
         pushHistory(state);
         const id = uid();
         set((s) => ({
             textOverlays: [...s.textOverlays, {
                 id,
                 content: text.content || 'Your Text',
+                trackId,
                 startTime: text.startTime || 0,
                 endTime: text.endTime || 3,
                 x: 0.5, y: 0.5,
@@ -278,13 +403,20 @@ const useVideoStore = create((set, get) => ({
     },
     removeTextOverlay: (id) => {
         const state = get();
+        const target = state.textOverlays.find(text => text.id === id);
+        if (target && isTimelineTrackLocked(state.tracks, target.trackId || getTrackForItemType('text'))) return;
         pushHistory(state);
         set((s) => ({
             textOverlays: s.textOverlays.filter(t => t.id !== id),
             selectedTextId: s.selectedTextId === id ? null : s.selectedTextId,
         }));
     },
-    updateTextOverlay: (id, updates) => set((s) => ({
+    updateTextOverlay: (id, updates, options = {}) => {
+        const state = get();
+        const target = state.textOverlays.find(text => text.id === id);
+        if (target && isTimelineTrackLocked(state.tracks, target.trackId || getTrackForItemType('text'))) return;
+        if (options.history) pushHistory(state);
+        set((s) => ({
         textOverlays: s.textOverlays.map((text) => {
             if (text.id !== id) return text;
             const next = { ...text, ...updates };
@@ -293,7 +425,8 @@ const useVideoStore = create((set, get) => ({
             const endTime = Math.min(maxEnd, Math.max(startTime + 0.1, next.endTime || startTime + 0.1));
             return { ...next, startTime, endTime };
         })
-    })),
+        }));
+    },
 
     // === PLAYBACK ===
     isPlaying: false,
@@ -338,46 +471,102 @@ const useVideoStore = create((set, get) => ({
 
     // === UNDO / REDO ===
     _history: [],
+    _future: [],
     _historyIndex: -1,
     _maxHistory: 50,
+    _historyTransaction: null,
 
     undo: () => {
         const s = get();
-        if (s._historyIndex < 0 || s._history.length === 0) return;
-        const snapshot = s._history[s._historyIndex];
+        if (s._history.length === 0) return;
+        const snapshot = s._history[s._history.length - 1];
+        const history = s._history.slice(0, -1);
+        const future = [createSnapshot(s), ...s._future].slice(0, s._maxHistory);
         set({
             ...snapshot,
-            _historyIndex: s._historyIndex - 1,
+            _history: history,
+            _future: future,
+            _historyIndex: history.length - 1,
+            _historyTransaction: null,
             totalDuration: computeTotalDuration(snapshot.clips, snapshot.transitions),
         });
     },
 
     redo: () => {
         const s = get();
-        if (s._historyIndex >= s._history.length - 2) return;
-        const snapshot = s._history[s._historyIndex + 2];
+        if (s._future.length === 0) return;
+        const snapshot = s._future[0];
         if (!snapshot) return;
+        const history = [...s._history, createSnapshot(s)].slice(-s._maxHistory);
         set({
             ...snapshot,
-            _historyIndex: s._historyIndex + 1,
+            _history: history,
+            _future: s._future.slice(1),
+            _historyIndex: history.length - 1,
+            _historyTransaction: null,
             totalDuration: computeTotalDuration(snapshot.clips, snapshot.transitions),
         });
     },
 
-    canUndo: () => get()._historyIndex >= 0,
-    canRedo: () => get()._historyIndex < get()._history.length - 2,
+    canUndo: () => get()._history.length > 0,
+    canRedo: () => get()._future.length > 0,
 }));
 
-function pushHistory(state) {
-    const snapshot = {};
-    SNAPSHOT_KEYS.forEach(key => { snapshot[key] = state[key]; });
-    const history = state._history.slice(0, state._historyIndex + 1);
-    history.push(snapshot);
-    if (history.length > state._maxHistory) history.shift();
+function pushHistory(state, options = {}) {
+    if (state._historyTransaction && !options.force) return;
+    const history = [...state._history, createSnapshot(state)].slice(-state._maxHistory);
     useVideoStore.setState({
         _history: history,
         _historyIndex: history.length - 1,
+        _future: [],
     });
+}
+
+function createSnapshot(state) {
+    const snapshot = {};
+    SNAPSHOT_KEYS.forEach(key => { snapshot[key] = state[key]; });
+    return snapshot;
+}
+
+function normalizeTimelineItemUpdates(item, updates = {}, totalDuration = 0) {
+    const currentStart = Number.isFinite(Number(item.start)) ? Number(item.start) : 0;
+    const currentDuration = Number.isFinite(Number(item.duration)) ? Math.max(0.1, Number(item.duration)) : 0.1;
+    const maxEnd = Math.max(0.1, totalDuration || currentStart + currentDuration);
+    const requestedStart = Object.prototype.hasOwnProperty.call(updates, 'start') || Object.prototype.hasOwnProperty.call(updates, 'startTime')
+        ? (updates.start ?? updates.startTime)
+        : currentStart;
+    let startTime = clamp(Number(requestedStart) || 0, 0, Math.max(0, maxEnd - 0.1));
+    let duration = currentDuration;
+
+    if (Object.prototype.hasOwnProperty.call(updates, 'duration')) {
+        duration = Math.max(0.1, Number(updates.duration) || 0.1);
+    } else if (Object.prototype.hasOwnProperty.call(updates, 'endTime')) {
+        duration = Math.max(0.1, (Number(updates.endTime) || startTime + currentDuration) - startTime);
+    }
+
+    let endTime = Object.prototype.hasOwnProperty.call(updates, 'endTime')
+        ? Number(updates.endTime)
+        : startTime + duration;
+    if (!Number.isFinite(endTime)) endTime = startTime + duration;
+    endTime = clamp(endTime, startTime + 0.1, maxEnd);
+    duration = Math.max(0.1, endTime - startTime);
+    startTime = Math.max(0, Math.min(startTime, Math.max(0, maxEnd - duration)));
+
+    return {
+        start: startTime,
+        startTime,
+        endTime,
+        duration,
+    };
+}
+
+function pickClipTimelineUpdates(updates = {}) {
+    const allowedKeys = ['trimStart', 'trimEnd', 'speed', 'volume', 'filters', 'trackId'];
+    return Object.fromEntries(
+        allowedKeys
+            .filter(key => Object.prototype.hasOwnProperty.call(updates, key))
+            .map(key => [key, updates[key]])
+    );
 }
 
 function computeTotalDuration(clips, transitions = {}) {

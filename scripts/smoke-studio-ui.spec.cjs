@@ -1,6 +1,10 @@
 const { test, expect } = require("@playwright/test");
+const path = require("node:path");
 
 const baseUrl = process.env.SMOKE_BASE_URL || "http://localhost:3000";
+const demoImagePath = path.join(process.cwd(), "public", "assets", "vibefx", "demo-astronaut.png");
+
+test.use({ viewport: { width: 1440, height: 900 } });
 
 test("studio imports a layout render into the publication preview", async ({ page }) => {
   const consoleIssues = [];
@@ -17,13 +21,18 @@ test("studio imports a layout render into the publication preview", async ({ pag
   await expect(page.getByText("Creer une mise en page")).toBeVisible();
 
   await page.getByRole("button", { name: "Creer une mise en page", exact: true }).click();
-  await expect(page.getByLabel("Lancer la demonstration automatique")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Layout" })).toBeVisible();
 
-  await page.getByLabel("Lancer la demonstration automatique").click();
-  await page.waitForFunction(() => Array.from(document.querySelectorAll("button"))
-    .some((button) => button.textContent?.includes("Importer") && !button.disabled));
+  await page.locator('input[type="file"]').first().setInputFiles(demoImagePath);
+  await page.waitForFunction(() => {
+    const canvas = document.querySelector("canvas");
+    return canvas && canvas.width > 0 && canvas.height > 0;
+  });
 
-  await page.locator("button", { hasText: "Importer" }).first().click();
+  const publicationButton = page.locator("header button", { hasText: "Publication" }).last();
+  await expect(publicationButton).toBeVisible();
+  await expect(publicationButton).toBeEnabled();
+  await publicationButton.click();
   await expect(page.getByText("Description et preview finale")).toBeVisible();
   await expect(page.getByText("Visuel importe")).toBeVisible();
   await expect(page.getByText("Score preview")).toBeVisible();

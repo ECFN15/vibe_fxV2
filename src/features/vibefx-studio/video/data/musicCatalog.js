@@ -67,6 +67,66 @@ export const MUSIC_PROVIDERS = [
         caveat: 'Qualite et verification variables. Telechargement depuis la source officielle uniquement.',
     },
     {
+        id: 'openverse-audio',
+        name: 'Openverse Audio',
+        tier: 'free',
+        label: 'Agrégateur CC / domaine public',
+        url: 'https://openverse.org/audio',
+        licenseUrl: 'https://docs.openverse.org/api/',
+        api: 'Official audio API',
+        status: 'Actif sans cle',
+        strengths: ['Recherche in-app', 'Creative Commons', 'domaine public', 'multi-sources'],
+        caveat: 'Openverse ne garantit pas l exactitude des licences. Toujours verifier la page source avant publication.',
+    },
+    {
+        id: 'jamendo-music',
+        name: 'Jamendo Music API',
+        tier: 'free',
+        label: 'Catalogue CC musique',
+        url: 'https://www.jamendo.com/start',
+        licenseUrl: 'https://developer.jamendo.com/v3.0/tracks',
+        api: 'Official tracks API',
+        status: 'JAMENDO_CLIENT_ID requis',
+        strengths: ['Recherche in-app', 'stream/download API', 'licence CC piste par piste'],
+        caveat: 'Connecteur serveur uniquement. Verifier chaque licence CC et ne pas presenter NC comme usage commercial safe.',
+    },
+    {
+        id: 'freesound',
+        name: 'Freesound',
+        tier: 'free',
+        label: 'SFX, ambiances et loops',
+        url: 'https://freesound.org/',
+        licenseUrl: 'https://freesound.org/docs/api/',
+        api: 'Official API',
+        status: 'FREESOUND_API_KEY requis',
+        strengths: ['SFX', 'loops', 'ambiances', 'licences CC'],
+        caveat: 'API gratuite limitee au non-commercial sauf accord. Importer surtout comme SFX/loops et verifier chaque licence.',
+    },
+    {
+        id: 'internet-archive',
+        name: 'Internet Archive Audio',
+        tier: 'free-risk',
+        label: 'Archive CC / domaine public',
+        url: 'https://archive.org/details/audio',
+        licenseUrl: 'https://archive.org/developers/metadata-schema/',
+        api: 'Advanced Search + Metadata',
+        status: 'Experimental',
+        strengths: ['Domaine public', 'archives', 'long format'],
+        caveat: 'Metadonnees tres heterogenes. A garder en source starter/test avec verification stricte.',
+    },
+    {
+        id: 'wikimedia',
+        name: 'Wikimedia Commons Audio',
+        tier: 'free-risk',
+        label: 'Fichiers audio CC / domaine public',
+        url: 'https://commons.wikimedia.org/wiki/Category:Audio_files',
+        licenseUrl: 'https://commons.wikimedia.org/wiki/Commons:API/MediaWiki',
+        api: 'MediaWiki API',
+        status: 'Experimental',
+        strengths: ['CC', 'domaine public', 'source traçable'],
+        caveat: 'Beaucoup de sons non musicaux et metadonnees variables. UX a garder sous verification.',
+    },
+    {
         id: 'jamendo',
         name: 'Jamendo Licensing',
         tier: 'licensed',
@@ -129,6 +189,7 @@ export const MUSIC_PROVIDERS = [
 ];
 
 export function getCuratedTracks(query = '', genre = '') {
+    const provider = 'white-bat-audio';
     const sourceName = 'White Bat Audio';
     const sourceUrl = 'https://whitebataudio.com/';
     const license = 'Free Music License - attribution requise';
@@ -173,7 +234,12 @@ export function getCuratedTracks(query = '', genre = '') {
         license,
         licenseUrl,
         attribution,
+        provider,
+        licenseSnapshotVersion: 'white-bat-license-current',
         rightsStatus: 'credit-required',
+        commercialUse: true,
+        socialUse: true,
+        contentIdWarning: 'Attribution requise. Verifier les restrictions Content ID et les conditions White Bat avant publication.',
     }));
 
     let filtered = tracks;

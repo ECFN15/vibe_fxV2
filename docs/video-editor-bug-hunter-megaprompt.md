@@ -21,7 +21,7 @@ Avant toute modification, lis dans cet ordre :
 
 Contraintes non negociables :
 
-- Ne jamais modifier `C:\Users\matth\Desktop\jardin de chawi`.
+- Ne jamais modifier le projet source historique situe sur le Desktop.
 - Ne pas toucher a `node_modules/`, `.next/`, `.git/`, `dist/`.
 - Mettre a jour `map.md` si tu crees, supprimes, renommes, deplaces ou restructures un fichier.
 - Ne jamais hardcoder de secret.

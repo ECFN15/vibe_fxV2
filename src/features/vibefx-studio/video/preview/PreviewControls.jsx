@@ -49,13 +49,13 @@ const PreviewControls = () => {
             </div>
 
             {/* Controls */}
-            <div className="flex items-center justify-between px-4 h-10">
+            <div className="flex items-center justify-between px-3 h-12">
                 <div className="flex items-center gap-1">
                     <button
                         onClick={skipBack}
                         disabled={!hasClips}
                         aria-label="Reculer de 5 secondes"
-                        className="p-1.5 text-neutral-400 hover:text-white transition disabled:opacity-30"
+                        className="h-11 w-11 flex items-center justify-center text-neutral-400 hover:text-white transition disabled:opacity-30"
                     >
                         <SkipBack size={14} />
                     </button>
@@ -64,7 +64,7 @@ const PreviewControls = () => {
                         onClick={togglePlay}
                         disabled={!hasClips}
                         aria-label={isPlaying ? 'Pause' : 'Lire'}
-                        className="p-2 text-white hover:text-indigo-400 transition disabled:opacity-30"
+                        className="h-11 w-11 flex items-center justify-center text-white hover:text-indigo-400 transition disabled:opacity-30"
                     >
                         {isPlaying ? <Pause size={18} /> : <Play size={18} fill="currentColor" />}
                     </button>
@@ -73,7 +73,7 @@ const PreviewControls = () => {
                         onClick={skipForward}
                         disabled={!hasClips}
                         aria-label="Avancer de 5 secondes"
-                        className="p-1.5 text-neutral-400 hover:text-white transition disabled:opacity-30"
+                        className="h-11 w-11 flex items-center justify-center text-neutral-400 hover:text-white transition disabled:opacity-30"
                     >
                         <SkipForward size={14} />
                     </button>
@@ -95,11 +95,11 @@ const PreviewControls = () => {
                     <button
                         onClick={nextSpeed}
                         aria-label="Changer la vitesse de lecture preview"
-                        className="text-[10px] font-mono text-neutral-500 hover:text-white transition px-2 py-0.5 border border-neutral-800 hover:border-neutral-600"
+                        className="h-11 min-w-[48px] px-2 text-[10px] font-mono text-neutral-500 hover:text-white transition border border-neutral-800 hover:border-neutral-600"
                     >
                         {playbackSpeed}x
                     </button>
-                    <button className="p-1.5 text-neutral-400 hover:text-white transition" aria-label="Volume preview">
+                    <button className="h-11 w-11 flex items-center justify-center text-neutral-400 hover:text-white transition" aria-label="Volume preview">
                         <Volume2 size={14} />
                     </button>
                 </div>

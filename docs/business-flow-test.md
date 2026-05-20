@@ -167,14 +167,14 @@ Variables et secrets requis :
 - `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
 - `NEXT_PUBLIC_FIREBASE_APP_ID`
 - `NEXT_PUBLIC_FIREBASE_FUNCTIONS_REGION`
-- `NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY` si `ENFORCE_META_APP_CHECK=true`
+- `NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY` pour les callables Meta, Billing et IA en production
 - `META_APP_ID`
 - `META_APP_SECRET`
 - `META_OAUTH_REDIRECT_URI`
 - `META_TOKEN_ENCRYPTION_KEY`
 - selon le mode manuel : `META_ACCESS_TOKEN`, `META_IG_USER_ID`, `META_FACEBOOK_PAGE_ID`
 - pour autoriser le mode manuel : `ADMIN_EMAILS`, custom claim `admin`, ou document `admins/{email}` actif
-- durcissement optionnel : `ENFORCE_META_APP_CHECK=true` apres activation App Check cote client et Functions
+- App Check est enforce par defaut hors emulateurs; `ENFORCE_META_APP_CHECK=false`, `ENFORCE_BILLING_APP_CHECK=false` ou `ENFORCE_AI_APP_CHECK=false` ne doivent servir qu'en session locale controlee.
 
 ## Checklist a rejouer avec Firebase pret
 

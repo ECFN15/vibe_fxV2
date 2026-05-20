@@ -3,6 +3,11 @@ const CLIP_LOW = 3;
 const CLIP_HIGH = 252;
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
+const smoothstep = (edge0, edge1, value) => {
+    if (edge0 === edge1) return value >= edge1 ? 1 : 0;
+    const t = clamp01((value - edge0) / (edge1 - edge0));
+    return t * t * (3 - 2 * t);
+};
 
 function rgbToHsl(r, g, b) {
     const rn = r / 255;
@@ -43,22 +48,61 @@ function circularMeanDegrees(x, y) {
     return degrees < 0 ? degrees + 360 : degrees;
 }
 
-function isLikelySkinTone(r, g, b, hsl, luma) {
+function hueRangeWeight(hue, center, radius) {
+    const distance = circularHueDistance(hue, center);
+    return 1 - smoothstep(radius * 0.62, radius, distance);
+}
+
+function buildHueBandAccumulator() {
+    return {
+        pixels: 0,
+        saturationSum: 0,
+        highSaturationPixels: 0,
+        clipHighPixels: 0,
+    };
+}
+
+function addHueBandSample(accumulator, weight, saturation, clippedChannelCount) {
+    if (weight <= 0.04) return;
+    accumulator.pixels += weight;
+    accumulator.saturationSum += saturation * weight;
+    if (saturation > 0.82) accumulator.highSaturationPixels += weight;
+    if (clippedChannelCount > 0) accumulator.clipHighPixels += weight;
+}
+
+function summarizeHueBand(accumulator, pixels) {
+    return {
+        ratio: pixels ? accumulator.pixels / pixels : 0,
+        averageSaturation: accumulator.pixels ? accumulator.saturationSum / accumulator.pixels : 0,
+        highSaturationRatio: accumulator.pixels ? accumulator.highSaturationPixels / accumulator.pixels : 0,
+        clipHighRatio: accumulator.pixels ? accumulator.clipHighPixels / accumulator.pixels : 0,
+    };
+}
+
+function skinToneWeight(r, g, b, hsl, luma) {
     const { hue, saturation } = hsl;
     const maxChannel = Math.max(r, g, b);
     const minChannel = Math.min(r, g, b);
     const chroma = maxChannel - minChannel;
+    const total = Math.max(1, r + g + b);
+    const rn = r / total;
+    const gn = g / total;
+    const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+    const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+    const ycbcrDistance = Math.hypot((cb - 108) / 36, (cr - 154) / 32);
 
-    return luma >= 35
-        && luma <= 235
-        && saturation >= 0.12
-        && saturation <= 0.74
-        && chroma >= 16
-        && hue >= 8
-        && hue <= 58
-        && r >= g * 0.82
-        && r >= b * 1.02
-        && g >= b * 0.78;
+    const lumaWeight = smoothstep(22, 48, luma) * (1 - smoothstep(232, 248, luma));
+    const chromaWeight = smoothstep(10, 26, chroma) * (1 - smoothstep(118, 172, chroma));
+    const saturationWeight = smoothstep(0.08, 0.18, saturation) * (1 - smoothstep(0.78, 0.92, saturation));
+    const hueCore = hue >= 8 && hue <= 62 ? 1 : 0;
+    const hueSoft = hue >= 350 || hue <= 76 ? 0.58 : 0;
+    const hueWeight = Math.max(hueCore, hueSoft);
+    const channelShape = r >= g * 0.78 && r >= b * 0.96 && g >= b * 0.68 ? 1 : 0;
+    const normalizedRgbShape = rn >= 0.33 && rn <= 0.52 && gn >= 0.25 && gn <= 0.39 ? 1 : 0;
+    const ycbcrWeight = 1 - smoothstep(0.72, 1.55, ycbcrDistance);
+    const shapeWeight = Math.max(channelShape * 0.72, normalizedRgbShape * 0.58, ycbcrWeight);
+
+    return clamp01(lumaWeight * chromaWeight * saturationWeight * hueWeight * shapeWeight);
 }
 
 function percentileFromHistogram(histogram, total, percentile) {
@@ -97,10 +141,14 @@ export function measureVisionImageData(imageData, options = {}) {
     let protectedNeutralWarmCoolBiasSum = 0;
     let protectedNeutralGreenMagentaBiasSum = 0;
     let skinPixels = 0;
+    let skinConfidenceSum = 0;
     let skinSaturationSum = 0;
     let skinLumaSum = 0;
     let skinHueX = 0;
     let skinHueY = 0;
+    const skyBand = buildHueBandAccumulator();
+    const foliageBand = buildHueBandAccumulator();
+    const warmBand = buildHueBandAccumulator();
 
     for (let y = 0; y < height; y += step) {
         for (let x = 0; x < width; x += step) {
@@ -117,6 +165,7 @@ export function measureVisionImageData(imageData, options = {}) {
             const maxChannel = Math.max(r, g, b);
             const minChannel = Math.min(r, g, b);
             const chroma = maxChannel - minChannel;
+            const clippedChannelCount = (r >= CLIP_HIGH ? 1 : 0) + (g >= CLIP_HIGH ? 1 : 0) + (b >= CLIP_HIGH ? 1 : 0);
 
             pixels += 1;
             histogram[luma] += 1;
@@ -125,9 +174,7 @@ export function measureVisionImageData(imageData, options = {}) {
             saturationSum += saturation;
             maxSaturation = Math.max(maxSaturation, saturation);
             if (saturation > 0.82) highSaturationPixels += 1;
-            if (r >= CLIP_HIGH) channelClipHigh += 1;
-            if (g >= CLIP_HIGH) channelClipHigh += 1;
-            if (b >= CLIP_HIGH) channelClipHigh += 1;
+            channelClipHigh += clippedChannelCount;
             if (r <= CLIP_LOW) channelClipLow += 1;
             if (g <= CLIP_LOW) channelClipLow += 1;
             if (b <= CLIP_LOW) channelClipLow += 1;
@@ -143,20 +190,47 @@ export function measureVisionImageData(imageData, options = {}) {
                 protectedNeutralWarmCoolBiasSum += r - b;
                 protectedNeutralGreenMagentaBiasSum += g - ((r + b) / 2);
             }
-            if (isLikelySkinTone(r, g, b, hsl, luma)) {
+            const skinWeight = skinToneWeight(r, g, b, hsl, luma);
+            if (skinWeight > 0.08) {
                 const radians = hsl.hue * Math.PI / 180;
-                const weight = Math.max(0.2, saturation);
-                skinPixels += 1;
-                skinSaturationSum += saturation;
-                skinLumaSum += luma;
+                const weight = skinWeight * Math.max(0.24, saturation);
+                skinPixels += skinWeight;
+                skinConfidenceSum += skinWeight;
+                skinSaturationSum += saturation * skinWeight;
+                skinLumaSum += luma * skinWeight;
                 skinHueX += Math.cos(radians) * weight;
                 skinHueY += Math.sin(radians) * weight;
             }
+
+            const colorWeight = smoothstep(0.1, 0.22, saturation) * smoothstep(16, 44, chroma);
+            const highlightGuard = 1 - smoothstep(236, 252, luma);
+            const shadowGuard = smoothstep(18, 42, luma);
+            addHueBandSample(
+                skyBand,
+                hueRangeWeight(hsl.hue, 210, 46) * colorWeight * smoothstep(52, 96, luma) * highlightGuard,
+                saturation,
+                clippedChannelCount,
+            );
+            addHueBandSample(
+                foliageBand,
+                hueRangeWeight(hsl.hue, 112, 58) * colorWeight * shadowGuard * highlightGuard,
+                saturation,
+                clippedChannelCount,
+            );
+            addHueBandSample(
+                warmBand,
+                Math.max(hueRangeWeight(hsl.hue, 18, 42), hueRangeWeight(hsl.hue, 358, 26)) * colorWeight * shadowGuard * highlightGuard,
+                saturation,
+                clippedChannelCount,
+            );
         }
     }
 
     const meanLuma = pixels ? lumaSum / pixels : 0;
     const variance = pixels ? Math.max(0, (lumaSqSum / pixels) - (meanLuma * meanLuma)) : 0;
+    const skySummary = summarizeHueBand(skyBand, pixels);
+    const foliageSummary = summarizeHueBand(foliageBand, pixels);
+    const warmSummary = summarizeHueBand(warmBand, pixels);
 
     return {
         pixels,
@@ -181,9 +255,22 @@ export function measureVisionImageData(imageData, options = {}) {
         averageProtectedNeutralWarmCoolBias: protectedNeutralPixels ? protectedNeutralWarmCoolBiasSum / protectedNeutralPixels : 0,
         averageProtectedNeutralGreenMagentaBias: protectedNeutralPixels ? protectedNeutralGreenMagentaBiasSum / protectedNeutralPixels : 0,
         skinToneRatio: pixels ? skinPixels / pixels : 0,
+        skinToneConfidence: pixels ? skinConfidenceSum / pixels : 0,
         averageSkinHue: skinPixels ? circularMeanDegrees(skinHueX, skinHueY) : 0,
         averageSkinSaturation: skinPixels ? skinSaturationSum / skinPixels : 0,
         averageSkinLuma: skinPixels ? skinLumaSum / skinPixels : 0,
+        skyToneRatio: skySummary.ratio,
+        averageSkySaturation: skySummary.averageSaturation,
+        skyHighSaturationRatio: skySummary.highSaturationRatio,
+        skyClipHighRatio: skySummary.clipHighRatio,
+        foliageToneRatio: foliageSummary.ratio,
+        averageFoliageSaturation: foliageSummary.averageSaturation,
+        foliageHighSaturationRatio: foliageSummary.highSaturationRatio,
+        foliageClipHighRatio: foliageSummary.clipHighRatio,
+        warmToneRatio: warmSummary.ratio,
+        averageWarmSaturation: warmSummary.averageSaturation,
+        warmHighSaturationRatio: warmSummary.highSaturationRatio,
+        warmClipHighRatio: warmSummary.clipHighRatio,
         histogram,
     };
 }
@@ -191,16 +278,46 @@ export function measureVisionImageData(imageData, options = {}) {
 export function compareVisionMetrics(before, after) {
     const contrastRatio = before?.lumaStdDev ? after.lumaStdDev / before.lumaStdDev : 1;
     const saturationRatio = before?.averageSaturation ? after.averageSaturation / before.averageSaturation : 1;
-    const greyVeilRisk = contrastRatio < 0.74
+    const beforeTonalRange = Math.max(0, (before?.lumaP95 || 0) - (before?.lumaP05 || 0));
+    const afterTonalRange = Math.max(0, (after?.lumaP95 || 0) - (after?.lumaP05 || 0));
+    const tonalRangeRatio = beforeTonalRange ? afterTonalRange / beforeTonalRange : 1;
+    const shadowLiftDelta = (after?.lumaP05 || 0) - (before?.lumaP05 || 0);
+    const midtoneLiftDelta = (after?.lumaP50 || 0) - (before?.lumaP50 || 0);
+    const highlightCompressionDelta = (before?.lumaP95 || 0) - (after?.lumaP95 || 0);
+    const greyVeilScore = (
+        clamp01((0.86 - contrastRatio) / 0.34) * 0.32
+        + clamp01((0.86 - tonalRangeRatio) / 0.34) * 0.28
+        + clamp01((0.94 - saturationRatio) / 0.38) * 0.2
+        + clamp01((shadowLiftDelta - 5) / 26) * 0.14
+        + clamp01((midtoneLiftDelta - 3) / 20) * 0.06
+    );
+    const greyVeilRisk = (
+        greyVeilScore >= 0.52
+        && shadowLiftDelta > 6
+        && saturationRatio < 0.96
+        && (contrastRatio < 0.82 || tonalRangeRatio < 0.82)
+    ) || (
+        contrastRatio < 0.74
         && saturationRatio < 0.88
-        && after.lumaP05 > before.lumaP05 + 8;
+        && shadowLiftDelta > 8
+    );
     const hasComparableSkin = before.skinToneRatio > 0.01 && after.skinToneRatio > 0.01;
     const hasComparableProtectedNeutrals = before.protectedNeutralRatio > 0.01 && after.protectedNeutralRatio > 0.01;
+    const hasComparableSky = before.skyToneRatio > 0.01 && after.skyToneRatio > 0.01;
+    const hasComparableFoliage = before.foliageToneRatio > 0.01 && after.foliageToneRatio > 0.01;
+    const hasComparableWarm = before.warmToneRatio > 0.01 && after.warmToneRatio > 0.01;
 
     return {
         meanLumaDelta: after.meanLuma - before.meanLuma,
         lumaStdDevDelta: after.lumaStdDev - before.lumaStdDev,
         contrastRatio,
+        tonalRangeBefore: beforeTonalRange,
+        tonalRangeAfter: afterTonalRange,
+        tonalRangeDelta: afterTonalRange - beforeTonalRange,
+        tonalRangeRatio,
+        shadowLiftDelta,
+        midtoneLiftDelta,
+        highlightCompressionDelta,
         saturationDelta: after.averageSaturation - before.averageSaturation,
         saturationRatio,
         highSaturationDelta: after.highSaturationRatio - before.highSaturationRatio,
@@ -222,6 +339,16 @@ export function compareVisionMetrics(before, after) {
         skinSaturationDelta: hasComparableSkin ? after.averageSkinSaturation - before.averageSkinSaturation : 0,
         skinLumaDelta: hasComparableSkin ? after.averageSkinLuma - before.averageSkinLuma : 0,
         skinToneRatioDelta: after.skinToneRatio - before.skinToneRatio,
+        skySaturationDelta: hasComparableSky ? after.averageSkySaturation - before.averageSkySaturation : 0,
+        skyHighSaturationDelta: after.skyHighSaturationRatio - before.skyHighSaturationRatio,
+        skyClipHighDelta: after.skyClipHighRatio - before.skyClipHighRatio,
+        foliageSaturationDelta: hasComparableFoliage ? after.averageFoliageSaturation - before.averageFoliageSaturation : 0,
+        foliageHighSaturationDelta: after.foliageHighSaturationRatio - before.foliageHighSaturationRatio,
+        foliageClipHighDelta: after.foliageClipHighRatio - before.foliageClipHighRatio,
+        warmSaturationDelta: hasComparableWarm ? after.averageWarmSaturation - before.averageWarmSaturation : 0,
+        warmHighSaturationDelta: after.warmHighSaturationRatio - before.warmHighSaturationRatio,
+        warmClipHighDelta: after.warmClipHighRatio - before.warmClipHighRatio,
+        greyVeilScore,
         greyVeilRisk,
     };
 }

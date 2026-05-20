@@ -13,6 +13,7 @@ const publicRoutes = [
 ];
 
 const utilityRoutes = ["/studio", "/robots.txt", "/sitemap.xml"];
+const privateRoutes = ["/account", "/account/billing", "/account/usage"];
 
 async function fetchText(path) {
   const response = await fetch(`${baseUrl}${path}`);
@@ -25,7 +26,7 @@ function staticChunkUrls(html) {
     .map((match) => match[1]);
 }
 
-for (const route of [...publicRoutes, ...utilityRoutes]) {
+for (const route of [...publicRoutes, ...utilityRoutes, ...privateRoutes]) {
   await fetchText(route);
 }
 
@@ -42,6 +43,11 @@ for (const route of publicRoutes) {
 
 const studioHtml = await fetchText("/studio");
 assert.match(studioHtml, /noindex/, "/studio should be noindex");
+
+for (const route of privateRoutes) {
+  const html = await fetchText(route);
+  assert.match(html, /noindex/, `${route} should be noindex`);
+}
 
 const robots = await fetchText("/robots.txt");
 assert.match(robots, /Disallow: \/studio/, "robots.txt should disallow /studio");

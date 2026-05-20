@@ -4,6 +4,24 @@ import { renderAssets, renderAssetSelection } from '../engine/assetRenderer';
 import { renderTexts, renderTextSelection } from '../engine/textRenderer';
 import { renderStudio } from '../engine/studioRenderer';
 
+const MAX_INTERACTIVE_PREVIEW_MEGAPIXELS = 3;
+
+const capCanvasDimensions = ({ width, height }, maxMegapixels = MAX_INTERACTIVE_PREVIEW_MEGAPIXELS) => {
+    const pixels = width * height;
+    const maxPixels = maxMegapixels * 1000000;
+    if (!width || !height || pixels <= maxPixels) {
+        return { width, height, scale: 1, capped: false };
+    }
+
+    const scale = Math.sqrt(maxPixels / pixels);
+    return {
+        width: Math.max(1, Math.round(width * scale)),
+        height: Math.max(1, Math.round(height * scale)),
+        scale,
+        capped: true,
+    };
+};
+
 /**
  * useCanvasRenderer — Orchestrateur du pipeline de rendu canvas.
  * Assemble les renderers layout/studio/text/asset en un pipeline unifié.
@@ -68,6 +86,14 @@ export default function useCanvasRenderer({
         }
         return { width: Math.ceil(sWidth), height: Math.ceil(sHeight) };
     }, [images, view, activeFormat, cropRatio]);
+
+    const getPreviewCanvasDimensions = useCallback(() => {
+        const dimensions = getCanvasDimensions();
+        if (view === 'studio' || view === 'vision-pro') {
+            return capCanvasDimensions(dimensions);
+        }
+        return { ...dimensions, scale: 1, capped: false };
+    }, [getCanvasDimensions, view]);
 
     const renderPipeline = useCallback((targetCanvas, w, h, isPreview, quality = 'high', overrides = {}) => {
         const ctx = targetCanvas.getContext('2d');
@@ -253,12 +279,12 @@ export default function useCanvasRenderer({
     const renderCanvas = useCallback(() => {
         if ((!images.length && view !== 'fusion') || !canvasRef.current) return;
         const canvas = canvasRef.current;
-        const { width, height } = getCanvasDimensions();
+        const { width, height } = getPreviewCanvasDimensions();
         if (width === 0 || height === 0) return;
         canvas.width = width;
         canvas.height = height;
         renderPipeline(canvas, width, height, true, (isDragging || isDraggingText) ? 'low' : 'high');
-    }, [images, getCanvasDimensions, renderPipeline, isDragging, isDraggingText, view]);
+    }, [images, getPreviewCanvasDimensions, renderPipeline, isDragging, isDraggingText, view]);
 
     // Animation loop
     useEffect(() => {
@@ -266,5 +292,5 @@ export default function useCanvasRenderer({
         return () => cancelAnimationFrame(requestRef.current);
     }, [renderCanvas]);
 
-    return { getCanvasDimensions, renderPipeline, renderCanvas };
+    return { getCanvasDimensions, getPreviewCanvasDimensions, renderPipeline, renderCanvas };
 }

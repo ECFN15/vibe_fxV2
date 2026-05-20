@@ -3,8 +3,19 @@ const { defineSecret } = require("firebase-functions/params");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
+const billing = require("./src/billing");
+const account = require("./src/account");
+const aiJobs = require("./src/ai/jobs");
+const aiReconciliation = require("./src/ai/reconciliation");
+const { shouldEnforceAppCheck } = require("./src/appCheck");
 
 admin.initializeApp();
+
+exports.createCheckoutSession = billing.createCheckoutSession;
+exports.stripeWebhook = billing.stripeWebhook;
+exports.requestAccountDeletion = account.requestAccountDeletion;
+exports.createAiJob = aiJobs.createAiJob;
+exports.reconcileStaleAiReservations = aiReconciliation.reconcileStaleAiReservations;
 
 const META_ACCESS_TOKEN = defineSecret("META_ACCESS_TOKEN");
 const META_IG_USER_ID = defineSecret("META_IG_USER_ID");
@@ -15,7 +26,7 @@ const META_OAUTH_REDIRECT_URI = defineSecret("META_OAUTH_REDIRECT_URI");
 const META_TOKEN_ENCRYPTION_KEY = defineSecret("META_TOKEN_ENCRYPTION_KEY");
 
 const REGION = "europe-west9";
-const ENFORCE_META_APP_CHECK = process.env.ENFORCE_META_APP_CHECK === "true";
+const ENFORCE_META_APP_CHECK = shouldEnforceAppCheck("ENFORCE_META_APP_CHECK");
 const META_CONNECTION_ID = "default";
 const META_OAUTH_SCOPES = [
   "pages_show_list",

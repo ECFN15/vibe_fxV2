@@ -19,6 +19,7 @@ import CompareModal from './components/modals/CompareModal';
 import AssetLibrary from './components/library/AssetLibrary';
 import AssetLibraryModal from './components/modals/AssetLibraryModal';
 import VideoApp from './VideoApp';
+import CreditsPanel from './components/panels/CreditsPanel';
 
 // --- HOOKS ---
 import useExport from './hooks/useExport';
@@ -93,12 +94,18 @@ const measureCanvasVisionSnapshot = (canvas) => {
     };
 };
 
-const buildVisionPerformanceInfo = ({ width, height, sourceRenderMs, sourceMeasureMs, renderedMeasureMs, totalMs, sample }) => {
+const buildVisionPerformanceInfo = ({ width, height, previewWidth, previewHeight, previewScale, isPreviewCapped, sourceRenderMs, sourceMeasureMs, renderedMeasureMs, totalMs, sample }) => {
     const megapixels = width && height ? (width * height) / 1000000 : 0;
+    const previewMegapixels = previewWidth && previewHeight ? (previewWidth * previewHeight) / 1000000 : 0;
     return {
         width,
         height,
         megapixels: Number(megapixels.toFixed(2)),
+        previewWidth: previewWidth || width,
+        previewHeight: previewHeight || height,
+        previewMegapixels: Number(previewMegapixels.toFixed(2)),
+        previewScale: Number((previewScale || 1).toFixed(3)),
+        isPreviewCapped: Boolean(isPreviewCapped),
         sourceRenderMs: Math.round(sourceRenderMs),
         sourceMeasureMs: Math.round(sourceMeasureMs),
         renderedMeasureMs: Math.round(renderedMeasureMs),
@@ -114,9 +121,13 @@ const buildVisionDiagnosticWarnings = (delta, performanceInfo) => {
     if (!delta) return [];
     const warnings = [];
     if (delta.greyVeilRisk) warnings.push('voile gris');
+    if (!delta.greyVeilRisk && delta.tonalRangeRatio < 0.72 && delta.shadowLiftDelta > 10) warnings.push('range compresse');
     if (delta.channelClipHighDelta > 0.04) warnings.push('hautes lumieres clippees');
     if (delta.channelClipLowDelta > 0.08) warnings.push('noirs ecrases');
     if (delta.highSaturationDelta > 0.16) warnings.push('saturation excessive');
+    if (delta.skyHighSaturationDelta > 0.2 || delta.skyClipHighDelta > 0.04) warnings.push('ciel a verifier');
+    if (delta.foliageHighSaturationDelta > 0.2 || delta.foliageClipHighDelta > 0.04) warnings.push('verts a verifier');
+    if (delta.warmHighSaturationDelta > 0.2 || delta.warmClipHighDelta > 0.04) warnings.push('rouges/oranges a verifier');
     if (delta.protectedNeutralBiasDelta > 24) warnings.push('neutres teintes');
     if (delta.skinHueShiftDeg > 24 || Math.abs(delta.skinSaturationDelta) > 0.18) warnings.push('peau a verifier');
     if (performanceInfo?.diagnosticMs > VISION_DIAGNOSTIC_WARN_MS) warnings.push('diagnostic lent');
@@ -278,7 +289,7 @@ function App({ onImportToPublication, onOpenPublications }) {
     });
 
     // --- HOOKS: CANVAS RENDERER ---
-    const { getCanvasDimensions, renderPipeline } = useCanvasRenderer({
+    const { getCanvasDimensions, getPreviewCanvasDimensions, renderPipeline } = useCanvasRenderer({
         canvasRef, images, view,
         activeFormat, activeTemplate, overlayMode,
         padding, gap, radius,
@@ -334,7 +345,7 @@ function App({ onImportToPublication, onOpenPublications }) {
             return;
         }
 
-        const { width, height } = getCanvasDimensions();
+        const { width, height } = getPreviewCanvasDimensions();
         if (!width || !height) return;
 
         const beforeCanvas = document.createElement('canvas');
@@ -345,7 +356,7 @@ function App({ onImportToPublication, onOpenPublications }) {
         });
         const beforeUrl = beforeCanvas.toDataURL('image/jpeg', 0.9);
         setVisionCompareSplit(current => current.beforeUrl === beforeUrl ? current : { ...current, beforeUrl });
-    }, [filters, getCanvasDimensions, images.length, renderPipeline, view, visionCompareSplit.beforeUrl, visionCompareSplit.enabled]);
+    }, [filters, getPreviewCanvasDimensions, images.length, renderPipeline, view, visionCompareSplit.beforeUrl, visionCompareSplit.enabled]);
 
     useEffect(() => {
         if (view !== 'vision-pro' || !images.length || !canvasRef.current) {
@@ -358,16 +369,17 @@ function App({ onImportToPublication, onOpenPublications }) {
             try {
                 const diagnosticStart = getPerfNow();
                 const { width, height } = getCanvasDimensions();
-                if (!width || !height) {
+                const previewDimensions = getPreviewCanvasDimensions();
+                if (!width || !height || !previewDimensions.width || !previewDimensions.height) {
                     if (!cancelled) setVisionDiagnostics({ status: 'empty' });
                     return;
                 }
 
                 const sourceCanvas = document.createElement('canvas');
-                sourceCanvas.width = width;
-                sourceCanvas.height = height;
+                sourceCanvas.width = previewDimensions.width;
+                sourceCanvas.height = previewDimensions.height;
                 const sourceRenderStart = getPerfNow();
-                renderPipeline(sourceCanvas, width, height, true, 'high', {
+                renderPipeline(sourceCanvas, previewDimensions.width, previewDimensions.height, true, 'high', {
                     filters: { ...filters, filterIntensity: 0 },
                 });
                 const sourceRenderMs = getPerfNow() - sourceRenderStart;
@@ -390,6 +402,10 @@ function App({ onImportToPublication, onOpenPublications }) {
                 const performanceInfo = buildVisionPerformanceInfo({
                     width,
                     height,
+                    previewWidth: previewDimensions.width,
+                    previewHeight: previewDimensions.height,
+                    previewScale: previewDimensions.scale,
+                    isPreviewCapped: previewDimensions.capped,
                     sourceRenderMs,
                     sourceMeasureMs,
                     renderedMeasureMs,
@@ -421,7 +437,49 @@ function App({ onImportToPublication, onOpenPublications }) {
             cancelled = true;
             window.cancelAnimationFrame(frameId);
         };
-    }, [filters, getCanvasDimensions, images.length, renderPipeline, view]);
+    }, [filters, getCanvasDimensions, getPreviewCanvasDimensions, images.length, renderPipeline, view]);
+
+    useEffect(() => {
+        if (process.env.NODE_ENV === 'production' || typeof window === 'undefined') return undefined;
+        window.__vibefxVisionQualityProbe = () => {
+            if (!images.length) return null;
+            const fullDimensions = getCanvasDimensions();
+            const previewDimensions = getPreviewCanvasDimensions();
+            if (!fullDimensions.width || !fullDimensions.height || !previewDimensions.width || !previewDimensions.height) return null;
+
+            const renderQualityCanvas = (quality) => {
+                const probeCanvas = document.createElement('canvas');
+                probeCanvas.width = previewDimensions.width;
+                probeCanvas.height = previewDimensions.height;
+                renderPipeline(probeCanvas, previewDimensions.width, previewDimensions.height, true, quality);
+                return probeCanvas;
+            };
+
+            const highCanvas = renderQualityCanvas('high');
+            const lowCanvas = renderQualityCanvas('low');
+            const highSnapshot = measureCanvasVisionSnapshot(highCanvas);
+            const lowSnapshot = measureCanvasVisionSnapshot(lowCanvas);
+            if (!highSnapshot || !lowSnapshot) return null;
+
+            return {
+                width: previewDimensions.width,
+                height: previewDimensions.height,
+                fullWidth: fullDimensions.width,
+                fullHeight: fullDimensions.height,
+                previewWidth: previewDimensions.width,
+                previewHeight: previewDimensions.height,
+                previewScale: previewDimensions.scale,
+                isPreviewCapped: previewDimensions.capped,
+                high: highSnapshot.metrics,
+                low: lowSnapshot.metrics,
+                delta: compareVisionMetrics(highSnapshot.metrics, lowSnapshot.metrics),
+            };
+        };
+
+        return () => {
+            if (window.__vibefxVisionQualityProbe) delete window.__vibefxVisionQualityProbe;
+        };
+    }, [getCanvasDimensions, getPreviewCanvasDimensions, images.length, renderPipeline]);
 
     const handleImportPublication = useCallback(async () => {
         if (!images.length || typeof onImportToPublication !== 'function') return;
@@ -611,12 +669,12 @@ function App({ onImportToPublication, onOpenPublications }) {
     useEffect(() => {
         if (isCompareModalOpen && modalBeforeRef.current && modalAfterRef.current && canvasRef.current && images.length > 0) {
             const { width, height } = getCanvasDimensions();
+            if (!width || !height) return;
 
-            // AFTER: Copy current canvas
+            // AFTER: render full-resolution result, even when the interactive preview is capped.
             modalAfterRef.current.width = width;
             modalAfterRef.current.height = height;
-            const ctxA = modalAfterRef.current.getContext('2d');
-            ctxA.drawImage(canvasRef.current, 0, 0);
+            renderPipeline(modalAfterRef.current, width, height, false, 'high');
 
             // BEFORE: Draw original first image at its native resolution to avoid stretching
             const img = images[0];
@@ -625,7 +683,7 @@ function App({ onImportToPublication, onOpenPublications }) {
             const ctxB = modalBeforeRef.current.getContext('2d');
             ctxB.drawImage(img, 0, 0);
         }
-    }, [isCompareModalOpen, images, getCanvasDimensions]);
+    }, [isCompareModalOpen, images, getCanvasDimensions, renderPipeline]);
 
     const activeConfig = selectedSlotIndex !== null ? (slotConfigs[selectedSlotIndex] || { zoom: 1, x: 0, y: 0, border: 0, blur: 0 }) : null;
 
@@ -653,6 +711,8 @@ function App({ onImportToPublication, onOpenPublications }) {
                         isDarkMode={isDarkMode}
                         onUseAsset={handleAssetImport}
                     />
+                ) : view === 'credits' ? (
+                    <CreditsPanel isDarkMode={isDarkMode} />
                 ) : (
                     <div className="flex-1 w-full grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
                         {/* CANVAS AREA */}

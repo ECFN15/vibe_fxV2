@@ -3,6 +3,7 @@ import { X, Plus, Trash2, Bold, Italic, AlignCenter } from 'lucide-react';
 import useVideoStore from '../store/videoStore';
 import { TEXT_ANIMATIONS } from '../engine/VideoEngine';
 import { loadGoogleFont } from '../preview/VideoPreview';
+import { isTrackLocked } from '../model/timelineModel';
 
 const GOOGLE_FONTS = [
     'Inter', 'Montserrat', 'Playfair Display', 'Oswald', 'Lato',
@@ -34,14 +35,16 @@ const ANIMATION_OUT = [
 const TextPanel = () => {
     const {
         textOverlays, addTextOverlay, updateTextOverlay, removeTextOverlay,
-        setActivePanel, currentTime, totalDuration, selectedTextId, setSelectedTextId
+        setActivePanel, currentTime, totalDuration, selectedTextId, setSelectedTextId, tracks
     } = useVideoStore();
+    const textLocked = isTrackLocked(tracks, 'text-main');
 
     useEffect(() => {
         GOOGLE_FONTS.forEach(f => loadGoogleFont(f));
     }, []);
 
     const handleAdd = () => {
+        if (textLocked) return;
         addTextOverlay({
             content: 'Votre Texte',
             startTime: currentTime,
@@ -54,7 +57,7 @@ const TextPanel = () => {
             <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
                 <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Texte</h3>
                 <div className="flex items-center gap-2">
-                    <button onClick={handleAdd} className="text-indigo-400 hover:text-indigo-300 transition" title="Ajouter un texte" aria-label="Ajouter un texte">
+                    <button onClick={handleAdd} disabled={textLocked} className="text-indigo-400 hover:text-indigo-300 transition disabled:opacity-40 disabled:hover:text-indigo-400" title="Ajouter un texte" aria-label="Ajouter un texte">
                         <Plus size={14} />
                     </button>
                     <button onClick={() => setActivePanel(null)} className="text-neutral-500 hover:text-white transition">
@@ -67,7 +70,7 @@ const TextPanel = () => {
                 {textOverlays.length === 0 ? (
                     <div className="text-center py-8">
                         <p className="text-[10px] font-mono text-neutral-600 uppercase tracking-widest mb-3">Aucun texte</p>
-                        <button onClick={handleAdd} className="px-4 py-2 text-[10px] font-mono text-indigo-400 border border-indigo-500/30 hover:bg-indigo-500/10 transition uppercase tracking-widest">
+                        <button onClick={handleAdd} disabled={textLocked} className="px-4 py-2 text-[10px] font-mono text-indigo-400 border border-indigo-500/30 hover:bg-indigo-500/10 transition uppercase tracking-widest disabled:opacity-40 disabled:hover:bg-transparent">
                             + Ajouter un texte
                         </button>
                         <p className="text-[9px] font-mono text-neutral-700 mt-3">
@@ -83,6 +86,7 @@ const TextPanel = () => {
                             onSelect={() => setSelectedTextId(text.id)}
                             onUpdate={(updates) => updateTextOverlay(text.id, updates)}
                             onDelete={() => removeTextOverlay(text.id)}
+                            disabled={textLocked}
                         />
                     ))
                 )}
@@ -91,7 +95,7 @@ const TextPanel = () => {
     );
 };
 
-const TextOverlayEditor = ({ text, isSelected, onSelect, onUpdate, onDelete }) => {
+const TextOverlayEditor = ({ text, isSelected, onSelect, onUpdate, onDelete, disabled = false }) => {
     const [showFontPicker, setShowFontPicker] = useState(false);
     const [fontSearch, setFontSearch] = useState('');
 
@@ -112,6 +116,7 @@ const TextOverlayEditor = ({ text, isSelected, onSelect, onUpdate, onDelete }) =
             <input
                 type="text"
                 value={text.content}
+                disabled={disabled}
                 onChange={(e) => onUpdate({ content: e.target.value })}
                 aria-label="Contenu du texte"
                 className="w-full bg-neutral-900 border border-neutral-800 rounded-sm px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none"
@@ -123,7 +128,8 @@ const TextOverlayEditor = ({ text, isSelected, onSelect, onUpdate, onDelete }) =
             <div className="relative">
                 <button
                     onClick={(e) => { e.stopPropagation(); setShowFontPicker(!showFontPicker); }}
-                    className="w-full flex items-center justify-between bg-neutral-900 border border-neutral-800 rounded-sm px-3 py-1.5 text-[11px] text-neutral-300 hover:border-neutral-600 transition"
+                    disabled={disabled}
+                    className="w-full flex items-center justify-between bg-neutral-900 border border-neutral-800 rounded-sm px-3 py-1.5 text-[11px] text-neutral-300 hover:border-neutral-600 transition disabled:opacity-45"
                     style={{ fontFamily: `"${text.font}", sans-serif` }}
                 >
                     <span>{text.font}</span>
@@ -146,6 +152,7 @@ const TextOverlayEditor = ({ text, isSelected, onSelect, onUpdate, onDelete }) =
                                 <button
                                     key={font}
                                     onClick={(e) => { e.stopPropagation(); onUpdate({ font }); setShowFontPicker(false); setFontSearch(''); }}
+                                    disabled={disabled}
                                     className={`w-full text-left px-3 py-1.5 text-[11px] hover:bg-indigo-500/10 transition ${
                                         text.font === font ? 'text-indigo-400 bg-indigo-500/5' : 'text-neutral-300'
                                     }`}
@@ -165,8 +172,9 @@ const TextOverlayEditor = ({ text, isSelected, onSelect, onUpdate, onDelete }) =
                 <input
                     type="range"
                     min={16} max={200} value={text.fontSize}
+                    disabled={disabled}
                     onChange={(e) => onUpdate({ fontSize: parseInt(e.target.value) })}
-                    className="flex-1 h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-indigo-500"
+                    className="flex-1 h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-indigo-500 disabled:cursor-not-allowed disabled:opacity-45"
                     onClick={(e) => e.stopPropagation()}
                 />
                 <span className="text-[9px] font-mono text-neutral-400 w-7 text-right tabular-nums">{text.fontSize}</span>
@@ -177,13 +185,15 @@ const TextOverlayEditor = ({ text, isSelected, onSelect, onUpdate, onDelete }) =
                 <input
                     type="color"
                     value={text.color}
+                    disabled={disabled}
                     onChange={(e) => onUpdate({ color: e.target.value })}
-                    className="w-7 h-7 bg-transparent border border-neutral-700 rounded-sm cursor-pointer shrink-0"
+                    className="w-11 h-11 bg-transparent border border-neutral-700 rounded-sm cursor-pointer shrink-0"
                     onClick={(e) => e.stopPropagation()}
                 />
                 <button
                     onClick={(e) => { e.stopPropagation(); onUpdate({ bold: !text.bold }); }}
-                    className={`w-7 h-7 flex items-center justify-center border rounded-sm transition ${
+                    disabled={disabled}
+                    className={`w-11 h-11 flex items-center justify-center border rounded-sm transition ${
                         text.bold ? 'border-indigo-500 text-indigo-400 bg-indigo-500/10' : 'border-neutral-700 text-neutral-500'
                     }`}
                 >
@@ -191,7 +201,8 @@ const TextOverlayEditor = ({ text, isSelected, onSelect, onUpdate, onDelete }) =
                 </button>
                 <button
                     onClick={(e) => { e.stopPropagation(); onUpdate({ italic: !text.italic }); }}
-                    className={`w-7 h-7 flex items-center justify-center border rounded-sm transition ${
+                    disabled={disabled}
+                    className={`w-11 h-11 flex items-center justify-center border rounded-sm transition ${
                         text.italic ? 'border-indigo-500 text-indigo-400 bg-indigo-500/10' : 'border-neutral-700 text-neutral-500'
                     }`}
                 >
@@ -200,7 +211,8 @@ const TextOverlayEditor = ({ text, isSelected, onSelect, onUpdate, onDelete }) =
                 <div className="flex-1" />
                 <button
                     onClick={(e) => { e.stopPropagation(); onUpdate({ x: 0.5, y: 0.5 }); }}
-                    className="w-7 h-7 flex items-center justify-center border border-neutral-700 text-neutral-500 hover:text-white rounded-sm transition"
+                    disabled={disabled}
+                    className="w-11 h-11 flex items-center justify-center border border-neutral-700 text-neutral-500 hover:text-white rounded-sm transition"
                     title="Centrer"
                 >
                     <AlignCenter size={12} />
@@ -213,6 +225,7 @@ const TextOverlayEditor = ({ text, isSelected, onSelect, onUpdate, onDelete }) =
                     <span className="text-[8px] font-mono text-neutral-600 uppercase block mb-1">Entree</span>
                     <select
                         value={text.animation || 'fade'}
+                        disabled={disabled}
                         onChange={(e) => onUpdate({ animation: e.target.value })}
                         aria-label="Animation d'entree du texte"
                         className="w-full bg-neutral-900 border border-neutral-800 rounded-sm px-2 py-1 text-[10px] text-neutral-300 font-mono"
@@ -225,6 +238,7 @@ const TextOverlayEditor = ({ text, isSelected, onSelect, onUpdate, onDelete }) =
                     <span className="text-[8px] font-mono text-neutral-600 uppercase block mb-1">Sortie</span>
                     <select
                         value={text.animationOut || 'fade'}
+                        disabled={disabled}
                         onChange={(e) => onUpdate({ animationOut: e.target.value })}
                         aria-label="Animation de sortie du texte"
                         className="w-full bg-neutral-900 border border-neutral-800 rounded-sm px-2 py-1 text-[10px] text-neutral-300 font-mono"
@@ -242,6 +256,7 @@ const TextOverlayEditor = ({ text, isSelected, onSelect, onUpdate, onDelete }) =
                     <input
                         type="number"
                         value={parseFloat(text.startTime.toFixed(1))}
+                        disabled={disabled}
                         onChange={(e) => onUpdate({ startTime: Math.max(0, parseFloat(e.target.value) || 0) })}
                         aria-label="Debut du texte"
                         step={0.1} min={0}
@@ -254,6 +269,7 @@ const TextOverlayEditor = ({ text, isSelected, onSelect, onUpdate, onDelete }) =
                     <input
                         type="number"
                         value={parseFloat(text.endTime.toFixed(1))}
+                        disabled={disabled}
                         onChange={(e) => onUpdate({ endTime: Math.max(text.startTime + 0.1, parseFloat(e.target.value) || 0) })}
                         aria-label="Fin du texte"
                         step={0.1} min={0}
@@ -267,7 +283,8 @@ const TextOverlayEditor = ({ text, isSelected, onSelect, onUpdate, onDelete }) =
             <div className="flex justify-end pt-1">
                 <button
                     onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                    className="flex items-center gap-1.5 text-[9px] font-mono text-neutral-600 hover:text-red-400 transition uppercase"
+                    disabled={disabled}
+                    className="flex items-center gap-1.5 text-[9px] font-mono text-neutral-600 hover:text-red-400 transition uppercase disabled:opacity-40 disabled:hover:text-neutral-600"
                 >
                     <Trash2 size={10} />
                     Supprimer

@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Sun, Contrast, Droplets, Thermometer, Eye, RotateCcw } from 'lucide-react';
 import useVideoStore from '../store/videoStore';
+import { isTrackLocked } from '../model/timelineModel';
 
 const FILTER_CONTROLS = [
     { key: 'brightness', label: 'Luminosite', icon: Sun, min: 0, max: 200, default: 100 },
@@ -23,22 +24,26 @@ const VISION_PRESETS = [
 ];
 
 const FilterVideoPanel = () => {
-    const { selectedClipId, clips, updateClip, setActivePanel } = useVideoStore();
+    const { selectedClipId, clips, updateClip, setActivePanel, tracks } = useVideoStore();
 
     const clip = clips.find(c => c.id === selectedClipId);
     const filters = clip?.filters || { brightness: 100, contrast: 100, saturation: 100, temperature: 0, vignette: 0, grain: 0 };
+    const videoLocked = isTrackLocked(tracks, 'video-main');
 
     const handleFilterChange = (key, value) => {
+        if (videoLocked) return;
         if (!selectedClipId) return;
         updateClip(selectedClipId, { filters: { ...filters, [key]: value } });
     };
 
     const applyPreset = (preset) => {
+        if (videoLocked) return;
         if (!selectedClipId) return;
         updateClip(selectedClipId, { filters: { ...preset.filters } });
     };
 
     const resetFilters = () => {
+        if (videoLocked) return;
         if (!selectedClipId) return;
         updateClip(selectedClipId, {
             filters: { brightness: 100, contrast: 100, saturation: 100, temperature: 0, vignette: 0, grain: 0 }
@@ -67,7 +72,8 @@ const FilterVideoPanel = () => {
                                 <button
                                     key={preset.name}
                                     onClick={() => applyPreset(preset)}
-                                    className="px-3 py-2 text-[9px] font-mono text-neutral-400 border border-neutral-800 rounded-sm hover:border-indigo-500/40 hover:text-indigo-400 hover:bg-indigo-500/5 transition text-left"
+                                    disabled={videoLocked}
+                                    className="px-3 py-2 text-[9px] font-mono text-neutral-400 border border-neutral-800 rounded-sm hover:border-indigo-500/40 hover:text-indigo-400 hover:bg-indigo-500/5 transition text-left disabled:opacity-40 disabled:hover:border-neutral-800 disabled:hover:text-neutral-400 disabled:hover:bg-transparent"
                                 >
                                     {preset.name}
                                 </button>
@@ -78,7 +84,7 @@ const FilterVideoPanel = () => {
                     <div className="space-y-3 border-t border-neutral-800 pt-3">
                         <div className="flex items-center justify-between">
                             <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest">Ajuster</span>
-                            <button onClick={resetFilters} className="flex items-center gap-1 text-[8px] font-mono text-neutral-600 hover:text-white transition uppercase">
+                            <button onClick={resetFilters} disabled={videoLocked} className="flex items-center gap-1 text-[8px] font-mono text-neutral-600 hover:text-white transition uppercase disabled:opacity-40 disabled:hover:text-neutral-600">
                                 <RotateCcw size={9} />
                                 Reset
                             </button>
@@ -100,8 +106,9 @@ const FilterVideoPanel = () => {
                                         min={ctrl.min} max={ctrl.max}
                                         aria-label={ctrl.label}
                                         value={filters[ctrl.key]}
+                                        disabled={videoLocked}
                                         onChange={(e) => handleFilterChange(ctrl.key, parseInt(e.target.value))}
-                                        className="w-full h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-indigo-500"
+                                        className="w-full h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-indigo-500 disabled:cursor-not-allowed disabled:opacity-45"
                                     />
                                 </div>
                             );

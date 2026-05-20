@@ -151,6 +151,11 @@ test("Vision local smartphone corpus passes metric guardrails when fixtures are 
       expect(delta.protectedNeutralBiasDelta, `${label} protected neutral bias`).toBeLessThan(check.maxNeutralBias);
       expect(delta.skinHueShiftDeg, `${label} skin hue shift`).toBeLessThan(check.maxSkinHueShift);
       expect(Math.abs(delta.skinSaturationDelta), `${label} skin saturation shift`).toBeLessThan(0.22);
+      expect(delta.skyClipHighDelta, `${label} sky clipping`).toBeLessThan(check.maxHighlightClip);
+      expect(delta.skyHighSaturationDelta, `${label} sky high saturation growth`).toBeLessThan(Math.max(0.22, check.maxHighSat + 0.04));
+      expect(delta.foliageHighSaturationDelta, `${label} foliage high saturation growth`).toBeLessThan(Math.max(0.22, check.maxHighSat + 0.04));
+      expect(delta.warmClipHighDelta, `${label} warm red/orange clipping`).toBeLessThan(check.maxHighlightClip);
+      expect(delta.warmHighSaturationDelta, `${label} warm high saturation growth`).toBeLessThan(Math.max(0.22, check.maxHighSat + 0.04));
     }
   }
 

@@ -7,11 +7,12 @@
   },
   "main": "index.js",
   "scripts": {
-    "lint": "node --check index.js",
+    "lint": "node --check index.js && node --check src/account.js && node --check src/appCheck.js && node --check src/billing.js && node --check src/billingProducts.js && node --check src/billingEvents.js && node --check src/billingSession.js && node --check src/ai/providerRegistry.js && node --check src/ai/policies.js && node --check src/ai/router.js && node --check src/ai/mockProvider.js && node --check src/ai/jobUtils.js && node --check src/ai/jobs.js && node --check src/ai/reconciliation.js",
     "deploy": "firebase deploy --only functions"
   },
   "dependencies": {
     "firebase-admin": "^13.6.0",
-    "firebase-functions": "^6.5.0"
+    "firebase-functions": "^6.5.0",
+    "stripe": "^22.1.1"
   }
 }

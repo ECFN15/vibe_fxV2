@@ -9,12 +9,19 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
+    function ownsUidField() {
+      return signedIn() && resource.data.uid == request.auth.uid;
+    }
+
     function isUserProfileCreateValid(userId) {
       return ownsUserDoc(userId)
         && request.resource.data.keys().hasOnly([
           'email',
           'displayName',
           'photoURL',
+          'isAnonymous',
+          'providers',
+          'lastLoginAt',
           'createdAt',
           'updatedAt',
         ]);
@@ -26,6 +33,9 @@ service cloud.firestore {
           'email',
           'displayName',
           'photoURL',
+          'isAnonymous',
+          'providers',
+          'lastLoginAt',
           'updatedAt',
         ]);
     }
@@ -55,6 +65,11 @@ service cloud.firestore {
       allow create: if isUserProfileCreateValid(userId);
       allow update: if isUserProfileUpdateValid(userId);
       allow delete: if false;
+
+      match /creditLedger/{entryId} {
+        allow read: if ownsUserDoc(userId);
+        allow write: if false;
+      }
     }
 
     match /publications/{publicationId} {
@@ -70,6 +85,59 @@ service cloud.firestore {
     }
 
     match /meta_oauth_states/{stateId} {
+      allow read, write: if false;
+    }
+
+    match /aiJobs/{jobId} {
+      allow read: if ownsUidField();
+      allow write: if false;
+    }
+
+    match /aiRateLimits/{bucketId} {
+      allow read, write: if false;
+    }
+
+    match /payments/{paymentId} {
+      allow read: if ownsUidField();
+      allow write: if false;
+    }
+
+    match /checkoutSessions/{sessionId} {
+      allow read: if ownsUidField();
+      allow write: if false;
+    }
+
+    match /accountDeletionRequests/{requestId} {
+      allow read, write: if false;
+    }
+
+    match /exportJobs/{jobId} {
+      allow read: if ownsUidField();
+      allow write: if false;
+    }
+
+    match /rightsManifests/{manifestId} {
+      allow read: if ownsUidField();
+      allow write: if false;
+    }
+
+    match /stripeEvents/{eventId} {
+      allow read, write: if false;
+    }
+
+    match /aiPricingPolicies/{policyId} {
+      allow read, write: if false;
+    }
+
+    match /aiProviderPriceSnapshots/{snapshotId} {
+      allow read, write: if false;
+    }
+
+    match /providerRegistry/{providerId} {
+      allow read, write: if false;
+    }
+
+    match /securityEvents/{eventId} {
       allow read, write: if false;
     }
 

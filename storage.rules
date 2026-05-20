@@ -15,11 +15,54 @@ service firebase.storage {
         && request.resource.contentType.matches('image/(jpeg|jpg|png|webp|avif)');
     }
 
+    function isSafeAudioUpload(maxBytes) {
+      return request.resource != null
+        && request.resource.size <= maxBytes
+        && request.resource.contentType.matches('audio/(mpeg|mp3|wav|ogg|webm|aac|mp4)');
+    }
+
+    function isSafeVideoUpload(maxBytes) {
+      return request.resource != null
+        && request.resource.size <= maxBytes
+        && request.resource.contentType.matches('video/(mp4|webm|quicktime)');
+    }
+
     match /users/{userId}/publications/{allPaths=**} {
       allow get: if true;
       allow list: if false;
       allow create, update: if ownsPath(userId) && isSafeImageUpload(8 * 1024 * 1024);
       allow delete: if ownsPath(userId);
+    }
+
+    match /users/{userId}/uploads/images/{allPaths=**} {
+      allow get: if ownsPath(userId);
+      allow list: if false;
+      allow create, update: if ownsPath(userId) && isSafeImageUpload(20 * 1024 * 1024);
+      allow delete: if ownsPath(userId);
+    }
+
+    match /users/{userId}/uploads/audio/{allPaths=**} {
+      allow get: if ownsPath(userId);
+      allow list: if false;
+      allow create, update: if ownsPath(userId) && isSafeAudioUpload(100 * 1024 * 1024);
+      allow delete: if ownsPath(userId);
+    }
+
+    match /users/{userId}/uploads/video/{allPaths=**} {
+      allow get: if ownsPath(userId);
+      allow list: if false;
+      allow create, update: if ownsPath(userId) && isSafeVideoUpload(500 * 1024 * 1024);
+      allow delete: if ownsPath(userId);
+    }
+
+    match /users/{userId}/ai/{allPaths=**} {
+      allow get: if ownsPath(userId);
+      allow list, create, update, delete: if false;
+    }
+
+    match /users/{userId}/exports/{allPaths=**} {
+      allow get: if ownsPath(userId);
+      allow list, create, update, delete: if false;
     }
 
     match /publications/{allPaths=**} {

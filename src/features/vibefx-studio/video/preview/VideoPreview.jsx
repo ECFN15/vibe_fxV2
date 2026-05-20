@@ -1,6 +1,7 @@
-import React, { useRef, useEffect, useLayoutEffect, useCallback, useState } from 'react';
+import React, { useRef, useEffect, useLayoutEffect, useCallback, useMemo, useState } from 'react';
 import useVideoStore from '../store/videoStore';
 import { EXPORT_PRESETS, PlaybackEngine } from '../engine/VideoEngine';
+import { resolveTimelineRenderPlan } from '../model/timelineModel';
 
 // Load Google Font dynamically
 const loadedFonts = new Set();
@@ -151,15 +152,31 @@ const VideoPreview = () => {
     const engineRef = useRef(null);
     const [isDraggingText, setIsDraggingText] = useState(false);
     const [showGuides, setShowGuides] = useState(false);
+    const [canvasCssSize, setCanvasCssSize] = useState({ width: 0, height: 0 });
     const dragRef = useRef(null);
+    const renderRequestRef = useRef(0);
 
     const {
         clips, transitions, transitionItems, isPlaying, totalDuration,
         playbackSpeed, setCurrentTime, textOverlays,
         selectedTextId, setSelectedTextId, updateTextOverlay,
-        audioTracks, setPreviewCanvas, setPreviewEngine, sequencePreset
+        audioTracks, tracks, setPreviewCanvas, setPreviewEngine, sequencePreset
     } = useVideoStore();
     const preset = EXPORT_PRESETS[sequencePreset] || EXPORT_PRESETS.youtube;
+    const renderPlan = useMemo(() => resolveTimelineRenderPlan({
+        clips,
+        transitions,
+        transitionItems,
+        textOverlays,
+        audioTracks,
+        tracks,
+        totalDuration,
+    }), [audioTracks, clips, textOverlays, totalDuration, tracks, transitions, transitionItems]);
+    const renderClips = renderPlan.clips;
+    const renderTransitions = renderPlan.allTransitions;
+    const renderTextOverlays = renderPlan.textOverlays;
+    const renderAudioTracks = renderPlan.audioTracks;
+    const playbackClips = renderPlan.playbackClips;
 
     // Init PlaybackEngine
     useEffect(() => {
@@ -176,67 +193,74 @@ const VideoPreview = () => {
 
     // Load clips and render
     useEffect(() => {
-        if (!engineRef.current || clips.length === 0) return;
+        if (!engineRef.current || renderClips.length === 0) return;
         
         // Load all clips, then render current frame
         // Use allSettled so we always render even if some clips fail
         Promise.allSettled([
-            ...clips.map(clip => engineRef.current.loadClip(clip)),
-            ...audioTracks.map(track => engineRef.current.loadAudioTrack(track)),
-        ]).then(() => {
+            ...renderClips.map(clip => engineRef.current.loadClip(clip)),
+            ...renderAudioTracks.map(track => engineRef.current.loadAudioTrack(track)),
+        ]).then(async () => {
             if (!engineRef.current || !canvasRef.current) return;
             const time = useVideoStore.getState().currentTime;
-            const { transitions, transitionItems } = useVideoStore.getState();
-            engineRef.current.renderFrame(clips, transitions, time, transitionItems);
-            const { textOverlays, selectedTextId } = useVideoStore.getState();
-            drawTextOverlays(canvasRef.current, textOverlays, time, selectedTextId);
+            const state = useVideoStore.getState();
+            const plan = resolveTimelineRenderPlan(state);
+            await engineRef.current.seekAndDraw(plan.clips, plan.transitions, time, plan.allTransitions);
+            drawTextOverlays(canvasRef.current, plan.textOverlays, time, state.selectedTextId);
         }).catch(err => {
             console.warn('Failed to load clips:', err);
             // Still render the frame even on error
             if (engineRef.current && canvasRef.current) {
                 const time = useVideoStore.getState().currentTime;
-                engineRef.current.renderFrame(clips, useVideoStore.getState().transitions, time, useVideoStore.getState().transitionItems);
+                const state = useVideoStore.getState();
+                const plan = resolveTimelineRenderPlan(state);
+                engineRef.current.renderFrame(plan.clips, plan.transitions, time, plan.allTransitions);
             }
         });
-    }, [clips, audioTracks]);
+    }, [renderAudioTracks, renderClips]);
 
     // Play/pause
     useEffect(() => {
-        if (!engineRef.current || clips.length === 0) return;
+        if (!engineRef.current || renderClips.length === 0) return;
         if (isPlaying) {
             engineRef.current.startPlayback(
-                clips, transitions,
+                playbackClips, transitions,
                 () => useVideoStore.getState().currentTime,
                 (t) => {
                     setCurrentTime(t);
                     if (canvasRef.current) {
-                        drawTextOverlays(canvasRef.current, useVideoStore.getState().textOverlays, t, useVideoStore.getState().selectedTextId);
+                        const state = useVideoStore.getState();
+                        const plan = resolveTimelineRenderPlan(state);
+                        drawTextOverlays(canvasRef.current, plan.textOverlays, t, state.selectedTextId);
                     }
                 },
                 totalDuration,
                 playbackSpeed,
-                audioTracks,
-                transitionItems
+                renderAudioTracks,
+                renderTransitions
             );
         } else {
             engineRef.current.stopPlayback();
         }
         return () => { engineRef.current?.stopPlayback(); };
-    }, [isPlaying, clips, transitions, transitionItems, totalDuration, playbackSpeed, audioTracks, setCurrentTime]);
+    }, [isPlaying, renderClips.length, playbackClips, transitions, renderTransitions, totalDuration, playbackSpeed, renderAudioTracks, setCurrentTime]);
 
     // Render on seek
     useEffect(() => {
-        const renderCurrentTime = (time) => {
+        const renderCurrentTime = async (time) => {
+            const requestId = renderRequestRef.current + 1;
+            renderRequestRef.current = requestId;
             if (!engineRef.current || isPlaying) return;
-            if (clips.length === 0 && canvasRef.current) {
+            if (renderClips.length === 0 && canvasRef.current) {
                 const ctx = canvasRef.current.getContext('2d');
                 ctx.fillStyle = 'black';
                 ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
             } else {
-                engineRef.current.seekTo(clips, transitions, time, transitionItems);
+                await engineRef.current.seekAndDraw(renderClips, transitions, time, renderTransitions);
             }
+            if (requestId !== renderRequestRef.current) return;
             if (canvasRef.current) {
-                drawTextOverlays(canvasRef.current, textOverlays, time, selectedTextId);
+                drawTextOverlays(canvasRef.current, renderTextOverlays, time, selectedTextId);
                 if (showGuides && selectedTextId) drawGuides(canvasRef.current);
             }
         };
@@ -244,13 +268,13 @@ const VideoPreview = () => {
         renderCurrentTime(useVideoStore.getState().currentTime);
 
         const unsub = useVideoStore.subscribe((state, prevState) => {
-            if ((state.currentTime !== prevState.currentTime || state.transitionItems !== prevState.transitionItems || state.textOverlays !== prevState.textOverlays || state.selectedTextId !== prevState.selectedTextId) && !state.isPlaying) {
-                requestAnimationFrame(() => renderCurrentTime(state.currentTime));
+            if ((state.currentTime !== prevState.currentTime || state.clips !== prevState.clips || state.transitionItems !== prevState.transitionItems || state.textOverlays !== prevState.textOverlays || state.audioTracks !== prevState.audioTracks || state.selectedTextId !== prevState.selectedTextId || state.tracks !== prevState.tracks) && !state.isPlaying) {
+                requestAnimationFrame(() => { renderCurrentTime(state.currentTime); });
             }
         });
 
         return unsub;
-    }, [isPlaying, clips, transitions, transitionItems, textOverlays, selectedTextId, showGuides]);
+    }, [isPlaying, renderClips, transitions, renderTransitions, renderTextOverlays, selectedTextId, showGuides]);
 
     // Resize canvas
     useLayoutEffect(() => {
@@ -270,17 +294,21 @@ const VideoPreview = () => {
             canvasRef.current.height = Math.round(h * window.devicePixelRatio);
             canvasRef.current.style.width = `${Math.round(w)}px`;
             canvasRef.current.style.height = `${Math.round(h)}px`;
+            setCanvasCssSize({ width: Math.round(w), height: Math.round(h) });
 
             if (!isPlaying) {
                 const time = useVideoStore.getState().currentTime;
-                if (clips.length === 0) {
+                if (renderClips.length === 0) {
                     const ctx = canvasRef.current.getContext('2d');
                     ctx.fillStyle = 'black';
                     ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
                 } else if (engineRef.current) {
-                    engineRef.current.seekTo(clips, transitions, time, transitionItems);
+                    engineRef.current.seekAndDraw(renderClips, transitions, time, renderTransitions).then(() => {
+                        if (canvasRef.current) drawTextOverlays(canvasRef.current, renderTextOverlays, time, selectedTextId);
+                    });
+                    return;
                 }
-                drawTextOverlays(canvasRef.current, textOverlays, time, selectedTextId);
+                drawTextOverlays(canvasRef.current, renderTextOverlays, time, selectedTextId);
             }
         };
 
@@ -288,7 +316,7 @@ const VideoPreview = () => {
         observer.observe(containerRef.current);
         resize();
         return () => observer.disconnect();
-    }, [isPlaying, clips, transitions, transitionItems, textOverlays, selectedTextId, preset.width, preset.height]);
+    }, [isPlaying, renderClips, transitions, renderTransitions, renderTextOverlays, selectedTextId, preset.width, preset.height]);
 
     // Text drag on canvas
     const getCanvasCoords = useCallback((e) => {
@@ -303,7 +331,8 @@ const VideoPreview = () => {
     const handleCanvasPointerDown = useCallback((e) => {
         const coords = getCanvasCoords(e);
         const currentTime = useVideoStore.getState().currentTime;
-        const overlays = useVideoStore.getState().textOverlays;
+        const state = useVideoStore.getState();
+        const overlays = resolveTimelineRenderPlan(state).textOverlays;
 
         // Find text under cursor
         let found = null;
@@ -364,7 +393,8 @@ const VideoPreview = () => {
         }
     }, [isDraggingText]);
 
-    const hasContent = clips.length > 0 || textOverlays.length > 0;
+    const hasContent = renderPlan.hasVisibleContent;
+    const showSafeArea = preset.height >= preset.width;
 
     return (
         <div ref={containerRef} className="relative flex-1 flex items-center justify-center bg-black overflow-hidden group">
@@ -380,6 +410,25 @@ const VideoPreview = () => {
                 onPointerUp={handleCanvasPointerUp}
                 onPointerCancel={handleCanvasPointerUp}
             />
+
+            {hasContent && showSafeArea && canvasCssSize.width > 0 && (
+                <div
+                    data-testid="video-safe-area-overlay"
+                    className="absolute pointer-events-none rounded-sm border border-cyan-300/35"
+                    style={{
+                        width: `${canvasCssSize.width}px`,
+                        height: `${canvasCssSize.height}px`,
+                    }}
+                    aria-hidden="true"
+                >
+                    <div className="absolute left-[7%] right-[7%] top-[7%] bottom-[12%] border border-dashed border-cyan-300/40 rounded-sm" />
+                    <div className="absolute left-[12%] right-[12%] top-[10%] h-[9%] border border-dashed border-amber-300/35 rounded-sm" />
+                    <div className="absolute left-[10%] right-[10%] bottom-[8%] h-[14%] border border-dashed border-amber-300/35 rounded-sm" />
+                    <span className="absolute left-2 top-2 rounded-sm border border-cyan-300/30 bg-black/65 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-widest text-cyan-200/80">
+                        Safe areas
+                    </span>
+                </div>
+            )}
 
             {!hasContent && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-neutral-600 pointer-events-none">

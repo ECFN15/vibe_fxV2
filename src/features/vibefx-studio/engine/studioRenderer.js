@@ -5,7 +5,8 @@ import {
     applySharpness,
     applyHalation,
     applyPerceptualIntensityBlend,
-    applySmartphoneOutputGuards
+    applySmartphoneOutputGuards,
+    applySafeGlobalTint
 } from '../utils/canvasUtils';
 import { normalizeVisionFilters } from '../utils/visionColorScience';
 
@@ -458,20 +459,22 @@ function applyFiltersPro(ctx, targetCanvas, w, h, quality, filters) {
     ctx.clearRect(0, 0, w, h);
 
     const hueRotate = safeFilters.hueRotate || 0;
-    const cssSaturation = quality === 'low' ? (safeFilters.saturation !== undefined ? safeFilters.saturation : 100) : 100;
+    const doColorPixelOps = true;
+    const doSpatialPixelOps = quality !== 'low';
     ctx.filter = [
         `brightness(${safeFilters.brightness}%)`,
         `contrast(${safeFilters.contrast}%)`,
-        `saturate(${cssSaturation}%)`,
+        `saturate(100%)`,
         safeFilters.sepia ? `sepia(${safeFilters.sepia}%)` : '',
-        (quality !== 'low' && safeFilters.blur) ? `blur(${safeFilters.blur}px)` : '',
+        (doSpatialPixelOps && safeFilters.blur) ? `blur(${safeFilters.blur}px)` : '',
         hueRotate ? `hue-rotate(${hueRotate}deg)` : ''
     ].filter(Boolean).join(' ');
 
     ctx.drawImage(tempCanvas, 0, 0);
     ctx.filter = 'none';
 
-    const doPixelOps = quality !== 'low';
+    const doPixelOps = doColorPixelOps;
+    const doSpatialPixelOpsForQuality = doSpatialPixelOps;
 
     if (doPixelOps) {
         // ── Stage 2: Fused Pixel Ops (single pass) ───────
@@ -480,15 +483,10 @@ function applyFiltersPro(ctx, targetCanvas, w, h, quality, filters) {
 
     // ── Stage 3: Legacy Tint ─────────────────────────────
     if (safeFilters.tintIntensity > 0) {
-        ctx.save();
-        ctx.globalCompositeOperation = 'overlay';
-        ctx.fillStyle = safeFilters.tintColor;
-        ctx.globalAlpha = safeFilters.tintIntensity / 100;
-        ctx.fillRect(0, 0, w, h);
-        ctx.restore();
+        applySafeGlobalTint(ctx, w, h, safeFilters.tintColor, safeFilters.tintIntensity, safeFilters.safeSmartphone !== false);
     }
 
-    if (doPixelOps) {
+    if (doSpatialPixelOpsForQuality) {
         // ── Stage 4: Clarity ─────────────────────────────
         applyClarity(ctx, targetCanvas, w, h, safeFilters.clarity);
 
@@ -496,7 +494,7 @@ function applyFiltersPro(ctx, targetCanvas, w, h, quality, filters) {
         applySharpness(ctx, targetCanvas, w, h, safeFilters.sharpness);
 
         // ── Stage 6: Halation ────────────────────────────
-        applyHalation(ctx, w, h, safeFilters.halation, safeFilters.halationColor);
+        applyHalation(ctx, w, h, safeFilters.halation, safeFilters.halationColor, safeFilters.safeSmartphone !== false);
     }
 
     // ── Stage 7: Vignette ────────────────────────────────

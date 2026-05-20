@@ -42,7 +42,7 @@ Le chantier demande de :
 | Rules Firestore | `firestore.rules` impose owner create/update/read/delete, limite `users/{uid}` aux champs profil publics, bloque transfert `ownerUid`, bloque les collections techniques et interdit au client de falsifier `platformStatus`/`metaSync`. | OK |
 | Rules Storage | `storage.rules` autorise write uniquement au proprietaire sous `users/{uid}/publications/**`, permet `get` public des medias sans autoriser `list`, et bloque l'ancien `/publications/**` en ecriture. | OK |
 | Index Firestore | `firestore.indexes.json` ajoute `ownerUid ASC`, `updatedAt DESC`. | OK |
-| App Check Meta optionnel | `src/lib/firebase.js` initialise App Check quand `NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY` existe; les callables Meta lisent `ENFORCE_META_APP_CHECK`; `check:e2e-readiness` bloque si l'enforcement est active sans cle client App Check. | OK |
+| App Check callables sensibles | `src/lib/firebase.js` initialise App Check quand `NEXT_PUBLIC_FIREBASE_APPCHECK_SITE_KEY` existe; `functions/src/appCheck.js` enforce par defaut hors emulateurs pour Meta/Billing/IA; `check:e2e-readiness` bloque si la cle client App Check manque ou si un `ENFORCE_*_APP_CHECK=false` est configure hors emulateurs. | OK |
 | Pages SEO prioritaires | Routes App Router creees pour les six URLs demandees. | OK |
 | Metadata/canonical/JSON-LD | `seo-pages.js`, `SeoLandingPage.jsx`; `npm run test:routes` verifie canonical + JSON-LD sur toutes les routes publiques, home incluse. | OK |
 | Sitemap/robots | `sitemap.js`, `robots.js`; `npm run test:routes` verifie sitemap, robots et noindex studio. | OK |

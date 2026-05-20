@@ -16,6 +16,7 @@ export const VISION_SUPPORTED_FILTER_KEYS = [
     'shadows',
     'vibrance',
     'skinSaturation',
+    'warmSaturation',
     'skySaturation',
     'foliageSaturation',
     'temperature',
@@ -104,6 +105,7 @@ export function normalizeVisionFilters(filters = {}) {
 
     next.vibrance = clamp(next.vibrance || 0, -45, 45);
     next.skinSaturation = clamp(next.skinSaturation || 0, -20, 15);
+    next.warmSaturation = clamp(next.warmSaturation || 0, -35, 18);
     next.skySaturation = clamp(next.skySaturation || 0, -35, 25);
     next.foliageSaturation = clamp(next.foliageSaturation || 0, -35, 22);
     next.temperature = clamp(next.temperature || 0, -22, 22);
@@ -201,9 +203,16 @@ export function buildVisionProfileModel(profile, brand = null) {
         safetyRules: profile?.safetyRules || inferSafetyRules(filters, analysis),
         previewTags: profile?.previewTags || buildPreviewTags(analysis, filters),
         technicalNotes: profile?.technicalNotes || inferTechnicalNotes(filters, analysis, normalizedParameters),
+        inspirationLabel: profile?.inspirationLabel || inferInspirationLabel(profile, brand),
         tags: analysis.tags,
         warnings: analysis.warnings,
     };
+}
+
+function inferInspirationLabel(profile, brand) {
+    if (brand?.name) return `Inspire par ${brand.name} - direction esthetique, pas reproduction exacte`;
+    if (profile?.family === 'Custom Safe' || profile?.id?.startsWith?.('custom:')) return 'Profil personnel local - direction utilisateur';
+    return 'Direction esthetique Vision - pas reproduction exacte';
 }
 
 function inferBestFor(family) {

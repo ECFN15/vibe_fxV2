@@ -178,6 +178,13 @@ try {
     )
   );
 
+  await withStep("checking user credit balance update denial", () =>
+    expectPermissionDenied(
+      () => updateDoc(ownerUserRef, { creditBalance: 999999, reservedCreditBalance: 0 }),
+      "client cannot update credit balances on user profile"
+    )
+  );
+
   await withStep("checking stranger user profile read denial", () =>
     expectPermissionDenied(
       () => getDoc(doc(stranger.db, "users", ownerUid)),
@@ -314,6 +321,71 @@ try {
     )
   );
 
+  await withStep("checking credit ledger write denial", () =>
+    expectPermissionDenied(
+      () => setDoc(doc(owner.db, "users", ownerUid, "creditLedger", `ledger-${stamp}`), {
+        type: "purchase",
+        amount: 500,
+        balanceAfter: 500,
+        idempotencyKey: `client-${stamp}`,
+      }),
+      "client cannot write credit ledger"
+    )
+  );
+
+  await withStep("checking ai job client write denial", () =>
+    expectPermissionDenied(
+      () => setDoc(doc(owner.db, "aiJobs", `job-${stamp}`), {
+        uid: ownerUid,
+        feature: "text.caption.draft",
+        status: "succeeded",
+        estimatedCredits: 1,
+      }),
+      "client cannot write aiJobs"
+    )
+  );
+
+  await withStep("checking ai rate limit client write denial", () =>
+    expectPermissionDenied(
+      () => setDoc(doc(owner.db, "aiRateLimits", `bucket-${stamp}`), {
+        uid: ownerUid,
+        feature: "text.caption.draft",
+        count: 1,
+      }),
+      "client cannot write ai rate limits"
+    )
+  );
+
+  await withStep("checking payment client write denial", () =>
+    expectPermissionDenied(
+      () => setDoc(doc(owner.db, "payments", `payment-${stamp}`), {
+        uid: ownerUid,
+        provider: "stripe",
+        status: "completed",
+      }),
+      "client cannot write payments"
+    )
+  );
+
+  await withStep("checking pricing policy client write denial", () =>
+    expectPermissionDenied(
+      () => setDoc(doc(owner.db, "aiPricingPolicies", `policy-${stamp}`), {
+        enabled: true,
+        creditsCharged: 0,
+      }),
+      "client cannot write ai pricing policies"
+    )
+  );
+
+  await withStep("checking provider registry client write denial", () =>
+    expectPermissionDenied(
+      () => setDoc(doc(owner.db, "providerRegistry", `provider-${stamp}`), {
+        productionAllowed: true,
+      }),
+      "client cannot write provider registry"
+    )
+  );
+
   await withStep("checking owner Storage upload", () =>
     uploadBytes(
       ref(owner.storage, `users/${ownerUid}/publications/${publicationId}/cover.jpg`),
@@ -344,6 +416,56 @@ try {
           { contentType: "image/jpeg" }
         ),
       "stranger cannot upload into owner publication path",
+      ["storage/unauthorized"]
+    )
+  );
+
+  await withStep("checking private image upload path", () =>
+    uploadBytes(
+      ref(owner.storage, `users/${ownerUid}/uploads/images/source.webp`),
+      new Blob(["image"], { type: "image/webp" }),
+      { contentType: "image/webp" }
+    )
+  );
+
+  await withStep("checking private audio upload path", () =>
+    uploadBytes(
+      ref(owner.storage, `users/${ownerUid}/uploads/audio/source.mp3`),
+      new Blob(["audio"], { type: "audio/mpeg" }),
+      { contentType: "audio/mpeg" }
+    )
+  );
+
+  await withStep("checking stranger private upload read denial", () =>
+    expectPermissionDenied(
+      () => getDownloadURL(ref(stranger.storage, `users/${ownerUid}/uploads/audio/source.mp3`)),
+      "stranger cannot read private audio upload",
+      ["storage/unauthorized"]
+    )
+  );
+
+  await withStep("checking ai output client write denial", () =>
+    expectPermissionDenied(
+      () =>
+        uploadBytes(
+          ref(owner.storage, `users/${ownerUid}/ai/image-jobs/job-${stamp}/output.png`),
+          new Blob(["image"], { type: "image/png" }),
+          { contentType: "image/png" }
+        ),
+      "client cannot write ai outputs",
+      ["storage/unauthorized"]
+    )
+  );
+
+  await withStep("checking export output client write denial", () =>
+    expectPermissionDenied(
+      () =>
+        uploadBytes(
+          ref(owner.storage, `users/${ownerUid}/exports/export-${stamp}/video.mp4`),
+          new Blob(["video"], { type: "video/mp4" }),
+          { contentType: "video/mp4" }
+        ),
+      "client cannot write server export outputs",
       ["storage/unauthorized"]
     )
   );
