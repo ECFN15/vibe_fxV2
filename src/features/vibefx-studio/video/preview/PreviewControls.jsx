@@ -34,6 +34,11 @@ const PreviewControls = () => {
             <div
                 className="h-1 bg-neutral-800 cursor-pointer group relative"
                 onClick={handleProgressClick}
+                role="slider"
+                aria-label="Position de lecture"
+                aria-valuemin={0}
+                aria-valuemax={Math.round(totalDuration)}
+                aria-valuenow={Math.round(currentTime)}
             >
                 <div
                     className="h-full bg-indigo-500 transition-[width] duration-75 relative"
@@ -49,6 +54,7 @@ const PreviewControls = () => {
                     <button
                         onClick={skipBack}
                         disabled={!hasClips}
+                        aria-label="Reculer de 5 secondes"
                         className="p-1.5 text-neutral-400 hover:text-white transition disabled:opacity-30"
                     >
                         <SkipBack size={14} />
@@ -57,6 +63,7 @@ const PreviewControls = () => {
                     <button
                         onClick={togglePlay}
                         disabled={!hasClips}
+                        aria-label={isPlaying ? 'Pause' : 'Lire'}
                         className="p-2 text-white hover:text-indigo-400 transition disabled:opacity-30"
                     >
                         {isPlaying ? <Pause size={18} /> : <Play size={18} fill="currentColor" />}
@@ -65,6 +72,7 @@ const PreviewControls = () => {
                     <button
                         onClick={skipForward}
                         disabled={!hasClips}
+                        aria-label="Avancer de 5 secondes"
                         className="p-1.5 text-neutral-400 hover:text-white transition disabled:opacity-30"
                     >
                         <SkipForward size={14} />
@@ -86,11 +94,12 @@ const PreviewControls = () => {
                 <div className="flex items-center gap-2">
                     <button
                         onClick={nextSpeed}
+                        aria-label="Changer la vitesse de lecture preview"
                         className="text-[10px] font-mono text-neutral-500 hover:text-white transition px-2 py-0.5 border border-neutral-800 hover:border-neutral-600"
                     >
                         {playbackSpeed}x
                     </button>
-                    <button className="p-1.5 text-neutral-400 hover:text-white transition">
+                    <button className="p-1.5 text-neutral-400 hover:text-white transition" aria-label="Volume preview">
                         <Volume2 size={14} />
                     </button>
                 </div>

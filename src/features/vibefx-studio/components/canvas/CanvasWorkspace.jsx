@@ -37,6 +37,7 @@ export default function CanvasWorkspace({
     setSelectedImgIndex,
     activeFormat,
     showGuidelines,
+    visionCompareSplit,
 }) {
     // Show canvas if there are images OR if we are in Fusion mode (to see background image/gradient)
     const showCanvas = images.length > 0 || view === 'fusion';
@@ -111,6 +112,30 @@ export default function CanvasWorkspace({
                     <div className="relative w-full h-full flex flex-col items-center justify-center p-8 overflow-y-auto no-scrollbar">
                         <div style={{ position: 'relative', marginTop: "auto", marginBottom: "auto", ...getCanvasStyle() }}>
                             <canvas ref={canvasRef} style={{ width: '100%', height: '100%' }} className={`block object-contain shadow-2xl rounded-sm ring-1 z-10 relative ${isDarkMode ? 'ring-white/10' : 'ring-black/5'}`} />
+                            {visionCompareSplit?.enabled && visionCompareSplit.beforeUrl && (
+                                <div
+                                    className="absolute inset-0 z-20 pointer-events-none overflow-hidden rounded-sm"
+                                    data-testid="vision-split-overlay"
+                                    aria-hidden="true"
+                                >
+                                    <img
+                                        src={visionCompareSplit.beforeUrl}
+                                        alt=""
+                                        className="absolute inset-0 h-full w-full object-fill"
+                                        style={{ clipPath: `inset(0 ${100 - visionCompareSplit.position}% 0 0)` }}
+                                    />
+                                    <div
+                                        className="absolute top-0 bottom-0 w-px bg-cyan-300 shadow-[0_0_18px_rgba(103,232,249,0.9)]"
+                                        style={{ left: `${visionCompareSplit.position}%` }}
+                                    />
+                                    <div
+                                        className="absolute top-3 rounded-sm border border-cyan-300/70 bg-black/80 px-2 py-1 text-[9px] font-mono uppercase tracking-widest text-cyan-100"
+                                        style={{ left: `min(calc(${visionCompareSplit.position}% + 8px), calc(100% - 72px))` }}
+                                    >
+                                        Avant
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Pano Guidelines */}
                             {(activeFormat?.id === 'pano-2' || activeFormat?.id === 'pano-3') && showGuidelines && (

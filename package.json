@@ -21,7 +21,10 @@
     "test:publication-flow": "node --no-warnings scripts/smoke-publication-flow.mjs",
     "test:routes": "node scripts/smoke-routes.mjs",
     "test:studio-ui": "playwright test scripts/smoke-studio-ui.spec.cjs --reporter=line",
-    "test:video-ui": "playwright test scripts/smoke-video-ui.spec.cjs --reporter=line",
+    "test:vision-ui": "node scripts/audit-vision-filters.mjs && node scripts/run-vision-ui-test.mjs",
+    "check:vision-corpus": "node scripts/check-vision-corpus.mjs",
+    "test:vision-corpus": "node scripts/check-vision-corpus.mjs && node scripts/run-vision-corpus-test.mjs",
+    "test:video-ui": "node scripts/run-video-ui-test.mjs",
     "functions:lint": "npm --prefix functions run lint",
     "firebase:deploy:backend": "node scripts/firebase-deploy.mjs backend",
     "firebase:deploy:functions": "node scripts/firebase-deploy.mjs functions"

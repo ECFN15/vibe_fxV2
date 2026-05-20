@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 // Snapshot keys for undo/redo
 const SNAPSHOT_KEYS = ['clips', 'transitions', 'transitionItems', 'textOverlays', 'audioTracks', 'selectedClipId', 'selectedTextId', 'selectedTransitionId', 'sequencePreset'];
@@ -34,7 +35,8 @@ const useVideoStore = create((set, get) => ({
                 filters: { brightness: 100, contrast: 100, saturation: 100, temperature: 0, vignette: 0, grain: 0 },
             };
             const clips = [...s.clips, newClip];
-            return { clips, totalDuration: computeTotalDuration(clips, s.transitions) };
+            const totalDuration = computeTotalDuration(clips, s.transitions);
+            return { clips, totalDuration, currentTime: clamp(s.currentTime, 0, totalDuration) };
         });
     },
 
@@ -50,10 +52,12 @@ const useVideoStore = create((set, get) => ({
                     delete transitions[key];
                 }
             });
+            const totalDuration = computeTotalDuration(clips, transitions);
             return {
                 clips,
                 transitions,
-                totalDuration: computeTotalDuration(clips, transitions),
+                totalDuration,
+                currentTime: clamp(s.currentTime, 0, totalDuration),
                 selectedClipId: s.selectedClipId === id ? null : s.selectedClipId,
             };
         });
@@ -77,13 +81,15 @@ const useVideoStore = create((set, get) => ({
                     })
                     .filter(Boolean)
             );
-            return { clips, transitions, totalDuration: computeTotalDuration(clips, transitions) };
+            const totalDuration = computeTotalDuration(clips, transitions);
+            return { clips, transitions, totalDuration, currentTime: clamp(s.currentTime, 0, totalDuration) };
         });
     },
 
     updateClip: (id, updates) => set((s) => {
         const clips = s.clips.map(c => c.id === id ? { ...c, ...updates } : c);
-        return { clips, totalDuration: computeTotalDuration(clips, s.transitions) };
+        const totalDuration = computeTotalDuration(clips, s.transitions);
+        return { clips, totalDuration, currentTime: clamp(s.currentTime, 0, totalDuration) };
     }),
 
     splitClip: (id, atTime) => {
@@ -112,10 +118,12 @@ const useVideoStore = create((set, get) => ({
                 }
             }
 
+            const totalDuration = computeTotalDuration(clips, transitions);
             return {
                 clips,
                 transitions,
-                totalDuration: computeTotalDuration(clips, transitions),
+                totalDuration,
+                currentTime: clamp(s.currentTime, 0, totalDuration),
                 selectedClipId: clipBId,
             };
         });
@@ -133,7 +141,8 @@ const useVideoStore = create((set, get) => ({
         set((s) => {
             const key = `${fromId}->${toId}`;
             const transitions = { ...s.transitions, [key]: transition };
-            return { transitions, totalDuration: computeTotalDuration(s.clips, transitions) };
+            const totalDuration = computeTotalDuration(s.clips, transitions);
+            return { transitions, totalDuration, currentTime: clamp(s.currentTime, 0, totalDuration) };
         });
     },
 
@@ -162,7 +171,8 @@ const useVideoStore = create((set, get) => ({
         transitionItems: s.transitionItems.map((item) => {
             if (item.id !== id) return item;
             const next = { ...item, ...updates };
-            const startTime = Math.max(0, next.startTime || 0);
+            const maxEnd = Math.max(0.1, s.totalDuration || 0.1);
+            const startTime = clamp(next.startTime || 0, 0, Math.max(0, maxEnd - 0.1));
             let endTime = next.endTime;
             let duration = next.duration;
 
@@ -174,6 +184,8 @@ const useVideoStore = create((set, get) => ({
                 duration = Math.max(0.1, endTime - startTime);
             }
 
+            endTime = Math.min(maxEnd, endTime);
+            duration = Math.max(0.1, endTime - startTime);
             return { ...next, startTime, endTime, duration };
         }),
     })),
@@ -194,7 +206,8 @@ const useVideoStore = create((set, get) => ({
             const key = `${fromId}->${toId}`;
             const transitions = { ...s.transitions };
             delete transitions[key];
-            return { transitions, totalDuration: computeTotalDuration(s.clips, transitions) };
+            const totalDuration = computeTotalDuration(s.clips, transitions);
+            return { transitions, totalDuration, currentTime: clamp(s.currentTime, 0, totalDuration) };
         });
     },
 
@@ -224,7 +237,14 @@ const useVideoStore = create((set, get) => ({
         set((s) => ({ audioTracks: s.audioTracks.filter(t => t.id !== id) }));
     },
     updateAudioTrack: (id, updates) => set((s) => ({
-        audioTracks: s.audioTracks.map(t => t.id === id ? { ...t, ...updates } : t)
+        audioTracks: s.audioTracks.map((track) => {
+            if (track.id !== id) return track;
+            const next = { ...track, ...updates };
+            const maxEnd = Math.max(0.1, s.totalDuration || 0.1);
+            const startTime = clamp(next.startTime || 0, 0, Math.max(0, maxEnd - 0.1));
+            const endTime = Math.min(maxEnd, Math.max(startTime + 0.1, next.endTime || startTime + (next.duration || 0.1)));
+            return { ...next, startTime, endTime, duration: Math.max(0.1, endTime - startTime) };
+        })
     })),
 
     // === TEXT OVERLAYS ===
@@ -265,7 +285,14 @@ const useVideoStore = create((set, get) => ({
         }));
     },
     updateTextOverlay: (id, updates) => set((s) => ({
-        textOverlays: s.textOverlays.map(t => t.id === id ? { ...t, ...updates } : t)
+        textOverlays: s.textOverlays.map((text) => {
+            if (text.id !== id) return text;
+            const next = { ...text, ...updates };
+            const maxEnd = Math.max(0.1, s.totalDuration || 0.1);
+            const startTime = clamp(next.startTime || 0, 0, Math.max(0, maxEnd - 0.1));
+            const endTime = Math.min(maxEnd, Math.max(startTime + 0.1, next.endTime || startTime + 0.1));
+            return { ...next, startTime, endTime };
+        })
     })),
 
     // === PLAYBACK ===
@@ -275,13 +302,13 @@ const useVideoStore = create((set, get) => ({
     playbackSpeed: 1,
 
     setIsPlaying: (v) => set({ isPlaying: v }),
-    setCurrentTime: (t) => set({ currentTime: t }),
+    setCurrentTime: (t) => set((s) => ({ currentTime: clamp(t, 0, s.totalDuration || 0) })),
     setPlaybackSpeed: (s) => set({ playbackSpeed: s }),
 
     play: () => set({ isPlaying: true }),
     pause: () => set({ isPlaying: false }),
     togglePlay: () => set((s) => ({ isPlaying: !s.isPlaying })),
-    seekTo: (time) => set({ currentTime: Math.max(0, time) }),
+    seekTo: (time) => set((s) => ({ currentTime: clamp(time, 0, s.totalDuration || 0) })),
 
     // === TIMELINE ===
     zoom: 1,

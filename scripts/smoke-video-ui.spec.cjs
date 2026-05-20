@@ -52,6 +52,28 @@ async function dragRange(page, locator, ratio) {
   await page.mouse.up();
 }
 
+async function dragPlayheadFast(page, ratio) {
+  const viewport = page.locator("[data-timeline-viewport]").first();
+  const playhead = page.getByRole("slider", { name: /deplacer le curseur de timeline/i });
+  const viewportBox = await viewport.boundingBox();
+  const playheadBox = await playhead.boundingBox();
+  expect(viewportBox).toBeTruthy();
+  expect(playheadBox).toBeTruthy();
+
+  const targetX = viewportBox.x + viewportBox.width * ratio;
+  const y = playheadBox.y + Math.min(28, playheadBox.height / 2);
+  await page.mouse.move(playheadBox.x + playheadBox.width / 2, y);
+  await page.mouse.down();
+  await page.mouse.move(targetX, y, { steps: 3 });
+  await page.waitForTimeout(40);
+
+  const liveBox = await playhead.boundingBox();
+  expect(liveBox).toBeTruthy();
+  expect(Math.abs((liveBox.x + liveBox.width / 2) - targetX)).toBeLessThan(28);
+  await page.mouse.move(viewportBox.x + viewportBox.width * Math.max(0.1, ratio - 0.18), y, { steps: 2 });
+  await page.mouse.up();
+}
+
 async function canvasMeanLuma(page) {
   return page.locator("canvas").evaluate((canvas) => {
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
@@ -136,6 +158,13 @@ test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) =
   await page.mouse.click(progressBox.x + Math.max(80, progressBox.width * 0.08), progressBox.y + progressBox.height / 2);
   await page.getByRole("button", { name: "Couper", exact: true }).click();
   await expect(page.locator("body")).toContainText(/3 clips/i);
+
+  await expect(page.getByRole("slider", { name: /deplacer le curseur de timeline/i })).toBeVisible();
+  await page.getByRole("button", { name: "Lire", exact: true }).click();
+  await page.waitForTimeout(220);
+  await dragPlayheadFast(page, 0.68);
+  await expect(page.getByRole("slider", { name: /deplacer le curseur de timeline/i })).toHaveAttribute("aria-valuenow", /[1-9]/);
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
 
   await page.getByRole("button", { name: "Vitesse", exact: true }).click();
   await page.getByRole("button", { name: /2x/i }).click();

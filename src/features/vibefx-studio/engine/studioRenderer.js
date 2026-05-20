@@ -3,8 +3,11 @@ import {
     applyFusedPixelOps,
     applyClarity,
     applySharpness,
-    applyHalation
+    applyHalation,
+    applyPerceptualIntensityBlend,
+    applySmartphoneOutputGuards
 } from '../utils/canvasUtils';
+import { normalizeVisionFilters } from '../utils/visionColorScience';
 
 /**
  * renderStudio — Rendu du mode Studio/Fusion (crop, overlay, filtres).
@@ -432,7 +435,8 @@ function renderCropGrid(ctx, w, h) {
  *  9. Intensity Blend (original/filtered mix)
  */
 function applyFiltersPro(ctx, targetCanvas, w, h, quality, filters) {
-    const intensity = filters.filterIntensity !== undefined ? filters.filterIntensity : 100;
+    const safeFilters = normalizeVisionFilters(filters);
+    const intensity = safeFilters.filterIntensity !== undefined ? safeFilters.filterIntensity : 100;
     if (intensity === 0) return;
 
     // Save original for intensity blending
@@ -453,13 +457,14 @@ function applyFiltersPro(ctx, targetCanvas, w, h, quality, filters) {
 
     ctx.clearRect(0, 0, w, h);
 
-    const hueRotate = filters.hueRotate || 0;
+    const hueRotate = safeFilters.hueRotate || 0;
+    const cssSaturation = quality === 'low' ? (safeFilters.saturation !== undefined ? safeFilters.saturation : 100) : 100;
     ctx.filter = [
-        `brightness(${filters.brightness}%)`,
-        `contrast(${filters.contrast}%)`,
-        `saturate(${filters.saturation}%)`,
-        filters.sepia ? `sepia(${filters.sepia}%)` : '',
-        (quality !== 'low' && filters.blur) ? `blur(${filters.blur}px)` : '',
+        `brightness(${safeFilters.brightness}%)`,
+        `contrast(${safeFilters.contrast}%)`,
+        `saturate(${cssSaturation}%)`,
+        safeFilters.sepia ? `sepia(${safeFilters.sepia}%)` : '',
+        (quality !== 'low' && safeFilters.blur) ? `blur(${safeFilters.blur}px)` : '',
         hueRotate ? `hue-rotate(${hueRotate}deg)` : ''
     ].filter(Boolean).join(' ');
 
@@ -470,60 +475,61 @@ function applyFiltersPro(ctx, targetCanvas, w, h, quality, filters) {
 
     if (doPixelOps) {
         // ── Stage 2: Fused Pixel Ops (single pass) ───────
-        applyFusedPixelOps(ctx, w, h, filters);
+        applyFusedPixelOps(ctx, w, h, safeFilters);
     }
 
     // ── Stage 3: Legacy Tint ─────────────────────────────
-    if (filters.tintIntensity > 0) {
+    if (safeFilters.tintIntensity > 0) {
         ctx.save();
         ctx.globalCompositeOperation = 'overlay';
-        ctx.fillStyle = filters.tintColor;
-        ctx.globalAlpha = filters.tintIntensity / 100;
+        ctx.fillStyle = safeFilters.tintColor;
+        ctx.globalAlpha = safeFilters.tintIntensity / 100;
         ctx.fillRect(0, 0, w, h);
         ctx.restore();
     }
 
     if (doPixelOps) {
         // ── Stage 4: Clarity ─────────────────────────────
-        applyClarity(ctx, targetCanvas, w, h, filters.clarity);
+        applyClarity(ctx, targetCanvas, w, h, safeFilters.clarity);
 
         // ── Stage 5: Sharpness ───────────────────────────
-        applySharpness(ctx, targetCanvas, w, h, filters.sharpness);
+        applySharpness(ctx, targetCanvas, w, h, safeFilters.sharpness);
 
         // ── Stage 6: Halation ────────────────────────────
-        applyHalation(ctx, w, h, filters.halation, filters.halationColor);
+        applyHalation(ctx, w, h, safeFilters.halation, safeFilters.halationColor);
     }
 
     // ── Stage 7: Vignette ────────────────────────────────
-    if (filters.vignette > 0) {
+    if (safeFilters.vignette > 0) {
         ctx.save();
         ctx.globalCompositeOperation = 'multiply';
         const gradient = ctx.createRadialGradient(w / 2, h / 2, w * 0.3, w / 2, h / 2, w * 0.85);
         gradient.addColorStop(0, 'rgba(0,0,0,0)');
-        gradient.addColorStop(1, `rgba(0,0,0, ${filters.vignette / 100})`);
+        gradient.addColorStop(1, `rgba(0,0,0, ${safeFilters.vignette / 100})`);
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, w, h);
         ctx.restore();
     }
 
     // ── Stage 8: Grain ───────────────────────────────────
-    if (filters.grain > 0 && quality !== 'low') {
+    if (safeFilters.grain > 0 && quality !== 'low') {
         ctx.save();
         const pattern = ctx.createPattern(NOISE_PATTERN_CANVAS, 'repeat');
         if (pattern) {
             ctx.globalCompositeOperation = 'overlay';
             ctx.fillStyle = pattern;
-            ctx.globalAlpha = (filters.grain / 100) * 0.5;
+            ctx.globalAlpha = (safeFilters.grain / 100) * 0.5;
             ctx.fillRect(0, 0, w, h);
         }
         ctx.restore();
     }
 
     // ── Stage 9: Intensity Blend ─────────────────────────
+    if (doPixelOps) {
+        applySmartphoneOutputGuards(ctx, w, h, safeFilters);
+    }
+
     if (intensity < 100 && originalCanvas) {
-        ctx.save();
-        ctx.globalAlpha = 1 - (intensity / 100);
-        ctx.drawImage(originalCanvas, 0, 0);
-        ctx.restore();
+        applyPerceptualIntensityBlend(ctx, w, h, originalCanvas, intensity);
     }
 }

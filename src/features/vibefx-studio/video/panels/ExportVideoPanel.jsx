@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { X, Download, Monitor, Smartphone } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { X, Download, Monitor, Smartphone, ShieldCheck, AlertTriangle } from 'lucide-react';
 import useVideoStore from '../store/videoStore';
 import { EXPORT_PRESETS, PlaybackEngine } from '../engine/VideoEngine';
 import { drawTextOverlays } from '../preview/VideoPreview';
 
 const ExportVideoPanel = () => {
     const [exportMessage, setExportMessage] = useState('');
+    const [mimeSupport, setMimeSupport] = useState({ webm: false, mp4: false });
     const {
         sequencePreset, setSequencePreset,
         exportFormat, setExportFormat,
@@ -17,6 +18,25 @@ const ExportVideoPanel = () => {
 
     const preset = EXPORT_PRESETS[sequencePreset] || EXPORT_PRESETS.youtube;
     const hasClips = clips.length > 0;
+    const rightsTracks = useMemo(() => (
+        audioTracks.filter(track => track.sourceName || track.license || track.attribution || track.rightsStatus)
+    ), [audioTracks]);
+
+    useEffect(() => {
+        if (typeof MediaRecorder === 'undefined') return;
+        setMimeSupport({
+            webm: [
+                'video/webm;codecs=vp9,opus',
+                'video/webm;codecs=vp8,opus',
+                'video/webm',
+            ].some((candidate) => MediaRecorder.isTypeSupported(candidate)),
+            mp4: [
+                'video/mp4;codecs=h264,aac',
+                'video/mp4;codecs=h264',
+                'video/mp4',
+            ].some((candidate) => MediaRecorder.isTypeSupported(candidate)),
+        });
+    }, []);
 
     const handleExport = async () => {
         const exportCanvas = document.createElement('canvas');
@@ -25,9 +45,14 @@ const ExportVideoPanel = () => {
             return;
         }
 
-        const mimeCandidates = exportFormat === 'webm'
+        const requestedFormat = exportFormat === 'mp4' && !mimeSupport.mp4 ? 'webm' : exportFormat;
+        if (exportFormat === 'mp4' && !mimeSupport.mp4) {
+            setExportFormat('webm');
+        }
+
+        const mimeCandidates = requestedFormat === 'webm'
             ? ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
-            : ['video/mp4;codecs=h264,aac', 'video/mp4;codecs=h264', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+            : ['video/mp4;codecs=h264,aac', 'video/mp4;codecs=h264', 'video/mp4'];
         const mimeType = mimeCandidates.find((candidate) => MediaRecorder.isTypeSupported(candidate));
         if (!mimeType) {
             setExportMessage('Aucun codec MediaRecorder compatible trouve.');
@@ -82,7 +107,7 @@ const ExportVideoPanel = () => {
         const durationMs = Math.max(1000, totalDuration * 1000 + 500);
         let renderTime = 0;
 
-        setExportMessage(mimeType.includes('mp4') ? 'Export MP4 en cours.' : 'Export WebM en cours; le MP4 natif depend du navigateur.');
+        setExportMessage(mimeType.includes('mp4') ? 'Export MP4 en cours.' : 'Export WebM en cours. MP4 natif indisponible dans ce navigateur.');
         setExportProgress(0);
         setIsExporting(true);
 
@@ -183,17 +208,24 @@ const ExportVideoPanel = () => {
                         {['mp4', 'webm'].map(fmt => (
                             <button
                                 key={fmt}
+                                type="button"
                                 onClick={() => setExportFormat(fmt)}
+                                disabled={fmt === 'mp4' && !mimeSupport.mp4}
                                 className={`flex-1 py-1.5 text-[10px] font-mono uppercase tracking-widest rounded-sm border transition-all
                                     ${exportFormat === fmt
                                         ? 'bg-indigo-600/15 border-indigo-500/40 text-indigo-400'
                                         : 'bg-neutral-900/50 border-neutral-800 text-neutral-500 hover:border-neutral-600'
                                     }`}
                             >
-                                {fmt}
+                                {fmt}{fmt === 'mp4' && !mimeSupport.mp4 ? ' indispo' : ''}
                             </button>
                         ))}
                     </div>
+                    {!mimeSupport.mp4 && (
+                        <p className="text-[9px] font-mono text-amber-300/80 leading-relaxed">
+                            MP4 MediaRecorder n'est pas supporte ici: export WebM utilise pour eviter un faux MP4.
+                        </p>
+                    )}
                 </div>
 
                 {preset && (
@@ -213,6 +245,38 @@ const ExportVideoPanel = () => {
                                 </div>
                             ))}
                         </div>
+                    </div>
+                )}
+
+                {rightsTracks.length > 0 && (
+                    <div className="border border-emerald-500/20 bg-emerald-500/5 rounded-sm p-3 space-y-2">
+                        <div className="flex items-center gap-2 text-emerald-300">
+                            <ShieldCheck size={12} />
+                            <span className="text-[9px] font-mono uppercase tracking-widest">Droits musique</span>
+                        </div>
+                        <div className="space-y-1.5">
+                            {rightsTracks.map(track => (
+                                <div key={track.id} className="text-[9px] font-mono leading-relaxed text-neutral-400">
+                                    <span className="text-neutral-200">{track.name}</span>
+                                    {track.sourceName ? ` / ${track.sourceName}` : ''}
+                                    {track.license ? ` / ${track.license}` : ''}
+                                    {track.attribution ? (
+                                        <div className="mt-0.5 text-emerald-300/80">Credit: {track.attribution}</div>
+                                    ) : (
+                                        <div className="mt-0.5 text-amber-300/80">Attribution/licence a verifier avant publication.</div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {audioTracks.length > 0 && rightsTracks.length < audioTracks.length && (
+                    <div className="flex items-start gap-2 border border-amber-500/20 bg-amber-500/5 rounded-sm p-3">
+                        <AlertTriangle size={12} className="mt-0.5 shrink-0 text-amber-300" />
+                        <p className="text-[9px] font-mono text-amber-200/80 leading-relaxed">
+                            Une piste audio n'a pas de source/licence declaree. L'export reste possible, mais la publication doit bloquer sans manifeste de droits complet.
+                        </p>
                     </div>
                 )}
 

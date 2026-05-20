@@ -15,10 +15,15 @@ export const DEFAULT_FILTERS = {
     highlights: 0,
     shadows: 0,
     vibrance: 0,
+    skinSaturation: 0,
+    skySaturation: 0,
+    foliageSaturation: 0,
     temperature: 0,
     clarity: 0,
     sharpness: 0,
     dehaze: 0,
+    safeSmartphone: true,
+    profileStrength: 'safe',
 };
 
 export const useStudioFilters = () => {

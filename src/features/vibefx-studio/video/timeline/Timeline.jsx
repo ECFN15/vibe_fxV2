@@ -303,7 +303,7 @@ const Timeline = ({ onImportClick }) => {
                 </div>
 
                 {/* ── Scrollable track content ── */}
-                <div className="flex-1 overflow-hidden relative">
+                <div className="flex-1 overflow-hidden relative" data-timeline-viewport="1">
                     <div
                         className="absolute top-0 left-0 bottom-0"
                         style={{ width: `${contentWidth}px`, transform: `translate3d(-${scrollX}px, 0, 0)` }}

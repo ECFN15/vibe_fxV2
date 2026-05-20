@@ -110,6 +110,10 @@ function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
 }
 
+function clampMediaVolume(volume = 100) {
+    return clamp((Number(volume) || 0) / 100, 0, 1);
+}
+
 function buildFilterString(filters = {}) {
     const brightness = clamp(filters.brightness ?? 100, 0, 200);
     const contrast = clamp(filters.contrast ?? 100, 0, 200);
@@ -525,7 +529,7 @@ export class PlaybackEngine {
         if (this.players.has(clip.id)) return;
         const video = createVideoPlayer(clip.url);
         video.playbackRate = clip.speed || 1;
-        video.volume = (clip.volume || 100) / 100;
+        video.volume = clampMediaVolume(clip.volume);
         
         await new Promise((resolve, reject) => {
             let resolved = false;
@@ -585,7 +589,7 @@ export class PlaybackEngine {
         if (!track?.url || this.audioPlayers.has(track.id)) return;
         const audio = new Audio(track.url);
         audio.preload = 'auto';
-        audio.volume = (track.volume ?? 100) / 100;
+        audio.volume = clampMediaVolume(track.volume ?? 100);
 
         await new Promise((resolve) => {
             let resolved = false;
@@ -769,7 +773,7 @@ export class PlaybackEngine {
                 return;
             }
             const clip = activeResult.clip;
-            player.volume = (clip.volume ?? 100) / 100;
+            player.volume = clampMediaVolume(clip.volume ?? 100);
             player.playbackRate = (clip.speed || 1) * playbackSpeed;
             if (Math.abs(player.currentTime - activeResult.localTime) > 0.18) {
                 player.currentTime = activeResult.localTime;
@@ -794,7 +798,7 @@ export class PlaybackEngine {
             }
 
             const localTime = Math.max(0, globalTime - start);
-            audio.volume = (track.volume ?? 100) / 100;
+            audio.volume = clampMediaVolume(track.volume ?? 100);
             audio.playbackRate = playbackSpeed;
             if (Math.abs(audio.currentTime - localTime) > 0.18) {
                 audio.currentTime = localTime;

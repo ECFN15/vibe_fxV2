@@ -26,6 +26,14 @@ import useImageUpload from './hooks/useImageUpload';
 import useLayoutHelpers from './hooks/useLayoutHelpers';
 import useCanvasEvents from './hooks/useCanvasEvents';
 import useCanvasRenderer from './hooks/useCanvasRenderer';
+import { DEFAULT_FILTERS } from './hooks/useStudioFilters';
+import { compareVisionMetrics, measureVisionImageData } from './utils/visionMetrics';
+
+const VISION_DIAGNOSTIC_SAMPLE_MAX_SIDE = 420;
+const VISION_DIAGNOSTIC_WARN_MS = 650;
+const VISION_DIAGNOSTIC_WARN_MEGAPIXELS = 20;
+
+const getPerfNow = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
 
 const canvasToBlob = (canvas, mimeType = 'image/png', quality = 0.92) =>
     new Promise((resolve) => {
@@ -61,6 +69,59 @@ const buildSocialImages = async (exportCanvas, activeFormat) => {
         });
     }
     return slides;
+};
+
+const measureCanvasVisionSnapshot = (canvas) => {
+    if (!canvas?.width || !canvas?.height) return null;
+    const ratio = Math.min(1, VISION_DIAGNOSTIC_SAMPLE_MAX_SIDE / Math.max(canvas.width, canvas.height));
+    const width = Math.max(1, Math.round(canvas.width * ratio));
+    const height = Math.max(1, Math.round(canvas.height * ratio));
+    const sampleCanvas = document.createElement('canvas');
+    sampleCanvas.width = width;
+    sampleCanvas.height = height;
+    const sampleCtx = sampleCanvas.getContext('2d', { willReadFrequently: true });
+    if (!sampleCtx) return null;
+    sampleCtx.drawImage(canvas, 0, 0, width, height);
+    return {
+        metrics: measureVisionImageData(sampleCtx.getImageData(0, 0, width, height), { step: 2 }),
+        sample: {
+            width,
+            height,
+            ratio,
+            step: 2,
+        },
+    };
+};
+
+const buildVisionPerformanceInfo = ({ width, height, sourceRenderMs, sourceMeasureMs, renderedMeasureMs, totalMs, sample }) => {
+    const megapixels = width && height ? (width * height) / 1000000 : 0;
+    return {
+        width,
+        height,
+        megapixels: Number(megapixels.toFixed(2)),
+        sourceRenderMs: Math.round(sourceRenderMs),
+        sourceMeasureMs: Math.round(sourceMeasureMs),
+        renderedMeasureMs: Math.round(renderedMeasureMs),
+        diagnosticMs: Math.round(totalMs),
+        sampleWidth: sample?.width || 0,
+        sampleHeight: sample?.height || 0,
+        sampleRatio: Number((sample?.ratio || 0).toFixed(3)),
+        sampleStep: sample?.step || 0,
+    };
+};
+
+const buildVisionDiagnosticWarnings = (delta, performanceInfo) => {
+    if (!delta) return [];
+    const warnings = [];
+    if (delta.greyVeilRisk) warnings.push('voile gris');
+    if (delta.channelClipHighDelta > 0.04) warnings.push('hautes lumieres clippees');
+    if (delta.channelClipLowDelta > 0.08) warnings.push('noirs ecrases');
+    if (delta.highSaturationDelta > 0.16) warnings.push('saturation excessive');
+    if (delta.protectedNeutralBiasDelta > 24) warnings.push('neutres teintes');
+    if (delta.skinHueShiftDeg > 24 || Math.abs(delta.skinSaturationDelta) > 0.18) warnings.push('peau a verifier');
+    if (performanceInfo?.diagnosticMs > VISION_DIAGNOSTIC_WARN_MS) warnings.push('diagnostic lent');
+    if (performanceInfo?.megapixels > VISION_DIAGNOSTIC_WARN_MEGAPIXELS) warnings.push('image lourde');
+    return warnings;
 };
 
 // --- APP PRINCIPALE ---
@@ -154,11 +215,9 @@ function App({ onImportToPublication, onOpenPublications }) {
     const [libraryModalTarget, setLibraryModalTarget] = useState('foreground'); // 'foreground' | 'background'
 
     // Filtres (Studio)
-    const [filters, setFilters] = useState({
-        brightness: 100, contrast: 100, saturation: 100,
-        sepia: 0, blur: 0, grain: 0, vignette: 0,
-        tintColor: '#ffffff', tintIntensity: 0
-    });
+    const [filters, setFilters] = useState({ ...DEFAULT_FILTERS });
+    const [visionCompareSplit, setVisionCompareSplit] = useState({ enabled: false, position: 50, beforeUrl: null });
+    const [visionDiagnostics, setVisionDiagnostics] = useState({ status: 'idle' });
 
     const canvasRef = useRef(null);
     const canvasContainerRef = useRef(null);
@@ -267,6 +326,103 @@ function App({ onImportToPublication, onOpenPublications }) {
         return { exportCanvas, width, height };
     }, [getCanvasDimensions, renderPipeline]);
 
+    useEffect(() => {
+        if (!visionCompareSplit.enabled || view !== 'vision-pro' || !images.length) {
+            if (visionCompareSplit.beforeUrl) {
+                setVisionCompareSplit(current => ({ ...current, beforeUrl: null }));
+            }
+            return;
+        }
+
+        const { width, height } = getCanvasDimensions();
+        if (!width || !height) return;
+
+        const beforeCanvas = document.createElement('canvas');
+        beforeCanvas.width = width;
+        beforeCanvas.height = height;
+        renderPipeline(beforeCanvas, width, height, true, 'high', {
+            filters: { ...filters, filterIntensity: 0 },
+        });
+        const beforeUrl = beforeCanvas.toDataURL('image/jpeg', 0.9);
+        setVisionCompareSplit(current => current.beforeUrl === beforeUrl ? current : { ...current, beforeUrl });
+    }, [filters, getCanvasDimensions, images.length, renderPipeline, view, visionCompareSplit.beforeUrl, visionCompareSplit.enabled]);
+
+    useEffect(() => {
+        if (view !== 'vision-pro' || !images.length || !canvasRef.current) {
+            setVisionDiagnostics({ status: 'idle' });
+            return undefined;
+        }
+
+        let cancelled = false;
+        const frameId = window.requestAnimationFrame(() => {
+            try {
+                const diagnosticStart = getPerfNow();
+                const { width, height } = getCanvasDimensions();
+                if (!width || !height) {
+                    if (!cancelled) setVisionDiagnostics({ status: 'empty' });
+                    return;
+                }
+
+                const sourceCanvas = document.createElement('canvas');
+                sourceCanvas.width = width;
+                sourceCanvas.height = height;
+                const sourceRenderStart = getPerfNow();
+                renderPipeline(sourceCanvas, width, height, true, 'high', {
+                    filters: { ...filters, filterIntensity: 0 },
+                });
+                const sourceRenderMs = getPerfNow() - sourceRenderStart;
+
+                const sourceMeasureStart = getPerfNow();
+                const sourceSnapshot = measureCanvasVisionSnapshot(sourceCanvas);
+                const sourceMeasureMs = getPerfNow() - sourceMeasureStart;
+
+                const renderedMeasureStart = getPerfNow();
+                const renderedSnapshot = measureCanvasVisionSnapshot(canvasRef.current);
+                const renderedMeasureMs = getPerfNow() - renderedMeasureStart;
+                if (!sourceSnapshot?.metrics || !renderedSnapshot?.metrics) {
+                    if (!cancelled) setVisionDiagnostics({ status: 'empty' });
+                    return;
+                }
+
+                const sourceMetrics = sourceSnapshot.metrics;
+                const renderedMetrics = renderedSnapshot.metrics;
+                const delta = compareVisionMetrics(sourceMetrics, renderedMetrics);
+                const performanceInfo = buildVisionPerformanceInfo({
+                    width,
+                    height,
+                    sourceRenderMs,
+                    sourceMeasureMs,
+                    renderedMeasureMs,
+                    totalMs: getPerfNow() - diagnosticStart,
+                    sample: renderedSnapshot.sample,
+                });
+                if (!cancelled) {
+                    setVisionDiagnostics({
+                        status: 'ready',
+                        source: sourceMetrics,
+                        rendered: renderedMetrics,
+                        delta,
+                        performance: performanceInfo,
+                        warnings: buildVisionDiagnosticWarnings(delta, performanceInfo),
+                        updatedAt: Date.now(),
+                    });
+                }
+            } catch (error) {
+                if (!cancelled) {
+                    setVisionDiagnostics({
+                        status: 'error',
+                        message: error?.message || 'Diagnostic indisponible',
+                    });
+                }
+            }
+        });
+
+        return () => {
+            cancelled = true;
+            window.cancelAnimationFrame(frameId);
+        };
+    }, [filters, getCanvasDimensions, images.length, renderPipeline, view]);
+
     const handleImportPublication = useCallback(async () => {
         if (!images.length || typeof onImportToPublication !== 'function') return;
         const rendered = renderFinalCanvas();
@@ -349,7 +505,8 @@ function App({ onImportToPublication, onOpenPublications }) {
         setActiveTextureId(null);
         setLayoutTextureOpacity(70);
         setActiveTextId(null);
-        setFilters({ brightness: 100, contrast: 100, saturation: 100, sepia: 0, blur: 0, grain: 0, vignette: 0, tintColor: '#ffffff', tintIntensity: 0 });
+        setFilters({ ...DEFAULT_FILTERS });
+        setVisionCompareSplit({ enabled: false, position: 50, beforeUrl: null });
 
         // Réinitialiser les sélections de presets
         setActiveCategory(null);
@@ -531,6 +688,7 @@ function App({ onImportToPublication, onOpenPublications }) {
                             setSelectedImgIndex={setSelectedImgIndex}
                             activeFormat={activeFormat}
                             showGuidelines={showGuidelines}
+                            visionCompareSplit={visionCompareSplit}
                         />
 
                         {/* SIDEBAR */}
@@ -630,6 +788,9 @@ function App({ onImportToPublication, onOpenPublications }) {
                                     images={images}
                                     filters={filters}
                                     setFilters={setFilters}
+                                    visionCompareSplit={visionCompareSplit}
+                                    setVisionCompareSplit={setVisionCompareSplit}
+                                    visionDiagnostics={visionDiagnostics}
                                 />
                             )}
                         </div>

@@ -69,7 +69,7 @@ export default function useCanvasRenderer({
         return { width: Math.ceil(sWidth), height: Math.ceil(sHeight) };
     }, [images, view, activeFormat, cropRatio]);
 
-    const renderPipeline = useCallback((targetCanvas, w, h, isPreview, quality = 'high') => {
+    const renderPipeline = useCallback((targetCanvas, w, h, isPreview, quality = 'high', overrides = {}) => {
         const ctx = targetCanvas.getContext('2d');
         ctx.clearRect(0, 0, w, h);
 
@@ -242,7 +242,7 @@ export default function useCanvasRenderer({
             // Studio / Fusion
             renderStudio(ctx, targetCanvas, w, h, isPreview, quality, {
                 images, cropRatio, cropPos, cropScale, isCropping,
-                filters, view, fusionConfig, selectedImgIndex
+                filters: overrides.filters || filters, view, fusionConfig, selectedImgIndex
             });
         }
     }, [images, filters, view, fusionConfig, activeFormat, activeTemplate, overlayMode, padding, gap, radius,

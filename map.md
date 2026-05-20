@@ -1,6 +1,6 @@
 # map.md - Carte vivante Vibe_fx V2
 
-Derniere mise a jour : 2026-05-19
+Derniere mise a jour : 2026-05-20
 
 ## Regle
 
@@ -40,7 +40,12 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |       `-- vibrant-accents/
 |-- docs/
 |   |-- business-flow-test.md           # Trace de tests locaux et checklist Firebase/Meta
-|   `-- completion-audit.md             # Audit prompt -> artefacts + blocages externes
+|   |-- completion-audit.md             # Audit prompt -> artefacts + blocages externes
+|   |-- music-sourcing-and-import-plan.md # Audit sources musique, IA, licences et architecture d'import Vibe_CUT
+|   |-- video-editor-bug-hunter-megaprompt.md # Prompt QA/UX avance pour stabiliser l'onglet video Vibe_CUT
+|   |-- vision-filter-rd-report.md      # Rapport R&D Vision : pipeline, garde-fous, limites corpus et roadmap
+|   |-- vision-smartphone-corpus.md     # Contrat corpus smartphone Vision : 12 cas, noms fichiers, gates perceptuels/metriques
+|   `-- vision-filter-rd-megaprompt.md # Prompt R&D colorimetrie/filtres pour l'onglet Vision
 |-- functions/
 |   |-- index.js                        # Perimetre Meta/OAuth/publication Vibe_fx V2
 |   |-- package.json                    # Firebase Functions Node 20
@@ -147,8 +152,8 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |   |   |-- data/                       # Constantes, presets et donnees UI importees
 |   |   |-- engine/                     # Rendu canvas/physics importes depuis Vibe_fx
 |   |   |-- hooks/                      # Hooks interaction, renderer, bibliotheque et assets
-|   |   |-- utils/                      # Utilitaires canvas/image
-|   |   |-- video/                      # Module Vibe_CUT importe
+|   |   |-- utils/                      # Utilitaires canvas/image + color science Vision (`visionColorScience.js`, `visionMetrics.js`)
+|   |   |-- video/                      # Module Vibe_CUT importe, dont `data/musicCatalog.js` pour catalogue/sources/licences musique
 |   |   |-- index.js
 |   |   |-- VibeFxStudio.jsx            # Shell studio Vibe_fx + import publication V2
 |   |   `-- VideoApp.jsx               # Surface video sans react-router
@@ -172,18 +177,28 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |-- README.md
 |-- seo.md                              # Agent SEO Google
 |-- skills-lock.json                    # Lock des 23 skills importes
+|-- test-fixtures/
+|   `-- vision-corpus/
+|       `-- README.md                   # Instructions de depot local des 12 images smartphone ignorees par Git
 |-- scripts/
 |   |-- audit-secrets.mjs               # Audit anti-secrets hardcodes dans les fichiers versionnables
 |   |-- audit-scope.mjs                 # Audit automatique scope Functions, SEO, modules et termes source
 |   |-- check-deploy-target.mjs         # Refuse un deploiement sans projet Firebase dedie
 |   |-- check-e2e-readiness.mjs         # Liste les prerequis Firebase/Meta manquants avant E2E reel
 |   |-- check-emulator-readiness.mjs    # Verifie firebase-tools, Java 21+ et config emulators
+|   |-- check-vision-corpus.mjs         # Verifie les 12 fixtures smartphone locales ignorees par Git
+|   |-- audit-vision-filters.mjs        # Audit statique des profils Vision et du branchement safe smartphone
 |   |-- firebase-deploy.mjs             # Wrapper cross-platform deploy backend/functions avec cible controlee
+|   |-- run-vision-corpus-test.mjs      # Lance Next local puis Playwright sur le corpus smartphone Vision local
+|   |-- run-vision-ui-test.mjs          # Lance un serveur Next local dedie puis Playwright Vision avec SMOKE_BASE_URL controle
+|   |-- run-video-ui-test.mjs           # Lance un serveur Next local dedie puis Playwright Vibe_CUT avec SMOKE_BASE_URL controle
 |   |-- smoke-firebase-emulators.mjs    # Smoke test Auth/Firestore/Storage rules sous emulateurs
 |   |-- smoke-publication-flow.mjs      # Smoke test rejouable du parcours publication sans Firebase reel
 |   |-- smoke-routes.mjs                # Smoke test HTTP des routes SEO/studio
 |   |-- smoke-studio-emulator-ui.mjs    # Smoke test navigateur studio + sauvegarde Firestore/Storage emulateurs
 |   |-- smoke-studio-ui.spec.cjs        # Smoke test Playwright du flux studio -> import publication
+|   |-- smoke-vision-corpus.spec.cjs    # Smoke test Playwright optionnel sur les fixtures smartphone Vision locales, avec gates metriques par profil
+|   |-- smoke-vision-ui.spec.cjs        # Smoke test Playwright Vision : miniatures image courante, mode simple/expert, recherche/familles/favoris, import demo + fixture synthetique, profils a risque, avant/apres maintenu, intensity 0/100, metriques clipping/saturation/voile, mobile, reset
 |   |-- smoke-video-ui.spec.cjs         # Smoke test Playwright Vibe_CUT : import, trim, split, vitesse, filtres, piste transitions libre + verification canvas, texte, musique, volumes, reorder, export, mobile
 |   `-- midjourney-scraper/
 |       |-- data/                       # Dossier de travail vide au depart, rempli par scraping local
@@ -251,7 +266,13 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 - La bibliotheque est cablee via routes API Next et scripts `scripts/midjourney-scraper/` ; aucune image source n'a ete importee, le catalogue local demarre vide et se remplit par scraping.
 - Le module video Vibe_CUT, ses pistes `public/music/` et ses dependances audio/state ont ete portes ; la navigation React Router source a ete remplacee par l'etat d'onglet interne du studio, et les composants studio/video sont declares en client components pour eviter les bailouts SSR.
 - Le module video Vibe_CUT accepte les imports lourds en ajoutant les clips immediatement puis en extrayant les thumbnails en arriere-plan ; les filtres colorimetriques sont appliques au rendu canvas, les textes restent visibles en lecture/export, les pistes musique locales `public/music/` sont importables/lisibles, les clips video se reordonnent par drag/drop pointer dans la timeline, une timeline `Effets` separee entre video et texte permet de placer/deplacer/redimensionner des transitions librement sans les melanger aux clips video, et l'export navigateur utilise un canvas dedie a la resolution du preset avec mix audio vers WebM/MP4 si supporte via `MediaRecorder`.
-- `npm run test:video-ui` lance `scripts/smoke-video-ui.spec.cjs` contre `/studio` et saute proprement si les fixtures locales `videotest/*.mp4` ne sont pas presentes ; le smoke couvre import de deux videos courtes, reorder, trim par poignee, split/coupe, vitesse 2x, filtre Cyberpunk, transition Flash sur timeline `Effets` avec verification de luminance canvas, deplacement de l'item transition, texte intro, musique locale, volumes clip/musique, export WebM telecharge et viewport mobile sans overflow.
+- `npm run test:video-ui` lance `scripts/run-video-ui-test.mjs`, qui demarre un serveur Next local sur port libre ou reutilise le serveur dev Next deja actif, puis execute `scripts/smoke-video-ui.spec.cjs` contre `/studio` avec `SMOKE_BASE_URL` controle ; le smoke couvre import de deux videos courtes, reorder, trim par poignee, split/coupe, drag rapide du playhead violet pendant lecture, vitesse 2x, filtre Cyberpunk, transition Flash sur timeline `Effets` avec verification de luminance canvas, deplacement de l'item transition, texte intro, bibliotheque musique locale avec source/licence White Bat Audio, volumes clip/musique, export WebM telecharge et viewport mobile sans overflow.
+- `npm run test:vision-ui` lance `scripts/audit-vision-filters.mjs`, demarre un serveur Next local via `scripts/run-vision-ui-test.mjs`, puis execute `scripts/smoke-vision-ui.spec.cjs` ; l'audit verifie les cles de profils Vision, le branchement `safeSmartphone`, la normalisation du renderer, le garde-fou final `applySmartphoneOutputGuards`, le blend d'intensite perceptuel, les cles/defaults/masques pixel/controles UI de saturation selective peau/ciel/verts, le signal UI performance du diagnostic et le modele canonique `id/name/family/intent/bestFor/avoidFor/strength/parameters/safetyRules/previewTags/technicalNotes` genere pour chaque profil, puis confirme que l'UI consomme ces `parameters` normalises. Il echoue si un profil brut a risque n'a pas de metadonnees explicites `strength`, `bestFor` et `avoidFor`. Le smoke navigateur importe l'asset demo, verifie les miniatures calculees sur l'image courante, mode simple/expert avec courbe master safe, saturation selective peau/ciel/verts, halation/noirs leves/teintes tonales, recherche, filtre famille, favoris persistants localStorage, applique Velvia, verifie le profil actif, expose l'intention/garde-fous/notes techniques du profil, verifie que Velvia applique la saturation normalisee `120` dans les controles experts, expose le diagnostic image avec temps/taille d'image, mesure clipping/saturation/voile/peau/neutres proteges via `visionMetrics.js`, verifie undo/redo sur le profil applique, sauvegarde un profil personnel local nomme, le retrouve par recherche, le supprime et nettoie ses favoris, verifie le split avant/apres reglable, verifie le bouton maintenu avant/apres, verifie une intensite 50 intermediaire, le retour source a intensite 0, teste une fixture synthetique smartphone-like sur Velvia/Ektar/Sepia, mesure par regions que les saturations selectives ciblent peau/ciel/verts sans polluer les neutres, verifie le mobile sans overflow horizontal et le reset.
+- `npm run check:vision-corpus` verifie la presence des 12 fixtures smartphone locales ignorees par Git dans `test-fixtures/vision-corpus`; il reste non bloquant par defaut, devient strict avec `VISION_CORPUS_REQUIRED=1`, et rappelle que Vision ne peut pas etre declaree stable finale tant que le corpus reel est absent/incomplet. `npm run test:vision-corpus` ajoute un smoke Playwright metrique sur les fixtures presentes et passe en skip si le corpus local est vide.
+- L'onglet Vision applique les profils via `normalizeVisionFilters` et `buildVisionProfileModel`, et les miniatures comme l'application profil consomment les `vision.parameters` normalises plutot que les anciens `filters` bruts. Il expose des miniatures de profils calculees sur l'image courante, un diagnostic image visible (clipping, saturation forte, noirs, range tonal, peau, neutres proteges, temps de diagnostic, taille image et echantillon), les badges d'usage/risque/famille, l'intention, les garde-fous et les notes techniques de chaque profil, un mode simple/createur (chaleur, contraste, peau, grain), un mode expert (lumiere, hautes lumieres, ombres, courbe master 5 points safe, saturation, vibrance, saturation selective peau/ciel/verts, clarte, nettete, anti-brume, vignette, grain, noirs leves, halation, teintes et couleurs tonales), recherche de profils, filtre par famille, favoris locaux persistants, profils personnels locaux nommables/persistants et supprimables en section `Perso`, undo/redo local des reglages Vision, un reset Vision, le profil actif, une intensite globale visible, un split avant/apres reglable sur le canvas et un bouton maintenu `Avant` qui restaure temporairement l'image source sans perdre le dosage courant. Les profils camera-inspired bruts a risque declarent maintenant leur `strength` et leurs cas d'usage/evitement. Le moteur Vision protege les saturations smartphone avec ceiling adaptatif, saturation selective hue/luma, vibrance protegee, protection tons peau/neutres/hautes lumieres, split toning limite, clamp des courbes/teintes/sepia/blur/hueRotate, garde-fou final anti-crush des ombres couleur et blend linear-light.
+- Le playhead Vibe_CUT est saisissable sur toute sa ligne via pointer capture et met a jour immediatement le canvas/audio pendant le scrub, y compris pendant la lecture ; la preview texte utilise aussi pointer capture pour ne pas perdre le drag.
+- La bibliotheque musique Vibe_CUT affiche les metadonnees de licence/source White Bat Audio, extrait son catalogue et ses fournisseurs cibles dans `src/features/vibefx-studio/video/data/musicCatalog.js`, documente la strategie premium/free/IA dans `docs/music-sourcing-and-import-plan.md`, garde l'import de nouvelles pistes en import fichier local verifie avec declaration de droits sans scraping externe, et son panneau a ete compacte pour que les boutons d'import restent cliquables sur les hauteurs studio courtes.
+- L'export Vibe_CUT borne les volumes media a la plage navigateur valide, desactive le choix MP4 si `MediaRecorder` ne le supporte pas, bascule explicitement vers WebM et affiche les metadonnees de droits/attribution des pistes audio avant export.
 - La landing page unique `/` est optimisée pour le Server-Side Rendering (SSR) et regroupe le hero produit, 4 cartes de fonctionnalités descriptives, une section FAQ complète, et l'animation SVG de routage `PublicationRoutePipeline`.
 - Les CSS lourds de `vibefx-layout` et `publications` sont importes par `src/app/studio/layout.js`, pas par le layout racine, afin d'eviter de charger le studio sur les pages publiques.
 - Les actions Meta/OAuth cote client sont neutralisees quand Firebase Functions n'est pas initialise.

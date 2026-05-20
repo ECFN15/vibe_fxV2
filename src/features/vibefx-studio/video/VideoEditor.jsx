@@ -72,6 +72,14 @@ const VideoEditor = () => {
             if (e.code === 'Space') {
                 e.preventDefault();
                 state.togglePlay();
+            } else if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+                e.preventDefault();
+                const step = e.shiftKey ? 1 : 1 / 30;
+                const direction = e.code === 'ArrowRight' ? 1 : -1;
+                state.seekTo(Math.max(0, Math.min(state.totalDuration, state.currentTime + direction * step)));
+            } else if (e.code === 'Escape') {
+                e.preventDefault();
+                state.setActivePanel(null);
             } else if (e.code === 'Delete' || e.code === 'Backspace') {
                 if (state.selectedClipId) {
                     e.preventDefault();
@@ -148,7 +156,7 @@ const VideoEditor = () => {
 
                 {/* Side panel */}
                 {hasPanel && (
-                    <div className="border-l border-neutral-800 bg-neutral-950 flex flex-col overflow-hidden shrink-0 hidden lg:flex w-80">
+                    <div className="border-l border-neutral-800 bg-neutral-950 flex flex-col overflow-hidden shrink-0 hidden lg:flex w-80 min-h-0">
                         {renderPanel()}
                     </div>
                 )}
@@ -162,7 +170,7 @@ const VideoEditor = () => {
 
             {/* Mobile overlay panel */}
             {hasPanel && (
-                <div className="lg:hidden fixed inset-x-0 bottom-14 top-1/3 bg-neutral-950/98 backdrop-blur-md border-t border-neutral-800 z-30 flex flex-col">
+                <div className="lg:hidden fixed inset-x-0 bottom-14 top-1/3 bg-neutral-950/98 backdrop-blur-md border-t border-neutral-800 z-30 flex flex-col min-h-0">
                     {renderPanel()}
                 </div>
             )}

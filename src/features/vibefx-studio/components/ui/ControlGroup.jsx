@@ -1,6 +1,6 @@
 import React from 'react';
 
-const ControlGroup = ({ label, icon, value, onChange, min, max, step = 1, desc, isDarkMode, unit = "" }) => (
+const ControlGroup = ({ label, icon, value, onChange, min, max, step = 1, desc, isDarkMode, unit = "", testId }) => (
   <div className="flex flex-col gap-1.5 mb-5 border-l-2 border-neutral-800 pl-3">
     <div className="flex justify-between items-end">
       <div className="flex flex-col">
@@ -10,6 +10,8 @@ const ControlGroup = ({ label, icon, value, onChange, min, max, step = 1, desc, 
       <div className="relative group shrink-0 ml-4">
           <input 
             type="number" 
+            data-testid={testId ? `${testId}-number` : undefined}
+            aria-label={`${label} valeur`}
             value={value} 
             onChange={(e) => {
                 let v = Number(e.target.value);
@@ -25,6 +27,8 @@ const ControlGroup = ({ label, icon, value, onChange, min, max, step = 1, desc, 
     </div>
     <input 
       type="range" 
+      data-testid={testId ? `${testId}-range` : undefined}
+      aria-label={`${label} curseur`}
       min={min} max={max} step={step}
       value={value} 
       onChange={(e) => onChange(Number(e.target.value))}

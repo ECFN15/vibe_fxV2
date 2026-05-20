@@ -326,6 +326,7 @@ const VideoPreview = () => {
             setIsDraggingText(true);
             setShowGuides(true);
             dragRef.current = { id: found.id, offsetX: coords.x - (found.x ?? 0.5), offsetY: coords.y - (found.y ?? 0.5) };
+            e.currentTarget.setPointerCapture?.(e.pointerId);
             e.preventDefault();
         } else {
             setSelectedTextId(null);
@@ -354,11 +355,12 @@ const VideoPreview = () => {
         updateTextOverlay(dragRef.current.id, { x: newX, y: newY });
     }, [isDraggingText, getCanvasCoords, updateTextOverlay]);
 
-    const handleCanvasPointerUp = useCallback(() => {
+    const handleCanvasPointerUp = useCallback((e) => {
         if (isDraggingText) {
             setIsDraggingText(false);
             setTimeout(() => setShowGuides(false), 500);
             dragRef.current = null;
+            e.currentTarget.releasePointerCapture?.(e.pointerId);
         }
     }, [isDraggingText]);
 
@@ -376,7 +378,7 @@ const VideoPreview = () => {
                 onPointerDown={handleCanvasPointerDown}
                 onPointerMove={handleCanvasPointerMove}
                 onPointerUp={handleCanvasPointerUp}
-                onPointerLeave={handleCanvasPointerUp}
+                onPointerCancel={handleCanvasPointerUp}
             />
 
             {!hasContent && (
