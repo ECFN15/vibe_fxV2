@@ -7,7 +7,7 @@ import { drawTextOverlays } from '../preview/VideoPreview';
 const ExportVideoPanel = () => {
     const [exportMessage, setExportMessage] = useState('');
     const {
-        exportPreset, setExportPreset,
+        sequencePreset, setSequencePreset,
         exportFormat, setExportFormat,
         isExporting, exportProgress,
         setActivePanel, totalDuration, clips, transitions, transitionItems,
@@ -15,7 +15,7 @@ const ExportVideoPanel = () => {
         projectName
     } = useVideoStore();
 
-    const preset = EXPORT_PRESETS[exportPreset];
+    const preset = EXPORT_PRESETS[sequencePreset] || EXPORT_PRESETS.youtube;
     const hasClips = clips.length > 0;
 
     const handleExport = async () => {
@@ -155,14 +155,14 @@ const ExportVideoPanel = () => {
 
             <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-4">
                 <div className="space-y-2">
-                    <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest">Plateforme</span>
+                    <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest">Format de sequence</span>
                     <div className="grid grid-cols-2 gap-1.5">
                         {Object.entries(EXPORT_PRESETS).map(([key, p]) => (
                             <button
                                 key={key}
-                                onClick={() => setExportPreset(key)}
+                                onClick={() => setSequencePreset(key)}
                                 className={`flex items-center gap-2 px-3 py-2 rounded-sm border transition-all text-left
-                                    ${exportPreset === key
+                                    ${sequencePreset === key
                                         ? 'bg-indigo-600/15 border-indigo-500/40 text-indigo-400'
                                         : 'bg-neutral-900/50 border-neutral-800 text-neutral-400 hover:border-neutral-600'
                                     }`}
@@ -202,6 +202,7 @@ const ExportVideoPanel = () => {
                         <div className="space-y-1">
                             {[
                                 ['Resolution', `${preset.width} x ${preset.height}`],
+                                ['Sequence', `${preset.name} ${preset.label}`],
                                 ['FPS', `${preset.fps}`],
                                 ['Duree', `${totalDuration.toFixed(1)}s`],
                                 ['Format', exportFormat.toUpperCase()],

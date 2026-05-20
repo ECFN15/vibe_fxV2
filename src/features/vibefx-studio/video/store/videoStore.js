@@ -3,7 +3,7 @@ import { create } from 'zustand';
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 // Snapshot keys for undo/redo
-const SNAPSHOT_KEYS = ['clips', 'transitions', 'transitionItems', 'textOverlays', 'audioTracks', 'selectedClipId', 'selectedTextId', 'selectedTransitionId'];
+const SNAPSHOT_KEYS = ['clips', 'transitions', 'transitionItems', 'textOverlays', 'audioTracks', 'selectedClipId', 'selectedTextId', 'selectedTransitionId', 'sequencePreset'];
 
 const useVideoStore = create((set, get) => ({
     // === PROJECT ===
@@ -294,12 +294,14 @@ const useVideoStore = create((set, get) => ({
     setPreviewCanvas: (canvas) => set({ previewCanvas: canvas }),
     previewEngine: null,
     setPreviewEngine: (engine) => set({ previewEngine: engine }),
+    sequencePreset: 'youtube',
+    setSequencePreset: (p) => set({ sequencePreset: p, exportPreset: p }),
     exportFormat: 'mp4',
     exportPreset: 'youtube',
     exportProgress: 0,
     isExporting: false,
     setExportFormat: (f) => set({ exportFormat: f }),
-    setExportPreset: (p) => set({ exportPreset: p }),
+    setExportPreset: (p) => set({ exportPreset: p, sequencePreset: p }),
     setExportProgress: (p) => set({ exportProgress: p }),
     setIsExporting: (v) => set({ isExporting: v }),
 

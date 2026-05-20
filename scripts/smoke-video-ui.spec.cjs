@@ -92,6 +92,16 @@ test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) =
   await page.locator('input[type=file][accept="video/*"]').setInputFiles(fixtures);
   await page.waitForFunction(() => document.body.innerText.includes("2 CLIPS"), null, { timeout: 120000 });
   await expect(page.locator("canvas")).toHaveCount(1);
+  await page.getByTestId("sequence-preset-menu-toggle").click();
+  await expect(page.getByTestId("sequence-preset-menu")).toBeVisible();
+  await page.getByTestId("sequence-preset-instagram-reel").click();
+  await expect(page.getByTestId("sequence-preset-menu-toggle")).toContainText("9:16");
+  await page.waitForFunction(() => {
+    const canvas = document.querySelector("canvas");
+    return canvas && Math.abs((canvas.width / canvas.height) - (1080 / 1920)) < 0.02;
+  }, null, { timeout: 15000 });
+  const sequenceRatio = await page.locator("canvas").evaluate((canvas) => canvas.width / canvas.height);
+  expect(Math.abs(sequenceRatio - (1080 / 1920))).toBeLessThan(0.02);
 
   const firstClipName = path.basename(fixtures[0], ".mp4");
   const secondClipName = path.basename(fixtures[1], ".mp4");
@@ -183,6 +193,8 @@ test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) =
   await expect(page.locator("body")).toContainText(/12\d%/);
 
   await page.getByRole("button", { name: "Exporter", exact: true }).click();
+  await expect(page.locator("body")).toContainText("1080 x 1920");
+  await expect(page.locator("body")).toContainText("Reel 9:16");
   await page.getByRole("button", { name: "webm", exact: true }).click();
   const downloadPromise = page.waitForEvent("download", { timeout: 120000 });
   await page.getByRole("button", { name: /^Exporter$/ }).first().click();

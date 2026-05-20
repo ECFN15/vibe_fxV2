@@ -1,18 +1,33 @@
 "use client";
 
-import React from 'react';
-import { Film, ArrowLeft, Undo2, Redo2 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ArrowLeft, ChevronDown, Film, Monitor, Smartphone, Undo2, Redo2 } from 'lucide-react';
 import VideoEditor from './video/VideoEditor';
 import useVideoStore from './video/store/videoStore';
+import { EXPORT_PRESETS } from './video/engine/VideoEngine';
 
 function VideoApp({ onBack }) {
-    const { clips, undo, redo, canUndo, canRedo } = useVideoStore();
+    const [isSequenceMenuOpen, setIsSequenceMenuOpen] = useState(false);
+    const menuRef = useRef(null);
+    const { clips, undo, redo, canUndo, canRedo, sequencePreset, setSequencePreset } = useVideoStore();
+    const activePreset = EXPORT_PRESETS[sequencePreset] || EXPORT_PRESETS.youtube;
+
+    useEffect(() => {
+        if (!isSequenceMenuOpen) return undefined;
+        const handlePointerDown = (event) => {
+            if (!menuRef.current?.contains(event.target)) {
+                setIsSequenceMenuOpen(false);
+            }
+        };
+        window.addEventListener('pointerdown', handlePointerDown);
+        return () => window.removeEventListener('pointerdown', handlePointerDown);
+    }, [isSequenceMenuOpen]);
 
     return (
         <div className="min-h-screen flex flex-col h-screen overflow-hidden font-sans bg-black text-gray-300">
             {/* Header */}
             <header className="border-b border-neutral-800 bg-neutral-950/95 backdrop-blur-md sticky top-0 z-20 shrink-0">
-                <div className="px-4 h-11 flex items-center justify-between gap-4">
+                <div className="relative px-4 h-11 flex items-center justify-between gap-4">
                     {/* Left: back + logo */}
                     <div className="flex items-center gap-3 shrink-0">
                         <button onClick={onBack} className="p-1.5 text-neutral-600 hover:text-white transition" title="Retour">
@@ -29,8 +44,73 @@ function VideoApp({ onBack }) {
                         </div>
                     </div>
 
+                    {/* Sequence preset pinned near the left command zone. */}
+                    <div
+                        ref={menuRef}
+                        className="absolute top-1/2 hidden -translate-x-1/2 -translate-y-1/2 sm:block"
+                        style={{ left: 'clamp(11rem, 22vw, 27rem)' }}
+                    >
+                        <button
+                            type="button"
+                            data-testid="sequence-preset-menu-toggle"
+                            aria-expanded={isSequenceMenuOpen}
+                            onClick={() => setIsSequenceMenuOpen((value) => !value)}
+                            className="inline-flex h-8 items-center gap-2 rounded-sm border border-neutral-800 bg-neutral-900 px-2.5 text-[9px] font-mono uppercase tracking-widest text-neutral-300 hover:border-indigo-500/50 hover:text-indigo-300 transition"
+                        >
+                            <span className="hidden lg:inline">Type de sequence</span>
+                            <span className="text-indigo-300">{activePreset.label}</span>
+                            <ChevronDown size={12} />
+                        </button>
+
+                        {isSequenceMenuOpen && (
+                            <div
+                                data-testid="sequence-preset-menu"
+                                className="absolute left-1/2 top-10 z-50 -translate-x-1/2 border border-neutral-700 bg-neutral-950 p-2 shadow-[0_18px_60px_rgba(0,0,0,0.85)]"
+                                style={{ width: '16rem' }}
+                            >
+                                <div className="px-2 pb-2">
+                                    <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">Type de sequence</p>
+                                    <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-600">
+                                        Applique a l'apercu et a l'export
+                                    </p>
+                                </div>
+                                <div className="grid grid-cols-1 gap-1">
+                                    {Object.entries(EXPORT_PRESETS).map(([key, preset]) => {
+                                        const isVertical = preset.height > preset.width;
+                                        return (
+                                            <button
+                                                key={key}
+                                                type="button"
+                                                data-testid={`sequence-preset-${key}`}
+                                                aria-pressed={sequencePreset === key}
+                                                onClick={() => {
+                                                    setSequencePreset(key);
+                                                    setIsSequenceMenuOpen(false);
+                                                }}
+                                                className={`flex items-center justify-between gap-3 rounded-sm border px-3 py-2 text-left transition
+                                                    ${sequencePreset === key
+                                                        ? 'border-indigo-500/70 bg-indigo-950 text-indigo-200'
+                                                        : 'border-neutral-800 bg-neutral-900 text-neutral-400 hover:border-neutral-600 hover:text-neutral-200'
+                                                    }`}
+                                            >
+                                                <span className="flex min-w-0 items-center gap-2">
+                                                    {isVertical ? <Smartphone size={12} /> : <Monitor size={12} />}
+                                                    <span className="min-w-0">
+                                                        <span className="block truncate text-[10px] font-mono font-medium">{preset.name}</span>
+                                                        <span className="block text-[8px] font-mono text-neutral-500">{preset.width}x{preset.height}</span>
+                                                    </span>
+                                                </span>
+                                                <span className="shrink-0 text-[9px] font-mono text-neutral-500">{preset.label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
                     {/* Center: undo/redo + clip count */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
                         <button
                             onClick={undo}
                             disabled={!canUndo()}
@@ -57,7 +137,7 @@ function VideoApp({ onBack }) {
                         )}
                     </div>
 
-                    {/* Right: empty for now */}
+                    {/* Right spacer keeps the center controls balanced. */}
                     <div className="w-20 shrink-0" />
                 </div>
             </header>

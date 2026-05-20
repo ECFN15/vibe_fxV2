@@ -118,23 +118,25 @@ const VideoEditor = () => {
                 {/* Preview */}
                 <div className="flex-1 flex flex-col min-w-0 bg-neutral-950">
                     {clips.length === 0 ? (
-                        <div className="flex-1 flex items-center justify-center">
-                            <button
-                                onClick={handleImportClick}
-                                className="group flex flex-col items-center gap-5 p-10 border border-dashed border-neutral-800 hover:border-indigo-500/40 transition-all hover:bg-indigo-500/5"
-                            >
-                                <div className="w-14 h-14 flex items-center justify-center bg-neutral-900 group-hover:bg-indigo-600/20 transition">
-                                    <Upload size={24} className="text-neutral-500 group-hover:text-indigo-400 transition" />
-                                </div>
-                                <div className="text-center">
-                                    <p className="text-[11px] font-mono text-neutral-400 group-hover:text-white transition uppercase tracking-widest">
-                                        Importer une video
-                                    </p>
-                                    <p className="text-[9px] font-mono text-neutral-700 mt-1 uppercase tracking-widest">
-                                        MP4 / WebM / MOV / glisser-deposer
-                                    </p>
-                                </div>
-                            </button>
+                        <div className="flex-1 flex items-center justify-center p-4">
+                            <div className="w-full max-w-md">
+                                <button
+                                    onClick={handleImportClick}
+                                    className="group w-full flex flex-col items-center gap-5 p-10 border border-dashed border-neutral-800 hover:border-indigo-500/40 transition-all hover:bg-indigo-500/5"
+                                >
+                                    <div className="w-14 h-14 flex items-center justify-center bg-neutral-900 group-hover:bg-indigo-600/20 transition">
+                                        <Upload size={24} className="text-neutral-500 group-hover:text-indigo-400 transition" />
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="text-[11px] font-mono text-neutral-400 group-hover:text-white transition uppercase tracking-widest">
+                                            Importer une video
+                                        </p>
+                                        <p className="text-[9px] font-mono text-neutral-700 mt-1 uppercase tracking-widest">
+                                            MP4 / WebM / MOV / glisser-deposer
+                                        </p>
+                                    </div>
+                                </button>
+                            </div>
                         </div>
                     ) : (
                         <>

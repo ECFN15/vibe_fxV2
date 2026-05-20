@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useLayoutEffect, useCallback, useState } from 'react';
 import useVideoStore from '../store/videoStore';
-import { PlaybackEngine } from '../engine/VideoEngine';
+import { EXPORT_PRESETS, PlaybackEngine } from '../engine/VideoEngine';
 
 // Load Google Font dynamically
 const loadedFonts = new Set();
@@ -157,8 +157,9 @@ const VideoPreview = () => {
         clips, transitions, transitionItems, isPlaying, totalDuration,
         playbackSpeed, setCurrentTime, textOverlays,
         selectedTextId, setSelectedTextId, updateTextOverlay,
-        audioTracks, setPreviewCanvas, setPreviewEngine
+        audioTracks, setPreviewCanvas, setPreviewEngine, sequencePreset
     } = useVideoStore();
+    const preset = EXPORT_PRESETS[sequencePreset] || EXPORT_PRESETS.youtube;
 
     // Init PlaybackEngine
     useEffect(() => {
@@ -261,7 +262,7 @@ const VideoPreview = () => {
             const rect = container.getBoundingClientRect();
             if (rect.width === 0 || rect.height === 0) return;
 
-            const aspect = 16 / 9;
+            const aspect = preset.width / preset.height;
             let w = rect.width;
             let h = w / aspect;
             if (h > rect.height) { h = rect.height; w = h * aspect; }
@@ -287,7 +288,7 @@ const VideoPreview = () => {
         observer.observe(containerRef.current);
         resize();
         return () => observer.disconnect();
-    }, [isPlaying, clips, transitions, transitionItems, textOverlays, selectedTextId]);
+    }, [isPlaying, clips, transitions, transitionItems, textOverlays, selectedTextId, preset.width, preset.height]);
 
     // Text drag on canvas
     const getCanvasCoords = useCallback((e) => {
@@ -367,8 +368,11 @@ const VideoPreview = () => {
         <div ref={containerRef} className="relative flex-1 flex items-center justify-center bg-black overflow-hidden group">
             <canvas
                 ref={canvasRef}
-                className={`max-w-full max-h-full aspect-video transition-opacity duration-300 ${!hasContent ? 'opacity-0' : 'opacity-100'} ring-1 ring-neutral-800/30 shadow-2xl bg-black rounded-sm`}
-                style={{ cursor: isDraggingText ? 'grabbing' : (selectedTextId ? 'grab' : 'default') }}
+                className={`max-w-full max-h-full transition-opacity duration-300 ${!hasContent ? 'opacity-0' : 'opacity-100'} ring-1 ring-neutral-800/30 shadow-2xl bg-black rounded-sm`}
+                style={{
+                    aspectRatio: `${preset.width} / ${preset.height}`,
+                    cursor: isDraggingText ? 'grabbing' : (selectedTextId ? 'grab' : 'default'),
+                }}
                 onPointerDown={handleCanvasPointerDown}
                 onPointerMove={handleCanvasPointerMove}
                 onPointerUp={handleCanvasPointerUp}

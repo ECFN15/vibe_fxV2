@@ -194,7 +194,7 @@ export function PublicationRoutePipeline() {
             style={{ "--route-index": 0, "--route-speed": routeCycle, "--route-delay": oauthRoute.pulseDelay }}
           >
             <path d={oauthRoute.path} className="vf-route-line vf-route-line--base" />
-            <path d={oauthRoute.path} className="vf-route-line vf-route-line--active" filter="url(#vf-route-glow)" />
+            <path d={oauthRoute.path} className="vf-route-line vf-route-line--active vf-route-line--oauth" filter="url(#vf-route-glow)" />
             <VibeFxBubbleStream />
           </g>
 
@@ -205,7 +205,7 @@ export function PublicationRoutePipeline() {
               key={route.key}
             >
               <path d={route.path} className="vf-route-line vf-route-line--base" />
-              <path d={route.path} className="vf-route-line vf-route-line--active" filter="url(#vf-route-glow)" />
+              <path d={route.path} className={`vf-route-line vf-route-line--active vf-route-line--to-${route.key}`} filter="url(#vf-route-glow)" />
             </g>
           ))}
         </svg>

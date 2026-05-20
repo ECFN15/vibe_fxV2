@@ -152,10 +152,39 @@ function applyPostFilters(ctx, filters = {}, w, h) {
     }
 }
 
+function drawSourceCover(ctx, source, w, h) {
+    const sourceWidth = source?.videoWidth || source?.naturalWidth || source?.width || w;
+    const sourceHeight = source?.videoHeight || source?.naturalHeight || source?.height || h;
+
+    if (!sourceWidth || !sourceHeight || !Number.isFinite(sourceWidth / sourceHeight)) {
+        ctx.drawImage(source, 0, 0, w, h);
+        return;
+    }
+
+    const sourceAspect = sourceWidth / sourceHeight;
+    const targetAspect = w / h;
+    let sx = 0;
+    let sy = 0;
+    let sw = sourceWidth;
+    let sh = sourceHeight;
+
+    if (sourceAspect > targetAspect) {
+        sw = sourceHeight * targetAspect;
+        sx = (sourceWidth - sw) / 2;
+    } else if (sourceAspect < targetAspect) {
+        sh = sourceWidth / targetAspect;
+        sy = (sourceHeight - sh) / 2;
+    }
+
+    ctx.drawImage(source, sx, sy, sw, sh, 0, 0, w, h);
+}
+
 function drawFilteredSource(ctx, source, clip, w, h) {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, w, h);
     ctx.save();
     ctx.filter = buildFilterString(clip?.filters);
-    ctx.drawImage(source, 0, 0, w, h);
+    drawSourceCover(ctx, source, w, h);
     ctx.restore();
     applyPostFilters(ctx, clip?.filters, w, h);
 }
