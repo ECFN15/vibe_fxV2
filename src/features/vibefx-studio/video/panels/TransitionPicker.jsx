@@ -92,7 +92,7 @@ const TransitionPicker = () => {
                 </div>
                 <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 text-center">
                     <p className="text-[10px] font-mono text-neutral-500 uppercase tracking-widest">
-                        Importez une video pour placer des transitions sur la piste Trans.
+                        Importez une video pour placer les animations sur la timeline Effets.
                     </p>
                 </div>
             </div>
@@ -105,7 +105,7 @@ const TransitionPicker = () => {
                 <div>
                     <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Transitions</h3>
                     <p className="text-[8px] font-mono uppercase tracking-wider text-neutral-600 mt-0.5">
-                        Piste libre sous la video
+                        Timeline Effets entre la video et le texte
                     </p>
                 </div>
                 <button onClick={() => setActivePanel(null)} className="text-neutral-500 hover:text-white transition">
@@ -126,7 +126,7 @@ const TransitionPicker = () => {
 
                 {transitionItems.length === 0 ? (
                     <p className="text-[9px] font-mono text-neutral-600 leading-relaxed">
-                        Choisissez une animation ci-dessous: elle sera creee au temps courant, puis deplacable sur la piste Trans.
+                        Choisissez une animation ci-dessous: elle sera creee au temps courant, puis deplacable sur la timeline Effets.
                     </p>
                 ) : (
                     <div className="space-y-1 max-h-28 overflow-y-auto custom-scrollbar">

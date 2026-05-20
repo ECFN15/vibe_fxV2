@@ -12,6 +12,8 @@ const Clip = ({ clip, index, activeTrimEdge }) => {
     return (
         <div
             data-testid={`video-clip-${index}`}
+            draggable={false}
+            onDragStart={(e) => e.preventDefault()}
             className={`relative w-full h-full rounded-sm overflow-hidden cursor-pointer select-none group
                 ${isSelected
                     ? 'ring-2 ring-indigo-500 ring-offset-1 ring-offset-neutral-950 z-10'
@@ -30,6 +32,7 @@ const Clip = ({ clip, index, activeTrimEdge }) => {
                             className="h-full object-cover flex-shrink-0"
                             style={{ width: `${100 / clip.thumbnails.length}%` }}
                             draggable={false}
+                            onDragStart={(e) => e.preventDefault()}
                         />
                     ))
                 ) : (
@@ -60,6 +63,8 @@ const Clip = ({ clip, index, activeTrimEdge }) => {
                 data-trim-edge="start"
                 aria-label={`Raccourcir le debut du clip ${clip.name}`}
                 title="Raccourcir le debut"
+                draggable={false}
+                onDragStart={(e) => e.preventDefault()}
                 className={`absolute left-0 top-0 bottom-0 w-12 cursor-ew-resize z-20 flex items-center justify-start pl-1 touch-none
                     transition-colors ${activeTrimEdge === 'start' ? 'bg-indigo-500/60' : 'bg-gradient-to-r from-black/45 to-transparent hover:from-indigo-500/45'}`}
             >
@@ -73,6 +78,8 @@ const Clip = ({ clip, index, activeTrimEdge }) => {
                 data-trim-edge="end"
                 aria-label={`Raccourcir la fin du clip ${clip.name}`}
                 title="Raccourcir la fin"
+                draggable={false}
+                onDragStart={(e) => e.preventDefault()}
                 className={`absolute right-0 top-0 bottom-0 w-12 cursor-ew-resize z-20 flex items-center justify-end pr-1 touch-none
                     transition-colors ${activeTrimEdge === 'end' ? 'bg-indigo-500/60' : 'bg-gradient-to-l from-black/45 to-transparent hover:from-indigo-500/45'}`}
             >

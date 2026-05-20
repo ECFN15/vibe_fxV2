@@ -591,7 +591,7 @@ html {
   width: min(1240px, calc(100% - 32px));
   margin: -8px auto 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   padding: 0 0 78px;
 }
@@ -1379,6 +1379,8 @@ html {
 }
 
 .vf-route-pipeline {
+  --cn-line: rgba(174, 133, 255, .22);
+  --cn-signal: #00e5ff;
   width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
   display: grid;
@@ -1484,15 +1486,34 @@ html {
 
 .vf-route-line--active {
   stroke: url(#vf-route-gradient);
-  stroke-width: 3;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
+  stroke-width: 2.45;
+  stroke-dasharray: 104 720;
+  stroke-dashoffset: 228;
   opacity: 0;
 }
 
 .vf-route-track--oauth .vf-route-line--base {
   stroke: rgba(112, 126, 138, .2);
   stroke-width: 2;
+}
+
+.vf-route-track--oauth .vf-route-line--active {
+  stroke: url(#vf-route-oauth-gradient);
+  stroke-width: 3.25;
+  stroke-dasharray: none;
+  stroke-dashoffset: 0;
+  opacity: .72;
+}
+
+.vf-route-bubbles {
+  pointer-events: none;
+}
+
+.vf-route-bubble {
+  fill: rgba(43, 140, 255, .42);
+  stroke: rgba(34, 118, 255, .5);
+  stroke-width: .7;
+  filter: url(#vf-route-glow);
 }
 
 .vf-route-core,
@@ -1774,39 +1795,39 @@ html {
 
 @media (prefers-reduced-motion: no-preference) {
   .vf-route-line--active {
-    animation: vf-route-draw-sequence var(--route-speed) linear infinite;
+    animation: vf-route-current var(--route-speed) cubic-bezier(.16, 1, .2, 1) infinite;
     animation-delay: var(--route-delay);
-    animation-fill-mode: both;
+  }
+
+  .vf-route-track--oauth .vf-route-line--active {
+    animation: vf-route-current-oauth 2.8s cubic-bezier(.16, 1, .2, 1) infinite;
+    animation-delay: 0s;
   }
 }
 
-@keyframes vf-route-draw-sequence {
-  0% {
-    stroke-dashoffset: 1;
-    opacity: 0;
-  }
-  3% {
-    opacity: .96;
-  }
-  17% {
-    stroke-dashoffset: 0;
-    opacity: .96;
-  }
-  24% {
-    stroke-dashoffset: 0;
-    opacity: 0;
-  }
-  100% {
-    stroke-dashoffset: 0;
-    opacity: 0;
-  }
+@keyframes vf-route-current {
+  0% { stroke-dashoffset: 228; opacity: 0; }
+  4% { opacity: 1; }
+  12% { opacity: 1; }
+  18% { stroke-dashoffset: -124; opacity: 0; }
+  100% { stroke-dashoffset: -124; opacity: 0; }
+}
+
+@keyframes vf-route-current-oauth {
+  0%, 100% { opacity: .42; stroke-width: 2.4; }
+  44% { opacity: 1; stroke-width: 3.35; }
+  68% { opacity: .74; stroke-width: 2.9; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .vf-route-line--active {
-    stroke-dasharray: 1;
+    stroke-dasharray: none;
     stroke-dashoffset: 0;
     opacity: .34;
+  }
+
+  .vf-route-bubbles {
+    display: none;
   }
 }
 

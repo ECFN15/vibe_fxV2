@@ -13,7 +13,7 @@ const TRIM_EDGE_HITBOX = 56;
 
 const TRACK_CONFIG = {
     video:  { height: 64,  label: 'Video',  icon: Film,     color: 'indigo',  bgActive: 'bg-indigo-500/5',  borderColor: 'border-indigo-500/20' },
-    transitions: { height: 42, label: 'Trans', icon: Sparkles, color: 'purple', bgActive: 'bg-purple-500/5', borderColor: 'border-purple-500/20' },
+    transitions: { height: 52, label: 'Effet', icon: Sparkles, color: 'purple', bgActive: 'bg-purple-500/5', borderColor: 'border-purple-500/20' },
     text:   { height: 48,  label: 'Texte',  icon: Type,     color: 'amber',   bgActive: 'bg-amber-500/5',   borderColor: 'border-amber-500/20' },
     audio:  { height: 48,  label: 'Audio',  icon: Volume2,  color: 'emerald', bgActive: 'bg-emerald-500/5', borderColor: 'border-emerald-500/20' },
     music:  { height: 48,  label: 'Musique', icon: Music,   color: 'purple',  bgActive: 'bg-purple-500/5',  borderColor: 'border-purple-500/20' },
@@ -31,9 +31,6 @@ const Timeline = ({ onImportClick }) => {
 
     const containerRef = useRef(null);
     const pps = PIXELS_PER_SECOND_BASE * zoom;
-
-    // Compute clip start positions (sequential, accounting for transitions)
-    const clipPositions = computeClipPositions(clips, transitions, pps);
 
     /* ── Scroll / Zoom ── */
     const handleWheel = useCallback((e) => {
@@ -64,8 +61,9 @@ const Timeline = ({ onImportClick }) => {
             // Deselect all
             setSelectedClipId(null);
             setSelectedTextId(null);
+            setSelectedTransitionId(null);
         }
-    }, [scrollX, pps, totalDuration, seekTo, setSelectedClipId, setSelectedTextId]);
+    }, [scrollX, pps, totalDuration, seekTo, setSelectedClipId, setSelectedTextId, setSelectedTransitionId]);
 
     /* ── Touch: pinch-zoom + pan ── */
     useEffect(() => {
@@ -99,15 +97,16 @@ const Timeline = ({ onImportClick }) => {
     }, [zoom, scrollX, setZoom, setScrollX]);
 
     /* ── Dimensions ── */
-    const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
-    const contentWidth = Math.max(totalDuration * pps + viewportWidth * 0.5, viewportWidth);
-    const totalTrackHeight = Object.values(TRACK_CONFIG).reduce((sum, t) => sum + t.height, 0);
 
     /* ── Pan drag on background ── */
     const panRef = useRef(null);
     const dragClipIndexRef = useRef(null);
     const previousClipCountRef = useRef(0);
     const [activeTrim, setActiveTrim] = useState(null);
+    const clipPositions = computeClipPositions(clips, transitions, pps);
+    const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
+    const contentWidth = Math.max(totalDuration * pps + viewportWidth * 0.5, viewportWidth);
+    const totalTrackHeight = Object.values(TRACK_CONFIG).reduce((sum, t) => sum + t.height, 0);
 
     useEffect(() => {
         const previousClipCount = previousClipCountRef.current;
@@ -138,10 +137,11 @@ const Timeline = ({ onImportClick }) => {
         if (e.button !== 0) return;
         e.preventDefault();
         e.stopPropagation();
+        if (e.currentTarget.setPointerCapture && !e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+            e.currentTarget.setPointerCapture(e.pointerId);
+        }
         dragClipIndexRef.current = null;
         panRef.current = null;
-        setSelectedClipId(clip.id);
-        setActiveTrim({ clipId: clip.id, edge });
 
         const startX = e.clientX;
         const startTrimStart = clip.trimStart;
@@ -150,6 +150,14 @@ const Timeline = ({ onImportClick }) => {
         const minDuration = Math.min(0.15, Math.max(0.05, clip.originalDuration / 1000));
         let frameId = null;
         let pendingClientX = e.clientX;
+        const captureTarget = e.currentTarget;
+        const previousCursor = document.body.style.cursor;
+        const previousUserSelect = document.body.style.userSelect;
+
+        setSelectedClipId(clip.id);
+        setActiveTrim({ clipId: clip.id, edge });
+        document.body.style.cursor = 'ew-resize';
+        document.body.style.userSelect = 'none';
 
         const applyTrim = () => {
             frameId = null;
@@ -164,11 +172,13 @@ const Timeline = ({ onImportClick }) => {
         };
 
         const handleMove = (ev) => {
+            ev.preventDefault();
             pendingClientX = ev.clientX;
             if (frameId === null) frameId = window.requestAnimationFrame(applyTrim);
         };
 
         const handleUp = (ev) => {
+            ev.preventDefault();
             pendingClientX = ev.clientX;
             if (frameId !== null) {
                 window.cancelAnimationFrame(frameId);
@@ -176,14 +186,25 @@ const Timeline = ({ onImportClick }) => {
             }
             applyTrim();
             setActiveTrim(null);
+            if (captureTarget.releasePointerCapture && captureTarget.hasPointerCapture?.(ev.pointerId)) {
+                captureTarget.releasePointerCapture(ev.pointerId);
+            }
+            document.body.style.cursor = previousCursor;
+            document.body.style.userSelect = previousUserSelect;
             window.removeEventListener('pointermove', handleMove);
             window.removeEventListener('pointerup', handleUp);
             window.removeEventListener('pointercancel', handleUp);
+            window.removeEventListener('dragstart', handleDragStart, true);
+        };
+
+        const handleDragStart = (ev) => {
+            ev.preventDefault();
         };
 
         window.addEventListener('pointermove', handleMove);
         window.addEventListener('pointerup', handleUp);
         window.addEventListener('pointercancel', handleUp);
+        window.addEventListener('dragstart', handleDragStart, true);
     }, [pps, setSelectedClipId, updateClip]);
 
     const handleClipPointerDown = useCallback((e, index, clip) => {
@@ -307,6 +328,8 @@ const Timeline = ({ onImportClick }) => {
                                         role="button"
                                         tabIndex={0}
                                         aria-label={`Clip ${i + 1}: ${clip.name}`}
+                                        draggable={false}
+                                        onDragStart={(e) => e.preventDefault()}
                                         onPointerDown={(e) => handleClipPointerDown(e, i, clip)}
                                     >
                                         <Clip
@@ -315,18 +338,6 @@ const Timeline = ({ onImportClick }) => {
                                             activeTrimEdge={activeTrim?.clipId === clip.id ? activeTrim.edge : null}
                                         />
 
-                                        {/* Transition indicator between this and next clip */}
-                                        {i < clips.length - 1 && transitions[`${clip.id}->${clips[i+1].id}`] && (
-                                            <div
-                                                className="absolute -right-3 top-1/2 -translate-y-1/2 z-20 w-6 h-6 flex items-center justify-center
-                                                    bg-purple-600/40 border border-purple-500/50 rounded-full cursor-pointer
-                                                    hover:bg-purple-600/60 hover:scale-110 transition-all shadow-lg shadow-purple-500/20"
-                                                onClick={(e) => { e.stopPropagation(); setActivePanel('transitions'); }}
-                                                title={transitions[`${clip.id}->${clips[i+1].id}`].name}
-                                            >
-                                                <Sparkles size={10} className="text-purple-300" />
-                                            </div>
-                                        )}
                                     </div>
                                 );
                             })}
@@ -354,13 +365,17 @@ const Timeline = ({ onImportClick }) => {
                             )}
                         </div>
 
-                        {/* Transition track */}
+                        {/* Effect track */}
                         <div
-                            className="relative border-b border-neutral-800/50"
+                            className="relative border-y border-purple-500/20 bg-purple-950/[0.06] shadow-[inset_0_1px_0_rgba(168,85,247,0.12),inset_0_-1px_0_rgba(168,85,247,0.10)]"
                             style={{ height: `${TRACK_CONFIG.transitions.height}px` }}
                             data-track-area="transitions"
+                            aria-label="Timeline effets de transition"
                         >
-                            <div className="absolute inset-0 bg-purple-500/[0.02]" data-track-bg="1" />
+                            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(168,85,247,0.05)_1px,transparent_1px)] bg-[length:16px_100%]" data-track-bg="1" />
+                            <div className="absolute left-2 top-1.5 z-0 rounded-sm border border-purple-500/20 bg-neutral-950/80 px-1.5 py-0.5 text-[7px] font-mono uppercase tracking-widest text-purple-300/60 pointer-events-none">
+                                Timeline Effets
+                            </div>
 
                             {transitionItems.map(item => (
                                 <TrackItem
@@ -382,7 +397,7 @@ const Timeline = ({ onImportClick }) => {
                                     className="absolute inset-0 flex items-center justify-center group"
                                 >
                                     <span className="flex items-center gap-1.5 text-[9px] font-mono text-neutral-700 group-hover:text-purple-400/70 transition">
-                                        <Plus size={10} /> Ajouter une transition
+                                        <Plus size={10} /> Ajouter un effet de transition
                                     </span>
                                 </button>
                             )}

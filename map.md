@@ -83,31 +83,18 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |   |   |   |   `-- route.js            # Statut scraping Midjourney
 |   |   |   `-- themes/
 |   |   |       `-- route.js            # Categories/themes bibliotheque
-|   |   |-- editeur-image-instagram/
-|   |   |   `-- page.js                 # Page SEO editeur image Instagram
-|   |   |-- outil-publication-reseaux-sociaux/
-|   |   |   `-- page.js                 # Page SEO outil publication reseaux sociaux
-|   |   |-- publier-instagram-facebook/
-|   |   |   `-- page.js                 # Page SEO publication Instagram/Facebook
-|   |   |-- ressources/
-|   |   |   |-- formats-instagram/
-|   |   |   |   `-- page.js             # Ressource SEO formats Instagram
-|   |   |   `-- meta-oauth-publication-instagram-facebook/
-|   |   |       `-- page.js             # Ressource SEO Meta OAuth
+|   |   |-- components/
+|   |   |   `-- PublicationRoutePipeline.jsx # Pipeline SVG animé partagé
 |   |   |-- studio/
 |   |   |   |-- layout.js               # CSS lourds du studio scopes a /studio
 |   |   |   |-- page.js                 # Page studio noindex
 |   |   |   `-- StudioClient.jsx        # Client wrapper du studio
-|   |   |-- templates/
-|   |   |   `-- page.js                 # Page SEO templates
 |   |   |-- favicon.ico
-|   |   |-- globals.css                 # Base CSS + direction cyber/dark + pages SEO
+|   |   |-- globals.css                 # Base CSS + direction cyber/dark + page d'accueil
 |   |   |-- layout.js                   # Metadata racine + imports CSS globaux
-|   |   |-- page.js                     # Home SSR hero + nav tactile + pipeline social
+|   |   |-- page.js                     # Unique page d'accueil SSR optimisée (FAQ + Pipeline + Launch)
 |   |   |-- robots.js                   # Robots Next.js
-|   |   |-- SeoLandingPage.jsx          # Template server partage pour pages SEO
-|   |   |-- seo-pages.js                # Donnees, metadata et JSON-LD SEO
-|   |   `-- sitemap.js                  # Sitemap Next.js avec routes SEO
+|   |   `-- sitemap.js                  # Sitemap Next.js pour page d'accueil uniquement
 |   |-- features/
 |   |   |-- publications/
 |   |   |   |-- components/
@@ -215,13 +202,7 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 
 ## Pages actuelles
 
-- `/` : home SSR produit avec hero cyber-neon/dark-ui, CTA `Launch app`, nav tactile Publication/Editeur/Templates, preuve editeur/publication et pipeline anime Instagram/Facebook.
-- `/outil-publication-reseaux-sociaux` : page SEO outil publication reseaux sociaux avec pipeline anime Vibe_fx -> Your website / Instagram / Facebook.
-- `/editeur-image-instagram` : page SEO editeur image Instagram avec hero graphique inspire de l'interface mise en page.
-- `/publier-instagram-facebook` : page SEO publication Instagram/Facebook.
-- `/templates` : page SEO templates sociaux avec rack graphique de formats.
-- `/ressources/meta-oauth-publication-instagram-facebook` : ressource SEO Meta OAuth.
-- `/ressources/formats-instagram` : ressource SEO formats Instagram.
+- `/` : page d'accueil SSR unique avec hero cyber-neon/dark-ui, CTA `Launch app`, cartes de caractéristiques descriptives, FAQ complète, et pipeline de routage SVG animé (PublicationRoutePipeline).
 - `/studio` : entree noindex vers le studio Vibe_fx importe.
 - `/api/themes`, `/api/catalog`, `/api/status`, `/api/scrape`, `/api/image/*`, `/api/proxy-image`, `/api/reclassify/*`, `/api/reset` : API internes pour la bibliotheque Midjourney et son scraping local.
 - `/robots.txt` : genere par `src/app/robots.js`.
@@ -229,11 +210,6 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 
 ## Pages cible a creer plus tard
 
-- `/templates/post-instagram-portrait`
-- `/templates/story-instagram`
-- `/templates/carrousel-instagram`
-- `/ressources`
-- `/ressources/publier-depuis-un-site-web`
 - `/legal/confidentialite`
 - `/legal/conditions`
 
@@ -274,12 +250,9 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 - `VibeFxStudio` remplace l'entree de mise en page dans `PublicationsManager.jsx` et porte les onglets Studio/Fusion/Layout/Library/Vision/Video importes depuis `C:\Users\matth\Travail\Vibe_fx`, avec export publication V2 conserve.
 - La bibliotheque est cablee via routes API Next et scripts `scripts/midjourney-scraper/` ; aucune image source n'a ete importee, le catalogue local demarre vide et se remplit par scraping.
 - Le module video Vibe_CUT, ses pistes `public/music/` et ses dependances audio/state ont ete portes ; la navigation React Router source a ete remplacee par l'etat d'onglet interne du studio, et les composants studio/video sont declares en client components pour eviter les bailouts SSR.
-- Le module video Vibe_CUT accepte les imports lourds en ajoutant les clips immediatement puis en extrayant les thumbnails en arriere-plan ; les filtres colorimetriques sont appliques au rendu canvas, les textes restent visibles en lecture/export, les pistes musique locales `public/music/` sont importables/lisibles, les clips video se reordonnent par drag/drop pointer dans la timeline, une piste `Trans` separee sous la piste video permet de placer/deplacer/redimensionner des transitions librement, et l'export navigateur utilise un canvas dedie a la resolution du preset avec mix audio vers WebM/MP4 si supporte via `MediaRecorder`.
-- `npm run test:video-ui` lance `scripts/smoke-video-ui.spec.cjs` contre `/studio` et saute proprement si les fixtures locales `videotest/*.mp4` ne sont pas presentes ; le smoke couvre import de deux videos courtes, reorder, trim par poignee, split/coupe, vitesse 2x, filtre Cyberpunk, transition Flash sur piste `Trans` avec verification de luminance canvas, deplacement de l'item transition, texte intro, musique locale, volumes clip/musique, export WebM telecharge et viewport mobile sans overflow.
-- Les pages SEO prioritaires utilisent `SeoLandingPage.jsx`, `seo-pages.js`, metadata/canonical, JSON-LD et une preuve produit visuelle.
-- La home `/` a ete retravaillee comme une page hero SSR unique : nav tactile Publication/Editeur/Templates, CTA `Launch app`, objet produit editeur/publication et section pipeline animee Instagram/Facebook conditionnee a Meta OAuth.
-- Les pages `/editeur-image-instagram` et `/templates` utilisent un rendu public dedie plus graphique : mockup d'interface Vibe_fx, boutons tactiles, chips de formats et containers animes, sans texte technique visible inutile.
-- La page `/outil-publication-reseaux-sociaux` remplace le bloc systeme texte par une animation SVG de routing : noeuds source Your website/Instagram/Facebook, logos sociaux SVG colores, noeud OAuth central, noyau bleu Vibe_fx, impulsion rapide Vibe_fx -> OAuth avec bulles localisees en sortie du bloc bleu animees en flux continu type aquarium et trait gris-bleu degrade, puis sorties sequentielles vers les plateformes avec fallback reduced-motion.
+- Le module video Vibe_CUT accepte les imports lourds en ajoutant les clips immediatement puis en extrayant les thumbnails en arriere-plan ; les filtres colorimetriques sont appliques au rendu canvas, les textes restent visibles en lecture/export, les pistes musique locales `public/music/` sont importables/lisibles, les clips video se reordonnent par drag/drop pointer dans la timeline, une timeline `Effets` separee entre video et texte permet de placer/deplacer/redimensionner des transitions librement sans les melanger aux clips video, et l'export navigateur utilise un canvas dedie a la resolution du preset avec mix audio vers WebM/MP4 si supporte via `MediaRecorder`.
+- `npm run test:video-ui` lance `scripts/smoke-video-ui.spec.cjs` contre `/studio` et saute proprement si les fixtures locales `videotest/*.mp4` ne sont pas presentes ; le smoke couvre import de deux videos courtes, reorder, trim par poignee, split/coupe, vitesse 2x, filtre Cyberpunk, transition Flash sur timeline `Effets` avec verification de luminance canvas, deplacement de l'item transition, texte intro, musique locale, volumes clip/musique, export WebM telecharge et viewport mobile sans overflow.
+- La landing page unique `/` est optimisée pour le Server-Side Rendering (SSR) et regroupe le hero produit, 4 cartes de fonctionnalités descriptives, une section FAQ complète, et l'animation SVG de routage `PublicationRoutePipeline`.
 - Les CSS lourds de `vibefx-layout` et `publications` sont importes par `src/app/studio/layout.js`, pas par le layout racine, afin d'eviter de charger le studio sur les pages publiques.
 - Les actions Meta/OAuth cote client sont neutralisees quand Firebase Functions n'est pas initialise.
 - La publication Meta manuelle cote Functions exige un admin via `ADMIN_EMAILS`, custom claim `admin`, ou document `admins/{email}` actif ; aucun email admin n'est hardcode.
