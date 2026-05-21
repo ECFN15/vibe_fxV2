@@ -5,7 +5,9 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
+  limit,
   orderBy,
   query,
   serverTimestamp,
@@ -18,13 +20,14 @@ import PublicationComposer from "./components/PublicationComposer";
 import { normalizeVibeFxDraft } from "./helpers/publicationHelpers";
 import VibeFxStudio from "../vibefx-studio";
 
-export default function PublicationsManager() {
+export default function PublicationsManager({ initialMode = "dashboard" }) {
   const [publications, setPublications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [mode, setMode] = useState("dashboard");
+  const [mode, setMode] = useState(initialMode);
   const [draft, setDraft] = useState(null);
   const [selectedPublication, setSelectedPublication] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const [accountData, setAccountData] = useState({ profile: null, payments: [], checkouts: [], jobs: [] });
   const [authLoading, setAuthLoading] = useState(Boolean(auth));
   const [authError, setAuthError] = useState(auth ? "" : "Firebase Auth n'est pas initialise.");
   const currentUid = currentUser?.uid || "";
@@ -49,6 +52,42 @@ export default function PublicationsManager() {
     } finally {
       setLoading(false);
     }
+  }, [currentUid]);
+
+  const loadAccountData = useCallback(async () => {
+    if (!db || !currentUid) {
+      setAccountData({ profile: null, payments: [], checkouts: [], jobs: [] });
+      return;
+    }
+
+    const [profileSnapshot, paymentSnapshot, checkoutSnapshot, jobSnapshot] = await Promise.all([
+      getDoc(doc(db, "users", currentUid)).catch(() => null),
+      getDocs(query(
+        collection(db, "payments"),
+        where("uid", "==", currentUid),
+        orderBy("createdAt", "desc"),
+        limit(4)
+      )).catch(() => ({ docs: [] })),
+      getDocs(query(
+        collection(db, "checkoutSessions"),
+        where("uid", "==", currentUid),
+        orderBy("updatedAt", "desc"),
+        limit(4)
+      )).catch(() => ({ docs: [] })),
+      getDocs(query(
+        collection(db, "aiJobs"),
+        where("uid", "==", currentUid),
+        orderBy("createdAt", "desc"),
+        limit(4)
+      )).catch(() => ({ docs: [] })),
+    ]);
+
+    setAccountData({
+      profile: profileSnapshot?.exists?.() ? profileSnapshot.data() : null,
+      payments: paymentSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })),
+      checkouts: checkoutSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })),
+      jobs: jobSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })),
+    });
   }, [currentUid]);
 
   useEffect(() => {
@@ -83,9 +122,10 @@ export default function PublicationsManager() {
     if (authLoading) return undefined;
     const timer = window.setTimeout(() => {
       void loadPublications();
+      void loadAccountData();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [authLoading, loadPublications]);
+  }, [authLoading, loadAccountData, loadPublications]);
 
   const handleImport = (payload) => {
     setDraft(normalizeVibeFxDraft(payload));
@@ -147,6 +187,8 @@ export default function PublicationsManager() {
           publications={publications}
           loading={loading || authLoading}
           authError={authError}
+          currentUser={currentUser}
+          accountData={accountData}
           onBackToLayout={() => setMode("layout")}
           onSelectPublication={handleSelectPublication}
           onDeletePublication={handleDelete}

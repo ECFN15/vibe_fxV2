@@ -1,13 +1,15 @@
 const DEFAULT_TRACKS = [
-    { id: 'video-main', type: 'video', name: 'Video', locked: false, muted: false, visible: true, order: 10 },
-    { id: 'transition-main', type: 'transition', name: 'Effets', locked: false, muted: false, visible: true, order: 20 },
-    { id: 'text-main', type: 'text', name: 'Texte', locked: false, muted: false, visible: true, order: 30 },
-    { id: 'audio-main', type: 'audio', name: 'Audio clips', locked: false, muted: false, visible: true, order: 40 },
-    { id: 'music-main', type: 'audio', name: 'Musique', locked: false, muted: false, visible: true, order: 50 },
+    { id: 'video-main', type: 'video', name: 'Video', locked: false, muted: false, visible: true, allowOverlap: false, order: 10 },
+    { id: 'transition-main', type: 'transition', name: 'Effets', locked: false, muted: false, visible: true, allowOverlap: false, order: 20 },
+    { id: 'effect-main', type: 'effect', name: 'Filtres', locked: false, muted: false, visible: true, allowOverlap: true, order: 30 },
+    { id: 'text-main', type: 'text', name: 'Texte', locked: false, muted: false, visible: true, allowOverlap: true, order: 40 },
+    { id: 'audio-main', type: 'audio', name: 'Audio clips', locked: false, muted: false, visible: true, allowOverlap: true, order: 50 },
+    { id: 'music-main', type: 'audio', name: 'Musique', locked: false, muted: false, visible: true, allowOverlap: false, order: 60 },
 ];
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const finiteNumber = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+const DEFAULT_FILTERS = { brightness: 100, contrast: 100, saturation: 100, temperature: 0, vignette: 0, grain: 0 };
 export const DEFAULT_SNAP_THRESHOLD_SECONDS = 0.08;
 
 export function clampVolumePercent(volume = 100) {
@@ -34,12 +36,28 @@ export function isTrackLocked(tracks = [], id) {
     return getTrackById(tracks, id)?.locked === true;
 }
 
+export function doesTrackAllowOverlap(tracks = [], id) {
+    return getTrackById(tracks, id)?.allowOverlap === true;
+}
+
 export function getTrackForItemType(type) {
     if (type === 'transition') return 'transition-main';
     if (type === 'text') return 'text-main';
     if (type === 'audio') return 'music-main';
-    if (type === 'effect') return 'transition-main';
+    if (type === 'effect') return 'effect-main';
     return 'video-main';
+}
+
+function normalizeClipFilters(filters = {}) {
+    return {
+        ...DEFAULT_FILTERS,
+        ...(filters || {}),
+    };
+}
+
+function hasActiveClipFilters(filters = {}) {
+    const normalized = normalizeClipFilters(filters);
+    return Object.entries(DEFAULT_FILTERS).some(([key, defaultValue]) => finiteNumber(normalized[key], defaultValue) !== defaultValue);
 }
 
 export function normalizeTransitionItem(item = {}, totalDuration = 0) {
@@ -72,6 +90,26 @@ export function normalizeTransitionItems(transitionItems = [], totalDuration = 0
         .sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
 }
 
+function isCutTransitionItem(item = {}) {
+    return (item.params?.placement || 'free') === 'cut';
+}
+
+function findInputCutTransitionBetween(transitionItems = [], current = {}, next = {}) {
+    const currentIds = new Set([current.id, current.sourceId].filter(Boolean));
+    const nextIds = new Set([next.id, next.sourceId].filter(Boolean));
+    return transitionItems.find((transition) => (
+        transition?.fromItemId
+        && transition?.toItemId
+        && isCutTransitionItem(transition)
+        && currentIds.has(transition.fromItemId)
+        && nextIds.has(transition.toItemId)
+    )) || null;
+}
+
+function getCutTransitionForPair({ transitions = {}, transitionItems = [], current = {}, next = {}, key = '' } = {}) {
+    return findInputCutTransitionBetween(transitionItems, current, next) || (key ? transitions[key] : null);
+}
+
 export function resolveTimelineTransitions({ clips = [], transitions = {}, transitionItems = [], totalDuration = 0 } = {}) {
     const resolved = [];
     let cursor = 0;
@@ -83,7 +121,7 @@ export function resolveTimelineTransitions({ clips = [], transitions = {}, trans
         const duration = Math.max(0, (trimEnd - trimStart) / speed);
         const nextClip = clips[index + 1];
         const key = nextClip ? `${clip.id}->${nextClip.id}` : '';
-        const transition = key ? transitions[key] : null;
+        const transition = nextClip ? getCutTransitionForPair({ transitions, transitionItems, current: clip, next: nextClip, key }) : null;
         const transitionDuration = transition ? Math.max(0.1, finiteNumber(transition.duration, 0.5)) : 0;
 
         if (transition && nextClip) {
@@ -110,6 +148,7 @@ export function resolveTimelineTransitions({ clips = [], transitions = {}, trans
     });
 
     normalizeTransitionItems(transitionItems, totalDuration).forEach((item) => {
+        if (isCutTransitionItem(item)) return;
         resolved.push({
             ...item,
             params: {
@@ -132,6 +171,9 @@ export function resolveActiveTransition(transitionItems = [], globalTime = 0, to
 export function buildTimelineSnapPoints({
     clips = [],
     transitions = {},
+    transitionItems = [],
+    textOverlays = [],
+    audioTracks = [],
     totalDuration = 0,
     currentTime = 0,
 } = {}) {
@@ -165,8 +207,33 @@ export function buildTimelineSnapPoints({
         addPoint(cursor + duration, 'clip-end', `${clipLabel} out`);
 
         const nextClip = clips[index + 1];
-        const transition = nextClip ? transitions[`${clip.id}->${nextClip.id}`] : null;
+        const key = nextClip ? `${clip.id}->${nextClip.id}` : '';
+        const transition = nextClip ? getCutTransitionForPair({ transitions, transitionItems, current: clip, next: nextClip, key }) : null;
         cursor += duration - (transition ? finiteNumber(transition.duration, 0) : 0);
+    });
+
+    resolveTimelineTransitions({ clips, transitions, transitionItems, totalDuration })
+        .filter(transition => transition.params?.placement !== 'cut')
+        .forEach((transition) => {
+            const label = transition.name || transition.id || transition.type || 'transition';
+            addPoint(transition.start, 'transition-start', `${label} in`);
+            addPoint(transition.start + transition.duration, 'transition-end', `${label} out`);
+        });
+
+    textOverlays.forEach((text, index) => {
+        const start = finiteNumber(text.startTime ?? text.start, 0);
+        const end = finiteNumber(text.endTime, start + finiteNumber(text.duration, 0));
+        const label = text.content || text.name || `Texte ${index + 1}`;
+        addPoint(start, 'text-start', `${label} in`);
+        addPoint(end, 'text-end', `${label} out`);
+    });
+
+    audioTracks.forEach((track, index) => {
+        const start = finiteNumber(track.startTime ?? track.start, 0);
+        const end = finiteNumber(track.endTime, start + finiteNumber(track.duration, 0));
+        const label = track.name || `Audio ${index + 1}`;
+        addPoint(start, 'audio-start', `${label} in`);
+        addPoint(end, 'audio-end', `${label} out`);
     });
 
     for (let second = 1; second < totalDuration; second += 1) {
@@ -250,13 +317,23 @@ export function buildTimelineModel({
     tracks = getDefaultTracks(),
     totalDuration = 0,
 } = {}) {
-    const normalizedTracks = tracks.length ? tracks.map(track => ({
+    const providedTracks = Array.isArray(tracks) ? tracks : [];
+    const providedTrackById = new Map(providedTracks.map(track => [track.id, track]));
+    const defaultIds = new Set(DEFAULT_TRACKS.map(track => track.id));
+    const normalizedTracks = [
+        ...DEFAULT_TRACKS.map(track => ({
+            ...track,
+            ...(providedTrackById.get(track.id) || {}),
+        })),
+        ...providedTracks.filter(track => track?.id && !defaultIds.has(track.id)),
+    ].map(track => ({
         locked: false,
         muted: false,
         visible: true,
+        allowOverlap: false,
         order: 0,
         ...track,
-    })) : getDefaultTracks();
+    }));
 
     const items = [];
     let cursor = 0;
@@ -281,8 +358,49 @@ export function buildTimelineModel({
             source: clip,
         });
 
+        items.push({
+            id: `${clip.id}:audio`,
+            trackId: 'audio-main',
+            type: 'audio',
+            sourceId: clip.id,
+            start: cursor,
+            duration,
+            trimStart,
+            trimEnd,
+            zIndex: index,
+            params: {
+                clipId: clip.id,
+                embedded: true,
+                speed,
+                volume: clampVolumePercent(clip.volume),
+            },
+            source: clip,
+        });
+
+        if (hasActiveClipFilters(clip.filters)) {
+            const filters = normalizeClipFilters(clip.filters);
+            items.push({
+                id: `${clip.id}:effect:filters`,
+                trackId: getTrackForItemType('effect'),
+                type: 'effect',
+                sourceId: clip.id,
+                start: cursor,
+                duration,
+                trimStart,
+                trimEnd,
+                zIndex: index,
+                params: {
+                    effectType: 'clip-filters',
+                    clipId: clip.id,
+                    filters,
+                },
+                source: clip,
+            });
+        }
+
         const nextClip = clips[index + 1];
-        const transition = nextClip ? transitions[`${clip.id}->${nextClip.id}`] : null;
+        const key = nextClip ? `${clip.id}->${nextClip.id}` : '';
+        const transition = nextClip ? getCutTransitionForPair({ transitions, transitionItems, current: clip, next: nextClip, key }) : null;
         cursor += duration - (transition ? finiteNumber(transition.duration, 0) : 0);
     });
 
@@ -360,6 +478,7 @@ function timelineItemToRenderSource(item) {
         id: item.id,
         trackId: item.trackId,
         type: item.type,
+        sourceId: item.sourceId,
         mediaType: source.type,
         start: startTime,
         startTime,
@@ -399,7 +518,9 @@ export function resolveTimelineRenderPlan({
     const videoClips = isTrackVisible(tracks, 'video-main') ? itemsForTrack('video', 'video-main') : [];
     const timelineTransitions = isTrackVisible(tracks, 'transition-main') ? itemsForTrack('transition', 'transition-main') : [];
     const editableTimelineTransitions = timelineTransitions.filter(item => item.params?.placement !== 'cut');
+    const effectItems = isTrackVisible(tracks, 'effect-main') ? itemsForTrack('effect', 'effect-main') : [];
     const textItems = isTrackVisible(tracks, 'text-main') ? itemsForTrack('text', 'text-main') : [];
+    const clipAudioItems = isTrackVisible(tracks, 'audio-main') ? itemsForTrack('audio', 'audio-main') : [];
     const musicItems = isTrackVisible(tracks, 'music-main') && !isTrackMuted(tracks, 'music-main')
         ? itemsForTrack('audio', 'music-main')
         : [];
@@ -417,7 +538,9 @@ export function resolveTimelineRenderPlan({
         transitions,
         transitionItems: editableTimelineTransitions,
         allTransitions,
+        effectItems,
         textOverlays: textItems,
+        audioClipItems: clipAudioItems,
         audioTracks: musicItems,
         hasVisibleVideo: videoClips.length > 0,
         hasVisibleContent: videoClips.length > 0 || textItems.length > 0,
@@ -436,6 +559,16 @@ function hasClipAtTime(clips = [], time = 0) {
         const end = getItemEnd(clip);
         return time >= start - 0.001 && time <= end + 0.001;
     });
+}
+
+function findCutTransitionBetween(transitionItems = [], current = {}, next = {}) {
+    const currentIds = new Set([current.id, current.sourceId].filter(Boolean));
+    const nextIds = new Set([next.id, next.sourceId].filter(Boolean));
+    return transitionItems.find((transition) => {
+        if (!transition?.fromItemId || !transition?.toItemId) return false;
+        const placement = transition.params?.placement || 'cut';
+        return placement === 'cut' && currentIds.has(transition.fromItemId) && nextIds.has(transition.toItemId);
+    }) || null;
 }
 
 export function findTimelineItemOverlap(items = [], { tolerance = 0.001 } = {}) {
@@ -477,6 +610,112 @@ export function findTransitionItemOverlap(transitionItems = [], totalDuration = 
     return findTimelineItemOverlap(editableTransitions, options);
 }
 
+function getPlanItemsForOverlapValidation(plan = {}) {
+    if (Array.isArray(plan?.model?.items)) return plan.model.items;
+
+    return [
+        ...(plan?.transitionItems || []).map(item => ({
+            ...item,
+            trackId: item.trackId || getTrackForItemType('transition'),
+            type: 'transition',
+        })),
+        ...(plan?.audioTracks || []).map(item => ({
+            ...item,
+            trackId: item.trackId || getTrackForItemType('audio'),
+            type: 'audio',
+        })),
+        ...(plan?.audioClipItems || []).map(item => ({
+            ...item,
+            trackId: item.trackId || 'audio-main',
+            type: 'audio',
+        })),
+        ...(plan?.textOverlays || []).map(item => ({
+            ...item,
+            trackId: item.trackId || getTrackForItemType('text'),
+            type: 'text',
+        })),
+        ...(plan?.effectItems || []).map(item => ({
+            ...item,
+            trackId: item.trackId || getTrackForItemType('effect'),
+            type: 'effect',
+        })),
+    ];
+}
+
+function formatTrackOverlapError(overlap = {}, track = {}) {
+    const first = overlap.current?.name || overlap.current?.content || overlap.current?.id || 'item';
+    const second = overlap.next?.name || overlap.next?.content || overlap.next?.id || 'item';
+
+    if (track.id === 'transition-main') {
+        return `Overlap transition sur ${overlap.trackId}: ${first} / ${second}.`;
+    }
+    if (track.type === 'audio') {
+        return `Overlap audio interdit sur ${overlap.trackId}: ${first} / ${second}.`;
+    }
+    return `Overlap interdit sur piste ${track.name || overlap.trackId}: ${first} / ${second}.`;
+}
+
+function findDisallowedTrackOverlap(plan = {}, tracks = [], options = {}) {
+    const blockedTrackIds = new Set(
+        tracks
+            .filter(track => track?.id && track.id !== 'video-main' && track.allowOverlap !== true)
+            .map(track => track.id)
+    );
+    if (blockedTrackIds.size === 0) return null;
+
+    const items = getPlanItemsForOverlapValidation(plan)
+        .filter(item => blockedTrackIds.has(item.trackId || getTrackForItemType(item.type)));
+    const overlap = findTimelineItemOverlap(items, options);
+    if (!overlap) return null;
+    return {
+        ...overlap,
+        track: tracks.find(track => track.id === overlap.trackId) || { id: overlap.trackId },
+    };
+}
+
+function validateRenderItems(items = [], {
+    label = 'item',
+    totalDuration = 0,
+    tolerance = 0.001,
+    requireSourceClip = false,
+    sourceClips = [],
+} = {}) {
+    const errors = [];
+    const warnings = [];
+    const duration = finiteNumber(totalDuration, 0);
+    const clipsById = new Map(sourceClips.map(clip => [clip.sourceId || clip.id, clip]));
+
+    items.forEach((item, index) => {
+        const itemLabel = item.name || item.id || `${label}-${index + 1}`;
+        const start = finiteNumber(item.start ?? item.startTime, NaN);
+        const itemDuration = finiteNumber(item.duration ?? ((item.endTime ?? 0) - start), NaN);
+        const end = start + itemDuration;
+
+        if (!item.id) errors.push(`${label} sans id: ${itemLabel}.`);
+        if (!item.trackId) errors.push(`${label} sans trackId: ${itemLabel}.`);
+        if (!Number.isFinite(start) || start < -tolerance) errors.push(`Start ${label} invalide: ${itemLabel}.`);
+        if (!Number.isFinite(itemDuration) || itemDuration <= 0) errors.push(`Duree ${label} invalide: ${itemLabel}.`);
+        if (duration > 0 && start >= duration - tolerance) errors.push(`${label} hors timeline: ${itemLabel}.`);
+        if (duration > 0 && end > duration + tolerance) warnings.push(`${label} tronque par la duree timeline: ${itemLabel}.`);
+
+        if (requireSourceClip) {
+            const sourceId = item.sourceId || item.params?.clipId;
+            const sourceClip = clipsById.get(sourceId);
+            if (!sourceId || !sourceClip) {
+                errors.push(`${label} sans clip source actif: ${itemLabel}.`);
+            } else {
+                const sourceStart = finiteNumber(sourceClip.start ?? sourceClip.startTime, 0);
+                const sourceEnd = getItemEnd(sourceClip);
+                if (Math.abs(sourceStart - start) > tolerance || Math.abs(sourceEnd - end) > tolerance) {
+                    warnings.push(`${label} desynchronise de son clip source: ${itemLabel}.`);
+                }
+            }
+        }
+    });
+
+    return { errors, warnings };
+}
+
 export function validateTimelineRenderPlan({ plan = null, totalDuration = 0, frameDuration = 1 / 30 } = {}) {
     const errors = [];
     const warnings = [];
@@ -485,7 +724,10 @@ export function validateTimelineRenderPlan({ plan = null, totalDuration = 0, fra
     const clips = [...(plan?.clips || [])].sort((a, b) => (
         finiteNumber(a.start ?? a.startTime, 0) - finiteNumber(b.start ?? b.startTime, 0)
     ));
-    const transitions = plan?.transitions || {};
+    const canonicalCutTransitions = (plan?.allTransitions || [])
+        .filter(transition => (transition.params?.placement || 'cut') === 'cut');
+    const legacyTransitions = plan?.transitions || {};
+    const trackRules = plan?.model?.tracks || plan?.tracks || getDefaultTracks();
 
     if (!clips.length) {
         errors.push('Aucun clip video visible: export noir probable.');
@@ -518,7 +760,8 @@ export function validateTimelineRenderPlan({ plan = null, totalDuration = 0, fra
             const nextStart = finiteNumber(next.start ?? next.startTime, 0);
             const gap = nextStart - currentEnd;
             const overlap = currentEnd - nextStart;
-            const transition = transitions[`${current.id}->${next.id}`];
+            const transition = findCutTransitionBetween(canonicalCutTransitions, current, next)
+                || legacyTransitions[`${current.id}->${next.id}`];
             const transitionDuration = finiteNumber(transition?.duration, 0);
 
             if (gap > tolerance) {
@@ -533,11 +776,9 @@ export function validateTimelineRenderPlan({ plan = null, totalDuration = 0, fra
         }
     }
 
-    const editableTransitionOverlap = findTransitionItemOverlap(plan?.transitionItems || [], duration, { tolerance });
-    if (editableTransitionOverlap) {
-        const first = editableTransitionOverlap.current?.name || editableTransitionOverlap.current?.id || 'transition';
-        const second = editableTransitionOverlap.next?.name || editableTransitionOverlap.next?.id || 'transition';
-        errors.push(`Overlap transition sur ${editableTransitionOverlap.trackId}: ${first} / ${second}.`);
+    const blockedTrackOverlap = findDisallowedTrackOverlap(plan || {}, trackRules, { tolerance });
+    if (blockedTrackOverlap) {
+        errors.push(formatTrackOverlapError(blockedTrackOverlap, blockedTrackOverlap.track));
     }
 
     (plan?.allTransitions || plan?.transitionItems || []).forEach((transition) => {
@@ -562,6 +803,26 @@ export function validateTimelineRenderPlan({ plan = null, totalDuration = 0, fra
         if (duration > 0 && end > duration + tolerance) warnings.push(`Piste audio tronquee a l'export: ${label}.`);
     });
 
+    const clipAudioAudit = validateRenderItems(plan?.audioClipItems || [], {
+        label: 'Audio clip',
+        totalDuration: duration,
+        tolerance,
+        requireSourceClip: true,
+        sourceClips: clips,
+    });
+    errors.push(...clipAudioAudit.errors);
+    warnings.push(...clipAudioAudit.warnings);
+
+    const effectAudit = validateRenderItems(plan?.effectItems || [], {
+        label: 'Effet clip',
+        totalDuration: duration,
+        tolerance,
+        requireSourceClip: true,
+        sourceClips: clips,
+    });
+    errors.push(...effectAudit.errors);
+    warnings.push(...effectAudit.warnings);
+
     return { errors, warnings };
 }
 
@@ -583,6 +844,86 @@ export function buildExportFrameSchedule({ totalDuration = 0, fps = 30 } = {}) {
         expectedDuration: totalFrames * frameDuration,
         lastFrameTime,
     };
+}
+
+export function getNearestExportFrameSample({ frameSchedule = null, time = 0, label = '' } = {}) {
+    const schedule = frameSchedule || buildExportFrameSchedule();
+    const frameDuration = finiteNumber(schedule.frameDuration, 0);
+    const totalFrames = Math.max(0, Math.floor(finiteNumber(schedule.totalFrames, 0)));
+    const targetTime = finiteNumber(time, 0);
+
+    if (frameDuration <= 0 || totalFrames <= 0) {
+        return {
+            index: -1,
+            time: 0,
+            targetTime,
+            delta: 0,
+            label,
+        };
+    }
+
+    const index = clamp(Math.round(targetTime / frameDuration), 0, totalFrames - 1);
+    const frameTime = Math.min(finiteNumber(schedule.totalDuration, targetTime), index * frameDuration);
+
+    return {
+        index,
+        time: frameTime,
+        targetTime,
+        delta: frameTime - targetTime,
+        label,
+    };
+}
+
+export function validateExportFrameCoverage({ frameSchedule = null, transitionItems = [], totalDuration = 0 } = {}) {
+    const errors = [];
+    const warnings = [];
+    const samples = [];
+    const schedule = frameSchedule || buildExportFrameSchedule({ totalDuration });
+    const frameDuration = finiteNumber(schedule.frameDuration, 0);
+    const totalFrames = Math.max(0, Math.floor(finiteNumber(schedule.totalFrames, 0)));
+    const duration = finiteNumber(totalDuration || schedule.totalDuration, 0);
+
+    if (duration <= 0 || totalFrames <= 0 || frameDuration <= 0) {
+        errors.push('Plan de frames export invalide: aucun timestamp a verifier.');
+        return { errors, warnings, samples };
+    }
+
+    samples.push(getNearestExportFrameSample({ frameSchedule: schedule, time: 0, label: 'timeline-start' }));
+    samples.push(getNearestExportFrameSample({ frameSchedule: schedule, time: Math.max(0, duration - frameDuration), label: 'timeline-end' }));
+
+    normalizeTransitionItems(transitionItems, duration).forEach((transition) => {
+        const start = finiteNumber(transition.start, 0);
+        const transitionDuration = finiteNumber(transition.duration, 0);
+        const end = start + transitionDuration;
+        const label = transition.name || transition.id || transition.type || 'transition';
+        const mid = start + transitionDuration / 2;
+        const midpointSample = getNearestExportFrameSample({
+            frameSchedule: schedule,
+            time: mid,
+            label: `transition:${label}:mid`,
+        });
+        samples.push(midpointSample);
+
+        const firstIndexInside = Math.ceil((start - 0.000001) / frameDuration);
+        const lastIndexInside = Math.floor((end + 0.000001) / frameDuration);
+        const clampedFirst = clamp(firstIndexInside, 0, totalFrames - 1);
+        const clampedLast = clamp(lastIndexInside, 0, totalFrames - 1);
+        const hasFrameInside = clampedFirst <= clampedLast
+            && clampedFirst * frameDuration >= start - 0.000001
+            && clampedFirst * frameDuration <= end + 0.000001;
+
+        if (!hasFrameInside) {
+            errors.push(`Transition sans frame export planifiee: ${label}. Augmentez sa duree ou le FPS.`);
+        } else if (transitionDuration < frameDuration) {
+            warnings.push(`Transition plus courte qu'une frame export: ${label}.`);
+        }
+
+        if (Math.abs(midpointSample.delta) > frameDuration / 2 + 0.000001) {
+            warnings.push(`Timestamp transition peu precis a l'export: ${label}.`);
+        }
+    });
+
+    return { errors, warnings, samples };
 }
 
 export function validateExportTimeline({ clips = [], audioTracks = [], transitionItems = [], totalDuration = 0, fps = 30, mimeType = '' } = {}) {
@@ -625,4 +966,70 @@ export function validateExportTimeline({ clips = [], audioTracks = [], transitio
     });
 
     return { errors, warnings };
+}
+
+export function validateExportAudioMix({ playbackClips = [], audioTracks = [], shouldMixAudio = false, totalDuration = 0 } = {}) {
+    const errors = [];
+    const warnings = [];
+    const duration = finiteNumber(totalDuration, 0);
+    const activeClipAudio = playbackClips
+        .map((clip) => {
+            const start = finiteNumber(clip.start, 0);
+            const itemDuration = finiteNumber(clip.duration, 0);
+            return {
+                id: clip.id,
+                label: clip.name || clip.id || 'clip',
+                kind: 'clip',
+                start,
+                end: start + itemDuration,
+                duration: itemDuration,
+                volume: finiteNumber(clip.volume, 100),
+            };
+        })
+        .filter(source => source.duration > 0 && source.end > source.start);
+    const activeMusicAudio = audioTracks.map((track) => {
+        const start = finiteNumber(track.startTime ?? track.start, 0);
+        const itemDuration = finiteNumber(track.duration, finiteNumber(track.endTime, start) - start);
+        const end = finiteNumber(track.endTime, start + itemDuration);
+        return {
+            id: track.id,
+            label: track.name || track.id || 'audio',
+            kind: 'music',
+            url: track.url,
+            start,
+            end,
+            duration: Math.max(0, end - start),
+            volume: finiteNumber(track.volume, 100),
+        };
+    });
+    const activeSources = [...activeClipAudio, ...activeMusicAudio]
+        .filter(source => duration <= 0 || (source.start < duration && source.end > 0));
+    const audibleSources = activeSources.filter(source => source.volume > 0 && source.end > source.start);
+
+    if (shouldMixAudio && activeSources.length === 0) {
+        errors.push('Mix audio demande sans source audio active.');
+    }
+    if (shouldMixAudio && audibleSources.length === 0) {
+        warnings.push('Export audio muet: toutes les sources audio actives sont a volume 0 ou hors duree.');
+    }
+
+    activeMusicAudio.forEach((track) => {
+        if (!track.url) errors.push(`Piste audio sans URL: ${track.label}.`);
+        if (track.end <= track.start) errors.push(`Duree audio invalide: ${track.label}.`);
+        if (duration > 0 && track.start >= duration) errors.push(`Piste audio hors timeline: ${track.label}.`);
+        if (duration > 0 && track.end > duration) warnings.push(`Piste audio tronquee a l'export: ${track.label}.`);
+        if (track.volume <= 0) warnings.push(`Piste audio muette a l'export: ${track.label}.`);
+        if (track.volume < 0 || track.volume > 100) warnings.push(`Volume audio borne automatiquement: ${track.label}.`);
+    });
+
+    activeClipAudio.forEach((clip) => {
+        if (clip.volume <= 0) warnings.push(`Audio clip muet a l'export: ${clip.label}.`);
+        if (clip.volume < 0 || clip.volume > 100) warnings.push(`Volume clip borne automatiquement: ${clip.label}.`);
+    });
+
+    return { errors: uniqueMessages(errors), warnings: uniqueMessages(warnings) };
+}
+
+function uniqueMessages(messages = []) {
+    return Array.from(new Set(messages.filter(Boolean)));
 }

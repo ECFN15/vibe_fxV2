@@ -3,7 +3,7 @@ import { Scissors, Type, Sparkles, Music, Gauge, Download, Filter, Trash2, Plus,
 import useVideoStore from '../store/videoStore';
 import { resolveTimelineRenderPlan } from '../model/timelineModel';
 
-const VideoToolbar = ({ onImportClick }) => {
+const VideoToolbar = ({ onImportClick, onAiOpen }) => {
     const {
         clips, selectedClipId,
         splitClip, removeClip, activePanel, setActivePanel
@@ -63,6 +63,19 @@ const VideoToolbar = ({ onImportClick }) => {
                 </button>
 
                 <div className="w-px h-5 bg-neutral-800 shrink-0 mr-1" />
+                {onAiOpen && (
+                    <button
+                        type="button"
+                        data-testid="video-tool-ai-clip"
+                        onClick={onAiOpen}
+                        title="AI clip"
+                        aria-label="AI clip"
+                        className="flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-sm transition-all min-w-[52px] h-11 text-cyan-300 hover:text-white hover:bg-cyan-500/10 border border-cyan-500/25"
+                    >
+                        <Sparkles size={14} />
+                        <span className="text-[7px] font-mono uppercase tracking-wider leading-none">AI clip</span>
+                    </button>
+                )}
 
                 {/* Tools */}
                 {tools.map(tool => {
@@ -72,6 +85,7 @@ const VideoToolbar = ({ onImportClick }) => {
                     return (
                         <button
                             key={tool.id}
+                            data-testid={`video-tool-${tool.id}`}
                             onClick={() => {
                                 if (isDisabled) return;
                                 if (tool.action) tool.action();
@@ -85,6 +99,7 @@ const VideoToolbar = ({ onImportClick }) => {
                                     ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30'
                                     : 'text-neutral-500 hover:text-white hover:bg-white/5 border border-transparent'
                                 }
+                                ${tool.id === 'export' ? `sticky right-0 z-10 shadow-[-12px_0_22px_rgba(10,10,10,0.92)] ${isActive ? '' : 'bg-neutral-950'}` : ''}
                                 disabled:opacity-25 disabled:cursor-not-allowed
                             `}
                         >

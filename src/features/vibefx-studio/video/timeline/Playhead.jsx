@@ -40,7 +40,7 @@ const Playhead = ({ pps, scrollX }) => {
         });
 
         if (state.isPlaying) {
-            engine.syncClipAudio(plan.playbackClips, plan.transitions, time, state.playbackSpeed);
+            engine.syncClipAudio(plan.playbackClips, plan.transitions, time, state.playbackSpeed, plan.allTransitions);
             engine.syncExternalAudio(plan.audioTracks, time, state.playbackSpeed);
         }
     };

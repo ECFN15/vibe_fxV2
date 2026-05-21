@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 
 
 // --- DATA ---
@@ -20,6 +20,10 @@ import AssetLibrary from './components/library/AssetLibrary';
 import AssetLibraryModal from './components/modals/AssetLibraryModal';
 import VideoApp from './VideoApp';
 import CreditsPanel from './components/panels/CreditsPanel';
+import StudioAiRail from './components/ai/StudioAiRail';
+import SoundtrackPage from './soundtrack/SoundtrackPage';
+import useVideoStore from './video/store/videoStore';
+import { buildTrackRightsManifest } from './video/data/musicRights';
 
 // --- HOOKS ---
 import useExport from './hooks/useExport';
@@ -224,6 +228,7 @@ function App({ onImportToPublication, onOpenPublications }) {
     const [fileInfo, setFileInfo] = useState(null);
     const [isLibraryModalOpen, setIsLibraryModalOpen] = useState(false);
     const [libraryModalTarget, setLibraryModalTarget] = useState('foreground'); // 'foreground' | 'background'
+    const [isAiRailOpen, setIsAiRailOpen] = useState(false);
 
     // Filtres (Studio)
     const [filters, setFilters] = useState({ ...DEFAULT_FILTERS });
@@ -481,7 +486,7 @@ function App({ onImportToPublication, onOpenPublications }) {
         };
     }, [getCanvasDimensions, getPreviewCanvasDimensions, images.length, renderPipeline]);
 
-    const handleImportPublication = useCallback(async () => {
+    const handleImportPublication = useCallback(async (aiCaption = '') => {
         if (!images.length || typeof onImportToPublication !== 'function') return;
         const rendered = renderFinalCanvas();
         if (!rendered) return;
@@ -498,6 +503,7 @@ function App({ onImportToPublication, onOpenPublications }) {
             dataUrl: exportCanvas.toDataURL('image/png'),
             blob,
             socialImages,
+            caption: aiCaption,
             format: activeFormat,
             template: activeTemplate,
             imagesCount: images.length,
@@ -665,6 +671,41 @@ function App({ onImportToPublication, onOpenPublications }) {
         tryNext();
     }, [setImages, setView, setOverlayImage, setLayoutTextures, setActiveTextureId, setActiveAccordion]);
 
+    const handleUseSoundtrackInVideo = useCallback((track, fileOrBlob) => {
+        if (!track || !fileOrBlob) return;
+        const url = URL.createObjectURL(fileOrBlob);
+        const id = `soundtrack-${track.id}-${Date.now()}`;
+        const videoRightsStatus = track.rightsStatus === 'verified-free'
+            ? 'credit-required'
+            : track.rightsStatus === 'needs-review'
+                ? 'review'
+                : track.rightsStatus;
+        useVideoStore.getState().addAudioTrack({
+            id,
+            name: track.title,
+            file: fileOrBlob,
+            url,
+            duration: track.duration || 10,
+            startTime: useVideoStore.getState().currentTime || 0,
+            source: 'soundtrack-local',
+            provider: track.provider,
+            sourceName: track.sourceName,
+            sourceUrl: track.sourceUrl,
+            license: track.license,
+            licenseUrl: track.licenseUrl,
+            attribution: track.attribution,
+            rightsStatus: videoRightsStatus,
+            commercialUse: track.commercialUse === true,
+            socialUse: track.socialUse === true,
+            contentIdWarning: track.contentIdWarning,
+            licenseSnapshotVersion: track.licenseSnapshotVersion,
+            acquiredAt: track.addedAt || new Date().toISOString(),
+            waveform: track.waveform || { status: 'pending', peaks: [] },
+            rightsManifest: buildTrackRightsManifest({ ...track, id, rightsStatus: videoRightsStatus }),
+        });
+        setView('video');
+    }, [setView]);
+
     // --- COMPARE MODAL RENDERING ---
     useEffect(() => {
         if (isCompareModalOpen && modalBeforeRef.current && modalAfterRef.current && canvasRef.current && images.length > 0) {
@@ -685,6 +726,24 @@ function App({ onImportToPublication, onOpenPublications }) {
         }
     }, [isCompareModalOpen, images, getCanvasDimensions, renderPipeline]);
 
+    const aiContext = useMemo(() => ({
+        view,
+        hasImage: images.length > 0,
+        hasVideo: false,
+        imageCount: images.length,
+        activeFormat,
+        activeTemplate,
+        canvasReady: Boolean(canvasRef.current),
+        timelineReady: false,
+    }), [activeFormat, activeTemplate, images.length, view]);
+
+    const aiMutators = useMemo(() => ({
+        setTexts,
+        setActiveTextId,
+        setView,
+        onSendToPublication: (caption) => handleImportPublication(caption),
+    }), [handleImportPublication, setActiveTextId, setTexts, setView]);
+
     const activeConfig = selectedSlotIndex !== null ? (slotConfigs[selectedSlotIndex] || { zoom: 1, x: 0, y: 0, border: 0, blur: 0 }) : null;
 
     if (view === 'video') {
@@ -703,6 +762,8 @@ function App({ onImportToPublication, onOpenPublications }) {
                 onExport={handleDownload}
                 onImportPublication={typeof onImportToPublication === 'function' ? handleImportPublication : null}
                 onOpenPublications={onOpenPublications}
+                isAiRailOpen={isAiRailOpen}
+                onToggleAiRail={() => setIsAiRailOpen(current => !current)}
             />
 
             <main className="flex-1 w-full flex overflow-hidden bg-grid-pattern">
@@ -711,6 +772,8 @@ function App({ onImportToPublication, onOpenPublications }) {
                         isDarkMode={isDarkMode}
                         onUseAsset={handleAssetImport}
                     />
+                ) : view === 'soundtrack' ? (
+                    <SoundtrackPage onUseInVideo={handleUseSoundtrackInVideo} />
                 ) : view === 'credits' ? (
                     <CreditsPanel isDarkMode={isDarkMode} />
                 ) : (
@@ -929,6 +992,13 @@ function App({ onImportToPublication, onOpenPublications }) {
                     onExport={performExport}
                 />
             </main>
+            <StudioAiRail
+                open={isAiRailOpen}
+                onClose={() => setIsAiRailOpen(false)}
+                view={view}
+                context={aiContext}
+                mutators={aiMutators}
+            />
         </div>
     );
 }

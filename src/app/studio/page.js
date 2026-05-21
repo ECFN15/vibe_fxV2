@@ -9,6 +9,7 @@ export const metadata = {
   },
 };
 
-export default function StudioPage() {
-  return <StudioClient />;
+export default async function StudioPage({ searchParams }) {
+  const params = await searchParams;
+  return <StudioClient initialMode={params?.workspace === "layout" ? "layout" : "dashboard"} />;
 }

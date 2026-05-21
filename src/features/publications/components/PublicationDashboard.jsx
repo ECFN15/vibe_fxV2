@@ -4,11 +4,38 @@ import * as Icons from "lucide-react";
 import { formatDate } from "../helpers/publicationHelpers";
 import PublicationList from "./PublicationList";
 
-export default function PublicationDashboard({ stats, publications, loading, selectedId, onBackToLayout, onSelectPublication, onDeletePublication, onSetHomeFeature, featureSaving, message }) {
+function formatNumber(value) {
+  return new Intl.NumberFormat("fr-FR").format(Number(value || 0));
+}
+
+function formatMoney(cents) {
+  return `${(Number(cents || 0) / 100).toFixed(2)} EUR`;
+}
+
+function safeDate(value) {
+  const date = value?.toDate ? value.toDate() : value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return "Non disponible";
+  return new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(date);
+}
+
+function providerIds(user) {
+  return (user?.providerData || []).map((provider) => provider.providerId).filter(Boolean);
+}
+
+export default function PublicationDashboard({ stats, publications, loading, selectedId, onBackToLayout, onSelectPublication, onDeletePublication, onSetHomeFeature, featureSaving, message, currentUser = null, accountData = null }) {
   const latest = publications.slice(0, 6);
   const queued = publications.filter((item) => item.status !== "published").slice(0, 3);
   const published = publications.filter((item) => item.status === "published");
   const currentFeatured = published.find((item) => item.featured);
+  const profile = accountData?.profile || {};
+  const payments = accountData?.payments || [];
+  const checkouts = accountData?.checkouts || [];
+  const jobs = accountData?.jobs || [];
+  const plan = profile.plan || "free";
+  const providers = providerIds(currentUser);
+  const lastPayment = payments[0];
+  const lastCheckout = checkouts[0];
+  const lastJob = jobs[0];
 
   return (
     <div className="pub-hub">
@@ -25,6 +52,40 @@ export default function PublicationDashboard({ stats, publications, loading, sel
       </section>
 
       {message ? <div className="pub-message final">{message}</div> : null}
+
+      <section className="pub-account-panel" aria-label="Profil utilisateur">
+        <article className="pub-account-card pub-account-identity">
+          <span className="pub-account-kicker">Profil</span>
+          <strong>{currentUser?.email || currentUser?.displayName || "Session anonyme"}</strong>
+          <small>{currentUser?.isAnonymous ? "anonymous" : providers.join(", ") || "compte permanent"}</small>
+          <code>{currentUser?.uid || "uid indisponible"}</code>
+        </article>
+        <article className="pub-account-card">
+          <span className="pub-account-kicker">Compte</span>
+          <strong>{plan}</strong>
+          <small>{profile.planUpdatedAt ? safeDate(profile.planUpdatedAt) : "Plan actuel"}</small>
+        </article>
+        <article className="pub-account-card">
+          <span className="pub-account-kicker">Credits</span>
+          <strong>{formatNumber(profile.creditBalance)}</strong>
+          <small>{formatNumber(profile.reservedCreditBalance)} reserves / {formatNumber(profile.bonusCreditBalance)} bonus</small>
+        </article>
+        <article className="pub-account-card">
+          <span className="pub-account-kicker">Paiements</span>
+          <strong>{formatMoney(profile.lifetimePaidCents)}</strong>
+          <small>{lastPayment ? `${lastPayment.status || "payment"} - ${safeDate(lastPayment.createdAt)}` : "Aucun paiement fulfil"}</small>
+        </article>
+        <article className="pub-account-card">
+          <span className="pub-account-kicker">Checkout</span>
+          <strong>{lastCheckout?.status || "Aucune session"}</strong>
+          <small>{lastCheckout ? `${lastCheckout.productKey || "produit"} - ${safeDate(lastCheckout.updatedAt || lastCheckout.createdAt)}` : "Pas de session recente"}</small>
+        </article>
+        <article className="pub-account-card">
+          <span className="pub-account-kicker">Usage IA</span>
+          <strong>{lastJob?.status || "Aucun job"}</strong>
+          <small>{lastJob ? `${lastJob.feature || "feature"} - ${formatNumber(lastJob.capturedCredits || lastJob.estimatedCredits)} credits` : "Historique vide"}</small>
+        </article>
+      </section>
 
       <section className="pub-hub-stats" aria-label="Etat des publications">
         <article>

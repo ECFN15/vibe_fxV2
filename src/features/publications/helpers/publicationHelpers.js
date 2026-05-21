@@ -215,6 +215,7 @@ export function normalizeVibeFxDraft(payload) {
       supportsReel: Boolean(format.supportsReel),
     },
     template: { id: template.id, label: template.label },
+    caption: String(payload?.caption || ""),
     layoutDraft: {
       source: "vibefx",
       sourceFormat: cleanVibeFormat(payload?.format),

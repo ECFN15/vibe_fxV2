@@ -4,7 +4,7 @@ Mission : integrer une vraie couche IA utile dans le studio Vibe_fx V2. Ne pas a
 
 Tu travailles dans `C:\Users\matth\Travail\vibe_fxV2`.
 
-Ne modifie jamais `C:\Users\matth\Desktop\jardin de chawi`.
+Ne modifie jamais le projet source historique situe sur le Desktop.
 
 Avant de coder, lis dans cet ordre :
 

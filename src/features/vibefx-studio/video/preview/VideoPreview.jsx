@@ -146,6 +146,24 @@ function drawGuides(canvas) {
     ctx.restore();
 }
 
+const DEFAULT_FILTERS = {
+    brightness: 100,
+    contrast: 100,
+    saturation: 100,
+    temperature: 0,
+    vignette: 0,
+    grain: 0,
+};
+
+function applyFilterPreviewBypass(clips = [], clipId = null) {
+    if (!clipId) return clips;
+    return clips.map(clip => (
+        clip.id === clipId || clip.sourceId === clipId
+            ? { ...clip, filters: DEFAULT_FILTERS, params: { ...(clip.params || {}), filters: DEFAULT_FILTERS } }
+            : clip
+    ));
+}
+
 const VideoPreview = () => {
     const canvasRef = useRef(null);
     const containerRef = useRef(null);
@@ -160,7 +178,8 @@ const VideoPreview = () => {
         clips, transitions, transitionItems, isPlaying, totalDuration,
         playbackSpeed, setCurrentTime, textOverlays,
         selectedTextId, setSelectedTextId, updateTextOverlay,
-        audioTracks, tracks, setPreviewCanvas, setPreviewEngine, sequencePreset
+        audioTracks, tracks, setPreviewCanvas, setPreviewEngine, sequencePreset,
+        filterPreviewBypassClipId
     } = useVideoStore();
     const preset = EXPORT_PRESETS[sequencePreset] || EXPORT_PRESETS.youtube;
     const renderPlan = useMemo(() => resolveTimelineRenderPlan({
@@ -172,11 +191,11 @@ const VideoPreview = () => {
         tracks,
         totalDuration,
     }), [audioTracks, clips, textOverlays, totalDuration, tracks, transitions, transitionItems]);
-    const renderClips = renderPlan.clips;
+    const renderClips = useMemo(() => applyFilterPreviewBypass(renderPlan.clips, filterPreviewBypassClipId), [filterPreviewBypassClipId, renderPlan.clips]);
     const renderTransitions = renderPlan.allTransitions;
     const renderTextOverlays = renderPlan.textOverlays;
     const renderAudioTracks = renderPlan.audioTracks;
-    const playbackClips = renderPlan.playbackClips;
+    const playbackClips = useMemo(() => applyFilterPreviewBypass(renderPlan.playbackClips, filterPreviewBypassClipId), [filterPreviewBypassClipId, renderPlan.playbackClips]);
 
     // Init PlaybackEngine
     useEffect(() => {
@@ -205,7 +224,8 @@ const VideoPreview = () => {
             const time = useVideoStore.getState().currentTime;
             const state = useVideoStore.getState();
             const plan = resolveTimelineRenderPlan(state);
-            await engineRef.current.seekAndDraw(plan.clips, plan.transitions, time, plan.allTransitions);
+            const clipsForPreview = applyFilterPreviewBypass(plan.clips, state.filterPreviewBypassClipId);
+            await engineRef.current.seekAndDraw(clipsForPreview, plan.transitions, time, plan.allTransitions);
             drawTextOverlays(canvasRef.current, plan.textOverlays, time, state.selectedTextId);
         }).catch(err => {
             console.warn('Failed to load clips:', err);
@@ -214,7 +234,8 @@ const VideoPreview = () => {
                 const time = useVideoStore.getState().currentTime;
                 const state = useVideoStore.getState();
                 const plan = resolveTimelineRenderPlan(state);
-                engineRef.current.renderFrame(plan.clips, plan.transitions, time, plan.allTransitions);
+                const clipsForPreview = applyFilterPreviewBypass(plan.clips, state.filterPreviewBypassClipId);
+                engineRef.current.renderFrame(clipsForPreview, plan.transitions, time, plan.allTransitions);
             }
         });
     }, [renderAudioTracks, renderClips]);
@@ -268,7 +289,7 @@ const VideoPreview = () => {
         renderCurrentTime(useVideoStore.getState().currentTime);
 
         const unsub = useVideoStore.subscribe((state, prevState) => {
-            if ((state.currentTime !== prevState.currentTime || state.clips !== prevState.clips || state.transitionItems !== prevState.transitionItems || state.textOverlays !== prevState.textOverlays || state.audioTracks !== prevState.audioTracks || state.selectedTextId !== prevState.selectedTextId || state.tracks !== prevState.tracks) && !state.isPlaying) {
+            if ((state.currentTime !== prevState.currentTime || state.clips !== prevState.clips || state.transitionItems !== prevState.transitionItems || state.textOverlays !== prevState.textOverlays || state.audioTracks !== prevState.audioTracks || state.selectedTextId !== prevState.selectedTextId || state.tracks !== prevState.tracks || state.filterPreviewBypassClipId !== prevState.filterPreviewBypassClipId) && !state.isPlaying) {
                 requestAnimationFrame(() => { renderCurrentTime(state.currentTime); });
             }
         });

@@ -18,7 +18,7 @@ import PublicationDashboard from "./PublicationDashboard";
 import PublicationList from "./PublicationList";
 import PublicationPreview from "./PublicationPreview";
 
-export default function PublicationComposer({ draft, publication, publications, loading, authError = "", onBackToLayout, onSelectPublication, onDeletePublication, onSetHomeFeature, onSaved }) {
+export default function PublicationComposer({ draft, publication, publications, loading, authError = "", currentUser = null, accountData = null, onBackToLayout, onSelectPublication, onDeletePublication, onSetHomeFeature, onSaved }) {
   const initialFormat = useMemo(
     () => getCanonicalFormat(draft?.format || publication?.format),
     [draft?.format, publication?.format]
@@ -26,7 +26,7 @@ export default function PublicationComposer({ draft, publication, publications, 
   const [title, setTitle] = useState(publication?.title || "");
   const [excerpt, setExcerpt] = useState(publication?.excerpt || "");
   const [content, setContent] = useState(publication?.content || "");
-  const [caption, setCaption] = useState(publication?.caption || "");
+  const [caption, setCaption] = useState(publication?.caption || draft?.caption || "");
   const [tags, setTags] = useState((publication?.tags || []).join(", "));
   const [featured, setFeatured] = useState(Boolean(publication?.featured));
   const [publishKind, setPublishKind] = useState(publication?.format?.publishKind || draft?.format?.publishKind || initialFormat.publishKind);
@@ -238,6 +238,8 @@ export default function PublicationComposer({ draft, publication, publications, 
         onSetHomeFeature={setHomeFeature}
         featureSaving={featureSaving}
         message={authError || message}
+        currentUser={currentUser}
+        accountData={accountData}
       />
     );
   }

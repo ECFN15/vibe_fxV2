@@ -229,6 +229,40 @@ function getResolvedClipDuration(clip) {
     return Math.max(0, Number(clip.duration) || 0);
 }
 
+function getTransitionEnd(transition) {
+    const start = getTransitionStart(transition);
+    const duration = Math.max(0, Number(transition?.duration) || 0);
+    return start + duration;
+}
+
+function getCutTransitionBetween(transitionItems = [], fromId, toId) {
+    if (!fromId || !toId) return null;
+    return transitionItems.find((transition) => (
+        transition?.fromItemId === fromId
+        && transition?.toItemId === toId
+        && (transition?.params?.placement === 'cut' || transition?.params?.placement === undefined)
+    )) || null;
+}
+
+function getLegacyTransitionBetween(transitions = {}, fromId, toId, fallbackStart = 0) {
+    const transition = transitions?.[`${fromId}->${toId}`];
+    if (!transition) return null;
+    const duration = Math.max(0, Number(transition.duration) || 0);
+    return {
+        ...transition,
+        start: Number.isFinite(Number(transition.start ?? transition.startTime))
+            ? Number(transition.start ?? transition.startTime)
+            : fallbackStart,
+        duration,
+        fromItemId: fromId,
+        toItemId: toId,
+        params: {
+            ...(transition.params || {}),
+            placement: 'cut',
+        },
+    };
+}
+
 function getClipPlaybackDuration(clip) {
     const speed = Number(clip.speed) || 1;
     return Math.max(0, ((Number(clip.trimEnd) || 0) - (Number(clip.trimStart) || 0)) / speed);
@@ -241,7 +275,7 @@ function getClipLocalTime(clip, globalTime, timelineStart) {
     return clamp(trimStart + (globalTime - timelineStart) * speed, trimStart, Math.max(trimStart, trimEnd));
 }
 
-function getResolvedActiveClipAtTime(clips = [], transitions = {}, globalTime = 0) {
+function getResolvedActiveClipAtTime(clips = [], transitions = {}, globalTime = 0, transitionItems = []) {
     const ordered = clips
         .map((clip, index) => ({
             clip,
@@ -257,12 +291,20 @@ function getResolvedActiveClipAtTime(clips = [], transitions = {}, globalTime = 
         const next = ordered[i + 1];
         if (globalTime < current.start || globalTime >= current.end) continue;
 
-        const transition = next ? transitions[`${current.clip.id}->${next.clip.id}`] : null;
+        const canonicalTransition = next ? getCutTransitionBetween(transitionItems, current.clip.id, next.clip.id) : null;
+        const transition = canonicalTransition || (
+            next ? getLegacyTransitionBetween(transitions, current.clip.id, next.clip.id, next.start) : null
+        );
         const transitionDur = Math.max(0, transition?.duration || 0);
-        const transitionStart = transition && transitionDur > 0
-            ? clamp(next?.start ?? current.end - transitionDur, current.start, current.end)
+        const transitionStart = transition && transitionDur > 0 && canonicalTransition
+            ? clamp(getTransitionStart(transition), current.start, current.end)
+            : transition && transitionDur > 0
+                ? clamp(next?.start ?? current.end - transitionDur, current.start, current.end)
+                : current.end;
+        const transitionEnd = transition && transitionDur > 0
+            ? Math.min(current.end, getTransitionEnd({ ...transition, start: transitionStart, duration: transitionDur }))
             : current.end;
-        const inTransition = transition && transitionDur > 0 && globalTime >= transitionStart;
+        const inTransition = transition && transitionDur > 0 && globalTime >= transitionStart && globalTime <= transitionEnd;
 
         return {
             clip: current.clip,
@@ -770,9 +812,9 @@ export class PlaybackEngine {
         };
     }
 
-    getActiveClipAtTime(clips, transitions, globalTime) {
+    getActiveClipAtTime(clips, transitions, globalTime, transitionItems = []) {
         if (hasResolvedVideoTiming(clips)) {
-            return getResolvedActiveClipAtTime(clips, transitions, globalTime);
+            return getResolvedActiveClipAtTime(clips, transitions, globalTime, transitionItems);
         }
 
         let elapsed = 0;
@@ -809,11 +851,11 @@ export class PlaybackEngine {
     }
 
     renderFrame(clips, transitions, globalTime, transitionItems = []) {
-        const result = this.getActiveClipAtTime(clips, transitions, globalTime);
+        const result = this.getActiveClipAtTime(clips, transitions, globalTime, transitionItems);
         if (!result) {
             this.ctx.fillStyle = '#000';
             this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-            return;
+            return { rendered: false, reason: 'no-active-clip', time: globalTime };
         }
 
         const { clip, localTime, transitionProgress, transition, nextClip } = result;
@@ -825,10 +867,12 @@ export class PlaybackEngine {
             // Player not loaded yet - show black
             this.ctx.fillStyle = '#000';
             this.ctx.fillRect(0, 0, w, h);
-            return;
+            return { rendered: false, reason: 'missing-player', clipId: clip.id, time: globalTime };
         }
 
         try {
+            let renderMode = 'clip';
+            let targetClipId = null;
             // Only seek if time difference is significant
             if (Math.abs(player.currentTime - localTime) > 0.05) {
                 player.currentTime = localTime;
@@ -840,7 +884,7 @@ export class PlaybackEngine {
                 const transitionDuration = Math.max(0.1, timelineTransition.duration || ((timelineTransition.endTime || 0) - transitionStart) || 0.5);
                 const transitionEnd = timelineTransition.endTime || transitionStart + transitionDuration;
                 const timelineProgress = clamp((globalTime - transitionStart) / transitionDuration, 0, 1);
-                const targetResult = this.getActiveClipAtTime(clips, transitions, Math.min(transitionEnd, globalTime + transitionDuration));
+                const targetResult = this.getActiveClipAtTime(clips, transitions, Math.min(transitionEnd, globalTime + transitionDuration), transitionItems);
                 const targetPlayer = this.players.get(targetResult?.clip?.id) || player;
                 const targetClip = targetResult?.clip || clip;
                 const targetLocalTime = targetResult?.localTime ?? localTime;
@@ -851,6 +895,8 @@ export class PlaybackEngine {
                 }
                 const toFrame = makeFilteredFrame(targetPlayer, targetClip, w, h);
                 renderTransition(this.ctx, fromFrame, toFrame, timelineProgress, timelineTransition.type, w, h);
+                renderMode = 'timeline-transition';
+                targetClipId = targetClip.id || null;
             } else if (transitionProgress >= 0 && transitionProgress <= 1 && nextClip && transition) {
                 const nextPlayer = this.players.get(nextClip.id);
                 if (nextPlayer) {
@@ -864,18 +910,38 @@ export class PlaybackEngine {
                     const fromFrame = makeFilteredFrame(player, clip, w, h);
                     const toFrame = makeFilteredFrame(nextPlayer, nextClip, w, h);
                     renderTransition(this.ctx, fromFrame, toFrame, transitionProgress, transition.type, w, h);
+                    renderMode = 'cut-transition';
+                    targetClipId = nextClip.id || null;
                 } else {
                     // Next clip not loaded, draw current
                     drawFilteredSource(this.ctx, player, clip, w, h);
+                    renderMode = 'cut-transition-fallback';
+                    targetClipId = nextClip.id || null;
                 }
             } else {
                 drawFilteredSource(this.ctx, player, clip, w, h);
             }
+            return {
+                rendered: true,
+                reason: null,
+                clipId: clip.id,
+                targetClipId,
+                localTime,
+                mode: renderMode,
+                time: globalTime,
+            };
         } catch (err) {
             // Draw black if any canvas error occurs
             this.ctx.fillStyle = '#000';
             this.ctx.fillRect(0, 0, w, h);
             console.warn('Canvas render error:', err);
+            return {
+                rendered: false,
+                reason: 'canvas-render-error',
+                error: err?.message || String(err),
+                clipId: clip.id,
+                time: globalTime,
+            };
         }
     }
 
@@ -899,10 +965,9 @@ export class PlaybackEngine {
     }
 
     async seekAndDraw(clips, transitions, globalTime, transitionItems = []) {
-        const result = this.getActiveClipAtTime(clips, transitions, globalTime);
+        const result = this.getActiveClipAtTime(clips, transitions, globalTime, transitionItems);
         if (!result) {
-            this.renderFrame(clips, transitions, globalTime, transitionItems);
-            return { rendered: false, reason: 'no-active-clip' };
+            return this.renderFrame(clips, transitions, globalTime, transitionItems);
         }
 
         const { clip, localTime, transitionProgress, transition, nextClip } = result;
@@ -914,7 +979,7 @@ export class PlaybackEngine {
             const start = getTransitionStart(timelineTransition);
             const duration = Math.max(0.1, timelineTransition.duration || 0.5);
             const targetTime = Math.min(start + duration, globalTime + duration);
-            const targetResult = this.getActiveClipAtTime(clips, transitions, targetTime);
+            const targetResult = this.getActiveClipAtTime(clips, transitions, targetTime, transitionItems);
             const targetPlayer = this.players.get(targetResult?.clip?.id);
             await this.waitForSeek(targetPlayer, targetResult?.localTime ?? localTime);
         } else if (transitionProgress >= 0 && transitionProgress <= 1 && nextClip && transition) {
@@ -925,12 +990,11 @@ export class PlaybackEngine {
             await this.waitForSeek(nextPlayer, nextLocalTime);
         }
 
-        this.renderFrame(clips, transitions, globalTime, transitionItems);
-        return { rendered: true, clipId: clip.id };
+        return this.renderFrame(clips, transitions, globalTime, transitionItems);
     }
 
-    syncClipAudio(clips, transitions, globalTime, playbackSpeed = 1) {
-        const activeResult = this.getActiveClipAtTime(clips, transitions, globalTime);
+    syncClipAudio(clips, transitions, globalTime, playbackSpeed = 1, transitionItems = []) {
+        const activeResult = this.getActiveClipAtTime(clips, transitions, globalTime, transitionItems);
         this.players.forEach((player, id) => {
             const isActive = activeResult?.clip?.id === id;
             if (!isActive) {
@@ -975,7 +1039,7 @@ export class PlaybackEngine {
     startPlayback(clips, transitions, getCurrentTime, setCurrentTime, totalDuration, playbackSpeed = 1, audioTracks = [], transitionItems = []) {
         this.isPlaying = true;
         let lastTimestamp = null;
-        this.syncClipAudio(clips, transitions, getCurrentTime(), playbackSpeed);
+        this.syncClipAudio(clips, transitions, getCurrentTime(), playbackSpeed, transitionItems);
         this.syncExternalAudio(audioTracks, getCurrentTime(), playbackSpeed);
 
         const tick = (timestamp) => {
@@ -993,7 +1057,7 @@ export class PlaybackEngine {
 
                 this.renderFrame(clips, transitions, newTime, transitionItems);
                 setCurrentTime(newTime);
-                this.syncClipAudio(clips, transitions, newTime, playbackSpeed);
+                this.syncClipAudio(clips, transitions, newTime, playbackSpeed, transitionItems);
                 this.syncExternalAudio(audioTracks, newTime, playbackSpeed);
             }
 

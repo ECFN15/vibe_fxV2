@@ -1,16 +1,32 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ChevronDown, Film, Monitor, Smartphone, Undo2, Redo2 } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, ChevronDown, Film, Monitor, Smartphone, Sparkles, Undo2, Redo2 } from 'lucide-react';
 import VideoEditor from './video/VideoEditor';
 import useVideoStore from './video/store/videoStore';
 import { EXPORT_PRESETS } from './video/engine/VideoEngine';
+import StudioAiRail from './components/ai/StudioAiRail';
 
 function VideoApp({ onBack }) {
     const [isSequenceMenuOpen, setIsSequenceMenuOpen] = useState(false);
+    const [isAiRailOpen, setIsAiRailOpen] = useState(false);
     const menuRef = useRef(null);
     const { clips, undo, redo, canUndo, canRedo, sequencePreset, setSequencePreset } = useVideoStore();
     const activePreset = EXPORT_PRESETS[sequencePreset] || EXPORT_PRESETS.youtube;
+    const aiContext = useMemo(() => ({
+        view: 'video',
+        hasImage: false,
+        hasVideo: clips.length > 0,
+        imageCount: 0,
+        videoClipCount: clips.length,
+        activeFormat: {
+            id: sequencePreset,
+            label: activePreset.label,
+            ratio: activePreset.width && activePreset.height ? activePreset.width / activePreset.height : null,
+        },
+        canvasReady: clips.length > 0,
+        timelineReady: true,
+    }), [activePreset.height, activePreset.label, activePreset.width, clips.length, sequencePreset]);
 
     useEffect(() => {
         if (!isSequenceMenuOpen) return undefined;
@@ -137,15 +153,34 @@ function VideoApp({ onBack }) {
                         )}
                     </div>
 
-                    {/* Right spacer keeps the center controls balanced. */}
-                    <div className="w-20 shrink-0" />
+                    <div className="flex w-24 shrink-0 justify-end">
+                        <button
+                            type="button"
+                            data-testid="studio-ai-toggle"
+                            data-active={isAiRailOpen ? 'true' : 'false'}
+                            onClick={() => setIsAiRailOpen(current => !current)}
+                            className="vf-ai-header-button"
+                            aria-pressed={isAiRailOpen}
+                            title="AI clip"
+                        >
+                            <Sparkles size={13} />
+                            AI
+                        </button>
+                    </div>
                 </div>
             </header>
 
             {/* Editor */}
             <main className="flex-1 flex overflow-hidden">
-                <VideoEditor />
+                <VideoEditor onAiOpen={() => setIsAiRailOpen(true)} />
             </main>
+            <StudioAiRail
+                open={isAiRailOpen}
+                onClose={() => setIsAiRailOpen(false)}
+                view="video"
+                context={aiContext}
+                mutators={{}}
+            />
         </div>
     );
 }

@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useRef, useCallback, useEffect } from 'react';
+import React, { useRef, useCallback, useEffect, useState } from 'react';
 import useVideoStore from './store/videoStore';
 import { loadVideoFile, extractThumbnails } from './engine/VideoEngine';
+import { buildUnavailableWaveform, extractAudioWaveform } from './utils/audioWaveform';
 import VideoPreview from './preview/VideoPreview';
 import PreviewControls from './preview/PreviewControls';
 import Timeline from './timeline/Timeline';
@@ -14,11 +15,22 @@ import SpeedPanel from './panels/SpeedPanel';
 import ExportVideoPanel from './panels/ExportVideoPanel';
 import FilterVideoPanel from './panels/FilterVideoPanel';
 import MusicLibrary from './panels/MusicLibrary';
-import { Upload } from 'lucide-react';
+import { Maximize2, Minimize2, Upload, X } from 'lucide-react';
 
-const VideoEditor = () => {
+const PANEL_LABELS = {
+    transitions: 'Transitions',
+    text: 'Texte',
+    audio: 'Audio',
+    music: 'Musique',
+    speed: 'Vitesse',
+    export: 'Export',
+    filters: 'Filtres',
+};
+
+const VideoEditor = ({ onAiOpen }) => {
     const fileInputRef = useRef(null);
-    const { addClip, updateClip, clips, activePanel, undo, redo } = useVideoStore();
+    const [isMobilePanelFullscreen, setIsMobilePanelFullscreen] = useState(false);
+    const { addClip, updateClip, clips, activePanel, setActivePanel, undo, redo } = useVideoStore();
 
     const handleImportClick = () => fileInputRef.current?.click();
 
@@ -41,6 +53,10 @@ const VideoEditor = () => {
                 extractThumbnails(meta.url, meta.duration, thumbCount)
                     .then((thumbnails) => updateClip(clipId, { thumbnails }))
                     .catch((err) => console.warn('Thumbnail extraction failed:', err));
+
+                extractAudioWaveform(file)
+                    .then((waveform) => updateClip(clipId, { waveform }))
+                    .catch((err) => updateClip(clipId, { waveform: buildUnavailableWaveform(err.message) }));
             } catch (err) {
                 console.warn('Video import failed:', err);
             }
@@ -112,6 +128,11 @@ const VideoEditor = () => {
     };
 
     const hasPanel = activePanel !== null;
+    const activePanelLabel = PANEL_LABELS[activePanel] || 'Outils';
+
+    useEffect(() => {
+        if (!hasPanel) setIsMobilePanelFullscreen(false);
+    }, [hasPanel]);
 
     return (
         <div
@@ -166,12 +187,45 @@ const VideoEditor = () => {
             <Timeline onImportClick={handleImportClick} />
 
             {/* Toolbar */}
-            <VideoToolbar onImportClick={handleImportClick} />
+            <VideoToolbar onImportClick={handleImportClick} onAiOpen={onAiOpen} />
 
             {/* Mobile overlay panel */}
             {hasPanel && (
-                <div className="lg:hidden fixed inset-x-0 bottom-14 top-1/3 bg-neutral-950/98 backdrop-blur-md border-t border-neutral-800 z-30 flex flex-col min-h-0">
-                    {renderPanel()}
+                <div
+                    data-testid="video-mobile-panel"
+                    data-fullscreen={isMobilePanelFullscreen ? 'true' : 'false'}
+                    style={{ height: isMobilePanelFullscreen ? 'calc(100dvh - 6.25rem)' : '46dvh' }}
+                    className={`lg:hidden fixed inset-x-0 bottom-14 bg-neutral-950/98 backdrop-blur-md border-t border-neutral-800 z-30 flex flex-col min-h-0 shadow-[0_-24px_60px_rgba(0,0,0,0.72)]
+                        ${isMobilePanelFullscreen ? 'top-11 max-h-none' : 'top-auto max-h-[46dvh]'}`}
+                >
+                    <div className="flex h-10 shrink-0 items-center justify-between border-b border-neutral-800 px-3">
+                        <div className="min-w-0">
+                            <p className="truncate text-[9px] font-mono uppercase tracking-widest text-neutral-500">Edition Reel</p>
+                            <p className="truncate text-[10px] font-mono uppercase tracking-widest text-neutral-200">{activePanelLabel}</p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <button
+                                type="button"
+                                data-testid="video-mobile-panel-size"
+                                aria-label={isMobilePanelFullscreen ? 'Reduire le panneau mobile' : 'Agrandir le panneau mobile'}
+                                onClick={() => setIsMobilePanelFullscreen((value) => !value)}
+                                className="grid h-8 w-8 place-items-center rounded-sm border border-neutral-800 text-neutral-400 transition hover:border-neutral-600 hover:text-white"
+                            >
+                                {isMobilePanelFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                            </button>
+                            <button
+                                type="button"
+                                aria-label="Fermer le panneau mobile"
+                                onClick={() => setActivePanel(null)}
+                                className="grid h-8 w-8 place-items-center rounded-sm border border-neutral-800 text-neutral-400 transition hover:border-neutral-600 hover:text-white"
+                            >
+                                <X size={13} />
+                            </button>
+                        </div>
+                    </div>
+                    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                        {renderPanel()}
+                    </div>
                 </div>
             )}
         </div>

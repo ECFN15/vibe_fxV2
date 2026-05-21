@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X, Sun, Contrast, Droplets, Thermometer, Eye, RotateCcw } from 'lucide-react';
 import useVideoStore from '../store/videoStore';
 import { isTrackLocked } from '../model/timelineModel';
@@ -24,26 +24,40 @@ const VISION_PRESETS = [
 ];
 
 const FilterVideoPanel = () => {
-    const { selectedClipId, clips, updateClip, setActivePanel, tracks } = useVideoStore();
+    const {
+        selectedClipId, clips, updateClip, setActivePanel, tracks,
+        filterPreviewBypassClipId, setFilterPreviewBypassClipId
+    } = useVideoStore();
 
     const clip = clips.find(c => c.id === selectedClipId);
     const filters = clip?.filters || { brightness: 100, contrast: 100, saturation: 100, temperature: 0, vignette: 0, grain: 0 };
-    const videoLocked = isTrackLocked(tracks, 'video-main');
+    const effectLocked = isTrackLocked(tracks, 'effect-main');
+    const previewMode = selectedClipId && filterPreviewBypassClipId === selectedClipId ? 'before' : 'after';
+
+    useEffect(() => {
+        if (filterPreviewBypassClipId && filterPreviewBypassClipId !== selectedClipId) {
+            setFilterPreviewBypassClipId(null);
+        }
+    }, [filterPreviewBypassClipId, selectedClipId, setFilterPreviewBypassClipId]);
+
+    useEffect(() => (
+        () => setFilterPreviewBypassClipId(null)
+    ), [setFilterPreviewBypassClipId]);
 
     const handleFilterChange = (key, value) => {
-        if (videoLocked) return;
+        if (effectLocked) return;
         if (!selectedClipId) return;
         updateClip(selectedClipId, { filters: { ...filters, [key]: value } });
     };
 
     const applyPreset = (preset) => {
-        if (videoLocked) return;
+        if (effectLocked) return;
         if (!selectedClipId) return;
         updateClip(selectedClipId, { filters: { ...preset.filters } });
     };
 
     const resetFilters = () => {
-        if (videoLocked) return;
+        if (effectLocked) return;
         if (!selectedClipId) return;
         updateClip(selectedClipId, {
             filters: { brightness: 100, contrast: 100, saturation: 100, temperature: 0, vignette: 0, grain: 0 }
@@ -65,6 +79,43 @@ const FilterVideoPanel = () => {
                 </div>
             ) : (
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-4">
+                    <div className="rounded-sm border border-cyan-500/20 bg-cyan-500/5 p-2 space-y-2">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[9px] font-mono text-cyan-300/80 uppercase tracking-widest">Preview filtre</span>
+                            <span className="text-[8px] font-mono text-neutral-500 uppercase" data-testid="filter-preview-mode">
+                                {previewMode === 'before' ? 'Avant' : 'Apres'}
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1">
+                            <button
+                                type="button"
+                                aria-pressed={previewMode === 'before'}
+                                data-testid="filter-preview-before"
+                                onClick={() => setFilterPreviewBypassClipId(selectedClipId)}
+                                className={`rounded-sm border px-2 py-1.5 text-[9px] font-mono uppercase tracking-widest transition ${
+                                    previewMode === 'before'
+                                        ? 'border-cyan-400/40 bg-cyan-400/10 text-cyan-200'
+                                        : 'border-neutral-800 bg-neutral-950/50 text-neutral-500 hover:border-neutral-600 hover:text-neutral-200'
+                                }`}
+                            >
+                                Avant
+                            </button>
+                            <button
+                                type="button"
+                                aria-pressed={previewMode === 'after'}
+                                data-testid="filter-preview-after"
+                                onClick={() => setFilterPreviewBypassClipId(null)}
+                                className={`rounded-sm border px-2 py-1.5 text-[9px] font-mono uppercase tracking-widest transition ${
+                                    previewMode === 'after'
+                                        ? 'border-indigo-400/40 bg-indigo-400/10 text-indigo-200'
+                                        : 'border-neutral-800 bg-neutral-950/50 text-neutral-500 hover:border-neutral-600 hover:text-neutral-200'
+                                }`}
+                            >
+                                Apres
+                            </button>
+                        </div>
+                    </div>
+
                     <div className="space-y-2">
                         <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest">Presets</span>
                         <div className="grid grid-cols-2 gap-1.5">
@@ -72,7 +123,7 @@ const FilterVideoPanel = () => {
                                 <button
                                     key={preset.name}
                                     onClick={() => applyPreset(preset)}
-                                    disabled={videoLocked}
+                                    disabled={effectLocked}
                                     className="px-3 py-2 text-[9px] font-mono text-neutral-400 border border-neutral-800 rounded-sm hover:border-indigo-500/40 hover:text-indigo-400 hover:bg-indigo-500/5 transition text-left disabled:opacity-40 disabled:hover:border-neutral-800 disabled:hover:text-neutral-400 disabled:hover:bg-transparent"
                                 >
                                     {preset.name}
@@ -84,7 +135,7 @@ const FilterVideoPanel = () => {
                     <div className="space-y-3 border-t border-neutral-800 pt-3">
                         <div className="flex items-center justify-between">
                             <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest">Ajuster</span>
-                            <button onClick={resetFilters} disabled={videoLocked} className="flex items-center gap-1 text-[8px] font-mono text-neutral-600 hover:text-white transition uppercase disabled:opacity-40 disabled:hover:text-neutral-600">
+                            <button onClick={resetFilters} disabled={effectLocked} className="flex items-center gap-1 text-[8px] font-mono text-neutral-600 hover:text-white transition uppercase disabled:opacity-40 disabled:hover:text-neutral-600">
                                 <RotateCcw size={9} />
                                 Reset
                             </button>
@@ -106,7 +157,7 @@ const FilterVideoPanel = () => {
                                         min={ctrl.min} max={ctrl.max}
                                         aria-label={ctrl.label}
                                         value={filters[ctrl.key]}
-                                        disabled={videoLocked}
+                                        disabled={effectLocked}
                                         onChange={(e) => handleFilterChange(ctrl.key, parseInt(e.target.value))}
                                         className="w-full h-1 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-indigo-500 disabled:cursor-not-allowed disabled:opacity-45"
                                     />

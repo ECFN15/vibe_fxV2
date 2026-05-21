@@ -4,7 +4,12 @@ import useVideoStore from '../store/videoStore';
 import { EXPORT_PRESETS, PlaybackEngine } from '../engine/VideoEngine';
 import { drawTextOverlays } from '../preview/VideoPreview';
 import { RIGHTS_STATUS_LABELS, buildExportRightsManifest, getRightsAudit } from '../data/musicRights';
-import { buildExportFrameSchedule, resolveTimelineRenderPlan, validateExportTimeline, validateTimelineRenderPlan } from '../model/timelineModel';
+import { buildExportFrameSchedule, resolveTimelineRenderPlan, validateExportAudioMix, validateExportFrameCoverage, validateExportTimeline, validateTimelineRenderPlan } from '../model/timelineModel';
+
+const MIME_CANDIDATES = {
+    webm: ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'],
+    mp4: ['video/mp4;codecs=h264,aac', 'video/mp4;codecs=h264', 'video/mp4'],
+};
 
 const ExportVideoPanel = () => {
     const [exportMessage, setExportMessage] = useState('');
@@ -34,6 +39,8 @@ const ExportVideoPanel = () => {
     const exportTextOverlays = exportPlan.textOverlays;
     const exportAudioTracks = exportPlan.audioTracks;
     const exportPlaybackClips = exportPlan.playbackClips;
+    const hasAudibleClipAudio = exportPlaybackClips.some(clip => Number(clip.volume ?? 100) > 0);
+    const shouldMixAudio = hasAudibleClipAudio || exportAudioTracks.length > 0;
     const rightsAudit = useMemo(() => getRightsAudit(exportAudioTracks), [exportAudioTracks]);
     const rightsBlockers = useMemo(() => (
         rightsAudit.flatMap(({ track, issues }) => issues.map(issue => ({ track, issue })))
@@ -41,6 +48,69 @@ const ExportVideoPanel = () => {
     const rightsManifest = useMemo(() => buildExportRightsManifest(exportAudioTracks), [exportAudioTracks]);
     const effectiveExportFormat = exportFormat === 'mp4' && !mimeSupport.mp4 ? 'webm' : exportFormat;
     const formatFallbackActive = exportFormat !== effectiveExportFormat;
+    const exportPreflight = useMemo(() => {
+        const fps = Number(preset?.fps || 30);
+        const frameSchedule = buildExportFrameSchedule({ totalDuration, fps });
+        const mimeType = getSupportedMimeType(effectiveExportFormat);
+        const timelineAudit = validateExportTimeline({
+            clips: exportClips,
+            audioTracks: exportAudioTracks,
+            transitionItems: exportAllTransitions,
+            totalDuration,
+            fps,
+            mimeType,
+        });
+        const audioMixAudit = validateExportAudioMix({
+            playbackClips: exportPlaybackClips,
+            audioTracks: exportAudioTracks,
+            shouldMixAudio,
+            totalDuration,
+        });
+        const renderPlanAudit = validateTimelineRenderPlan({
+            plan: exportPlan,
+            totalDuration,
+            frameDuration: frameSchedule.frameDuration || (1 / fps),
+        });
+        const frameCoverageAudit = validateExportFrameCoverage({
+            frameSchedule,
+            transitionItems: exportAllTransitions,
+            totalDuration,
+        });
+        const browserErrors = typeof MediaRecorder === 'undefined'
+            ? ['Export navigateur indisponible sur cette session.']
+            : [];
+        const AudioContextCtor = typeof window !== 'undefined'
+            ? (window.AudioContext || window.webkitAudioContext)
+            : null;
+        const audioMixErrors = shouldMixAudio && !AudioContextCtor
+            ? ['Mix audio export indisponible: AudioContext non supporte par ce navigateur.']
+            : [];
+        const rightsErrors = rightsBlockers.map(({ track, issue }) => `${track.name || track.id}: ${issue}.`);
+        const errors = [
+            ...browserErrors,
+            ...audioMixErrors,
+            ...rightsErrors,
+            ...timelineAudit.errors,
+            ...audioMixAudit.errors,
+            ...renderPlanAudit.errors,
+            ...frameCoverageAudit.errors,
+        ];
+        const warnings = [
+            ...timelineAudit.warnings,
+            ...audioMixAudit.warnings,
+            ...renderPlanAudit.warnings,
+            ...frameCoverageAudit.warnings,
+        ];
+
+        return {
+            errors,
+            warnings,
+            frameSchedule,
+            fps,
+            mimeType,
+            status: errors.length > 0 ? 'blocked' : warnings.length > 0 ? 'warning' : 'ready',
+        };
+    }, [effectiveExportFormat, exportAllTransitions, exportAudioTracks, exportClips, exportPlaybackClips, exportPlan, preset?.fps, rightsBlockers, shouldMixAudio, totalDuration]);
 
     useEffect(() => {
         if (typeof MediaRecorder === 'undefined') return;
@@ -59,38 +129,19 @@ const ExportVideoPanel = () => {
     }, []);
 
     const handleExport = async () => {
-        if (rightsBlockers.length > 0) {
-            setExportMessage('Export bloque: completez le manifeste de droits musique avant publication/export.');
+        if (exportPreflight.errors.length > 0) {
+            setExportMessage(`Export bloque: ${exportPreflight.errors.join(' ')}`);
             return;
         }
 
-        if (typeof MediaRecorder === 'undefined') {
-            setExportMessage('Export navigateur indisponible sur cette session.');
-            return;
-        }
+            const requestedFormat = effectiveExportFormat;
+            if (formatFallbackActive) {
+                setExportFormat('webm');
+            }
 
-        const requestedFormat = effectiveExportFormat;
-        if (formatFallbackActive) {
-            setExportFormat('webm');
-        }
-
-        const mimeCandidates = requestedFormat === 'webm'
-            ? ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']
-            : ['video/mp4;codecs=h264,aac', 'video/mp4;codecs=h264', 'video/mp4'];
-        const mimeType = mimeCandidates.find((candidate) => MediaRecorder.isTypeSupported(candidate));
-
-        const fps = Number(preset?.fps || 30);
-        const frameSchedule = buildExportFrameSchedule({ totalDuration, fps });
-        const timelineAudit = validateExportTimeline({ clips: exportClips, audioTracks: exportAudioTracks, transitionItems: exportAllTransitions, totalDuration, fps, mimeType });
-        const renderPlanAudit = validateTimelineRenderPlan({ plan: exportPlan, totalDuration, frameDuration: frameSchedule.frameDuration || (1 / fps) });
-        const auditErrors = [...timelineAudit.errors, ...renderPlanAudit.errors];
-        const auditWarnings = [...timelineAudit.warnings, ...renderPlanAudit.warnings];
-        if (auditErrors.length > 0) {
-            setExportMessage(`Export bloque: ${auditErrors.join(' ')}`);
-            return;
-        }
-        const warningNote = auditWarnings.length > 0 ? ` Checks: ${auditWarnings.join(' ')}` : '';
-        if (auditWarnings.length > 0) setExportMessage(`Export prepare avec corrections.${warningNote}`);
+        const { fps, frameSchedule, mimeType } = exportPreflight;
+        const warningNote = exportPreflight.warnings.length > 0 ? ` Checks: ${exportPreflight.warnings.join(' ')}` : '';
+        if (exportPreflight.warnings.length > 0) setExportMessage(`Export prepare avec corrections.${warningNote}`);
 
         const exportCanvas = document.createElement('canvas');
         if (!exportCanvas.captureStream) {
@@ -140,7 +191,7 @@ const ExportVideoPanel = () => {
 
         try {
             const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
-            if (exportAudioTracks.length > 0) {
+            if (shouldMixAudio) {
                 if (!AudioContextCtor || !exportEngine.connectAudioToDestination) {
                     throw new Error('mix audio navigateur indisponible');
                 }
@@ -189,7 +240,9 @@ const ExportVideoPanel = () => {
         const durationMs = Math.max(1000, frameSchedule.expectedDuration * 1000 + 500);
         let renderTime = 0;
         let frameIndex = 0;
+        let blankFrameStreak = 0;
         const frameDuration = frameSchedule.frameDuration;
+        const maxBlankFrameStreak = Math.max(3, Math.ceil(fps * 0.15));
 
         setExportMessage(`${mimeType.includes('mp4') ? 'Export MP4 en cours.' : 'Export WebM en cours. MP4 natif indisponible dans ce navigateur.'}${warningNote}`);
         setExportProgress(0);
@@ -213,6 +266,7 @@ const ExportVideoPanel = () => {
         };
 
         const failExport = (message) => {
+            if (exportFailureMessage) return;
             exportFailureMessage = message;
             setExportMessage(message);
             stopRecording();
@@ -220,12 +274,24 @@ const ExportVideoPanel = () => {
 
         const renderExportFrame = async () => {
             const frameResult = await exportEngine.seekAndDraw(exportClips, transitions, renderTime, exportAllTransitions);
+            if (renderStopped || exportFailureMessage) return;
             const frameShouldContainVideo = exportClips.length > 0 && renderTime < totalDuration - (frameDuration / 2);
             if (frameShouldContainVideo && !frameResult?.rendered) {
                 throw new Error(`frame video non rendue a ${renderTime.toFixed(2)}s (${frameResult?.reason || 'aucun clip actif'})`);
             }
             drawTextOverlays(exportCanvas, exportTextOverlays, renderTime, null);
-            exportEngine.syncClipAudio(exportPlaybackClips, transitions, renderTime, 1);
+            if (frameShouldContainVideo) {
+                const frameHealth = sampleCanvasFrameHealth(exportCanvas);
+                if (frameHealth.checkable && frameHealth.blank) {
+                    blankFrameStreak += 1;
+                    if (blankFrameStreak >= maxBlankFrameStreak) {
+                        throw new Error(`frames noires consecutives a ${renderTime.toFixed(2)}s`);
+                    }
+                } else {
+                    blankFrameStreak = 0;
+                }
+            }
+            exportEngine.syncClipAudio(exportPlaybackClips, transitions, renderTime, 1, exportAllTransitions);
             exportEngine.syncExternalAudio(exportAudioTracks, renderTime, 1);
             stream.getVideoTracks().forEach((track) => track.requestFrame?.());
             frameIndex += 1;
@@ -282,9 +348,11 @@ const ExportVideoPanel = () => {
             try {
                 await renderExportFrame();
             } catch (error) {
+                if (renderStopped || exportFailureMessage) return;
                 failExport(`Export interrompu: ${error.message}`);
                 return;
             }
+            if (renderStopped || exportFailureMessage) return;
             const elapsed = performance.now() - frameStartedAt;
             window.setTimeout(renderLoop, Math.max(0, (1000 / fps) - elapsed));
         };
@@ -360,6 +428,11 @@ const ExportVideoPanel = () => {
                                 ['Sequence', `${preset.name} ${preset.label}`],
                                 ['FPS', `${preset.fps}`],
                                 ['Duree', `${totalDuration.toFixed(1)}s`],
+                                ['Audio export', shouldMixAudio ? [
+                                    hasAudibleClipAudio ? 'clips' : '',
+                                    exportAudioTracks.length > 0 ? 'musique' : '',
+                                ].filter(Boolean).join(' + ') : 'aucun'],
+                                ['Controle frames', 'actif'],
                                 ['Format demande', exportFormat.toUpperCase()],
                                 ['Format reel', effectiveExportFormat.toUpperCase()],
                             ].map(([label, value]) => (
@@ -367,7 +440,7 @@ const ExportVideoPanel = () => {
                                     <span className="text-neutral-500">{label}</span>
                                     <span
                                         className="text-neutral-300"
-                                        data-testid={label === 'Format reel' ? 'export-effective-format' : undefined}
+                                        data-testid={label === 'Format reel' ? 'export-effective-format' : label === 'Audio export' ? 'export-audio-mix' : label === 'Controle frames' ? 'export-frame-guard' : undefined}
                                     >
                                         {value}
                                     </span>
@@ -376,6 +449,46 @@ const ExportVideoPanel = () => {
                         </div>
                     </div>
                 )}
+
+                <div
+                    className={`rounded-sm border p-3 space-y-1.5 ${
+                        exportPreflight.status === 'blocked'
+                            ? 'border-red-500/25 bg-red-500/5'
+                            : exportPreflight.status === 'warning'
+                                ? 'border-amber-500/25 bg-amber-500/5'
+                                : 'border-emerald-500/20 bg-emerald-500/5'
+                    }`}
+                    data-testid="export-preflight"
+                    data-preflight-status={exportPreflight.status}
+                >
+                    <div className="flex items-center justify-between gap-2">
+                        <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">Preflight export</span>
+                        <span
+                            className={`rounded-sm px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-widest ${
+                                exportPreflight.status === 'blocked'
+                                    ? 'bg-red-500/10 text-red-300'
+                                    : exportPreflight.status === 'warning'
+                                        ? 'bg-amber-500/10 text-amber-300'
+                                        : 'bg-emerald-500/10 text-emerald-300'
+                            }`}
+                        >
+                            {exportPreflight.status === 'blocked' ? 'Bloque' : exportPreflight.status === 'warning' ? 'Warnings' : 'Pret'}
+                        </span>
+                    </div>
+                    {exportPreflight.errors.length > 0 ? (
+                        <p className="text-[9px] font-mono leading-relaxed text-red-300/90">
+                            {exportPreflight.errors.slice(0, 2).join(' ')}
+                        </p>
+                    ) : exportPreflight.warnings.length > 0 ? (
+                        <p className="text-[9px] font-mono leading-relaxed text-amber-300/85">
+                            {exportPreflight.warnings.slice(0, 2).join(' ')}
+                        </p>
+                    ) : (
+                        <p className="text-[9px] font-mono leading-relaxed text-emerald-300/80">
+                            Frames, duree, codec, transitions et audio verifies.
+                        </p>
+                    )}
+                </div>
 
                 {exportAudioTracks.length > 0 && (
                     <div className={`rounded-sm border p-3 space-y-2 ${
@@ -426,11 +539,11 @@ const ExportVideoPanel = () => {
 
                 <button
                     onClick={handleExport}
-                    disabled={!hasClips || isExporting || rightsBlockers.length > 0}
+                    disabled={!hasClips || isExporting || exportPreflight.errors.length > 0}
                     className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white py-2.5 text-xs font-mono font-medium hover:bg-indigo-500 transition shadow-[0_0_20px_rgba(79,70,229,0.4)] disabled:opacity-50 disabled:shadow-none uppercase tracking-wider"
                 >
                     <Download size={14} />
-                    {isExporting ? `Export... ${exportProgress}%` : rightsBlockers.length > 0 ? 'Droits audio incomplets' : 'Exporter'}
+                    {isExporting ? `Export... ${exportProgress}%` : exportPreflight.errors.length > 0 ? 'Export bloque' : 'Exporter'}
                 </button>
 
                 {isExporting && (
@@ -457,6 +570,43 @@ function getRejectedMediaMessages(results = [], fallback = 'Media illisible') {
             const reason = result.reason?.message || fallback;
             return `${fallback}: ${name} (${reason}).`;
         });
+}
+
+function getSupportedMimeType(format = 'webm') {
+    if (typeof MediaRecorder === 'undefined') return '';
+    const candidates = MIME_CANDIDATES[format] || MIME_CANDIDATES.webm;
+    return candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate)) || '';
+}
+
+function sampleCanvasFrameHealth(canvas) {
+    try {
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx || canvas.width <= 0 || canvas.height <= 0) return { checkable: false, blank: false };
+
+        const points = [
+            [0.5, 0.5], [0.35, 0.5], [0.65, 0.5],
+            [0.5, 0.35], [0.5, 0.65], [0.2, 0.2],
+            [0.8, 0.2], [0.2, 0.8], [0.8, 0.8],
+        ];
+        const lumas = points.map(([rx, ry]) => {
+            const x = Math.max(0, Math.min(canvas.width - 1, Math.floor(canvas.width * rx)));
+            const y = Math.max(0, Math.min(canvas.height - 1, Math.floor(canvas.height * ry)));
+            const pixel = ctx.getImageData(x, y, 1, 1).data;
+            return (pixel[0] + pixel[1] + pixel[2]) / 3;
+        });
+        const max = Math.max(...lumas);
+        const min = Math.min(...lumas);
+        const mean = lumas.reduce((sum, value) => sum + value, 0) / lumas.length;
+
+        return {
+            checkable: true,
+            blank: max <= 3 && mean <= 2 && (max - min) <= 3,
+            mean,
+            spread: max - min,
+        };
+    } catch {
+        return { checkable: false, blank: false };
+    }
 }
 
 export default ExportVideoPanel;

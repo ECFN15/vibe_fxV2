@@ -29,7 +29,8 @@ const TrackItem = ({
     const {
         updateTimelineItem,
         removeTextOverlay, removeAudioTrack, removeTransitionItem,
-        beginHistoryTransaction, commitHistoryTransaction
+        beginHistoryTransaction, commitHistoryTransaction,
+        notifyTimelineEditRejected
     } = useVideoStore();
 
     const [dragMode, setDragMode] = useState(null); // 'move' | 'resize-left' | 'resize-right'
@@ -64,6 +65,7 @@ const TrackItem = ({
         e.preventDefault();
         if (isLocked) {
             if (onSelect) onSelect();
+            notifyTimelineEditRejected('track-locked', 'Piste verrouillee: edition ignoree.');
             return;
         }
         if (onSelect) onSelect();
@@ -150,7 +152,7 @@ const TrackItem = ({
         window.addEventListener('pointermove', onMove);
         window.addEventListener('pointerup', onUp);
         window.addEventListener('pointercancel', onUp);
-    }, [beginHistoryTransaction, commitHistoryTransaction, pps, item, isLocked, maxEnd, onSelect, onSnapPreview, snapEnabled, snapPoints, snapThreshold, type, updateTimelineItem]);
+    }, [beginHistoryTransaction, commitHistoryTransaction, notifyTimelineEditRejected, pps, item, isLocked, maxEnd, onSelect, onSnapPreview, snapEnabled, snapPoints, snapThreshold, type, updateTimelineItem]);
 
     return (
         <div

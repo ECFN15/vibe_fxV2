@@ -15,17 +15,23 @@ try {
   const {
     buildTimelineModel,
     buildExportFrameSchedule,
+    buildTimelineSnapPoints,
     clampVolumePercent,
     findTransitionItemOverlap,
+    getDefaultTracks,
+    getNearestExportFrameSample,
     resolveActiveTransition,
     resolveTimelineRenderPlan,
     resolveTimelineTransitions,
+    snapTimelineRange,
+    validateExportAudioMix,
+    validateExportFrameCoverage,
     validateExportTimeline,
     validateTimelineRenderPlan,
   } = await import(pathToFileURL(tempModulePath).href);
 
   const clips = [
-    { id: "clip-a", name: "Clip A", url: "/a.webm", trimStart: 0, trimEnd: 3, duration: 3, speed: 1, volume: 80 },
+    { id: "clip-a", name: "Clip A", url: "/a.webm", trimStart: 0, trimEnd: 3, duration: 3, speed: 1, volume: 80, filters: { brightness: 95, contrast: 125, saturation: 130, temperature: -15, vignette: 20, grain: 5 } },
     { id: "clip-b", name: "Clip B", url: "/b.webm", trimStart: 0, trimEnd: 2, duration: 2, speed: 1, volume: 80 },
   ];
   const transitions = {
@@ -43,12 +49,34 @@ try {
   const totalDuration = 4.5;
 
   const model = buildTimelineModel({ clips, transitions, transitionItems, textOverlays, audioTracks, totalDuration });
+  assert.ok(getDefaultTracks().some((track) => track.id === "effect-main" && track.type === "effect"));
+  assert.equal(getDefaultTracks().find((track) => track.id === "transition-main").allowOverlap, false);
+  assert.equal(getDefaultTracks().find((track) => track.id === "text-main").allowOverlap, true);
+  assert.equal(getDefaultTracks().find((track) => track.id === "music-main").allowOverlap, false);
+  assert.ok(model.tracks.some((track) => track.id === "effect-main" && track.type === "effect"));
   const videoItems = model.items.filter((item) => item.type === "video");
   assert.equal(videoItems.length, 2);
   assert.equal(videoItems[0].start, 0);
   assert.equal(videoItems[0].duration, 3);
   assert.equal(videoItems[1].start, 2.5);
   assert.equal(videoItems[1].duration, 2);
+  const embeddedAudioItems = model.items.filter((item) => item.type === "audio" && item.trackId === "audio-main");
+  assert.equal(embeddedAudioItems.length, 2);
+  assert.equal(embeddedAudioItems[0].id, "clip-a:audio");
+  assert.equal(embeddedAudioItems[0].sourceId, "clip-a");
+  assert.equal(embeddedAudioItems[0].params.embedded, true);
+  assert.equal(embeddedAudioItems[0].start, videoItems[0].start);
+  assert.equal(embeddedAudioItems[1].start, videoItems[1].start);
+  const musicModelItems = model.items.filter((item) => item.type === "audio" && item.trackId === "music-main");
+  assert.equal(musicModelItems.length, 1);
+  const effectModelItems = model.items.filter((item) => item.type === "effect" && item.trackId === "effect-main");
+  assert.equal(effectModelItems.length, 1);
+  assert.equal(effectModelItems[0].id, "clip-a:effect:filters");
+  assert.equal(effectModelItems[0].sourceId, "clip-a");
+  assert.equal(effectModelItems[0].params.effectType, "clip-filters");
+  assert.equal(effectModelItems[0].params.filters.contrast, 125);
+  assert.equal(effectModelItems[0].start, videoItems[0].start);
+  assert.equal(effectModelItems[0].duration, videoItems[0].duration);
   const transitionModelItems = model.items.filter((item) => item.type === "transition");
   const modelCutTransition = transitionModelItems.find((item) => item.params.placement === "cut");
   const modelFreeTransition = transitionModelItems.find((item) => item.params.placement === "free");
@@ -73,11 +101,53 @@ try {
   assert.equal(resolveActiveTransition(canonicalTransitions, 2.6, totalDuration).fromItemId, "clip-a");
   assert.equal(resolveActiveTransition(canonicalTransitions, 2.6, totalDuration).toItemId, "clip-b");
 
+  const canonicalCutOnlyItems = [
+    { id: "cut-canonical-a-b", type: "crossfade", start: 2.5, duration: 0.5, fromItemId: "clip-a", toItemId: "clip-b", trackId: "transition-main", params: { placement: "cut" } },
+    ...transitionItems,
+  ];
+  const canonicalCutOnlyModel = buildTimelineModel({ clips, transitions: {}, transitionItems: canonicalCutOnlyItems, textOverlays, audioTracks, totalDuration });
+  const canonicalCutOnlyVideoItems = canonicalCutOnlyModel.items.filter((item) => item.type === "video");
+  assert.equal(canonicalCutOnlyVideoItems[1].start, 2.5, "canonical cut transition items must control clip overlap without legacy transitions");
+  const canonicalCutOnlyTransitions = resolveTimelineTransitions({ clips, transitions: {}, transitionItems: canonicalCutOnlyItems, totalDuration });
+  assert.equal(canonicalCutOnlyTransitions.length, 2, "canonical cut transition items must not be duplicated as free transitions");
+  assert.equal(canonicalCutOnlyTransitions.find((transition) => transition.params.placement === "cut").id, "cut-canonical-a-b");
+
+  const snapPoints = buildTimelineSnapPoints({
+    clips,
+    transitions,
+    transitionItems,
+    textOverlays,
+    audioTracks: [
+      ...audioTracks,
+      { id: "music-cue", name: "Cue", url: "/cue.mp3", startTime: 0.75, duration: 0.4, endTime: 1.15, trackId: "music-main" },
+    ],
+    totalDuration,
+    currentTime: 1.37,
+  });
+  assert.ok(snapPoints.some((point) => point.type === "transition-start" && point.time === 1.2));
+  assert.ok(snapPoints.some((point) => point.type === "transition-end" && point.time === 1.6));
+  assert.ok(snapPoints.some((point) => point.type === "text-start" && point.time === 0.1));
+  assert.ok(snapPoints.some((point) => point.type === "audio-start" && point.time === 0.75));
+  assert.ok(snapPoints.some((point) => point.type === "audio-end" && point.time === 1.15));
+  const snappedToFreeTransition = snapTimelineRange({
+    start: 1.19,
+    end: 1.49,
+    mode: "move",
+    points: snapPoints,
+    threshold: 0.08,
+    totalDuration,
+    minDuration: 0.2,
+  });
+  assert.equal(snappedToFreeTransition.start, 1.2);
+  assert.equal(snappedToFreeTransition.snap.point.type, "transition-start");
+
   const plan = resolveTimelineRenderPlan({ clips, transitions, transitionItems, textOverlays, audioTracks, totalDuration });
   assert.equal(plan.clips.length, 2);
   assert.equal(plan.transitionItems.length, 1);
   assert.equal(plan.allTransitions.length, 2);
+  assert.equal(plan.effectItems.length, 1);
   assert.equal(plan.textOverlays.length, 1);
+  assert.equal(plan.audioClipItems.length, 2);
   assert.equal(plan.audioTracks.length, 1);
   assert.equal(plan.playbackClips[0].volume, 80);
 
@@ -93,6 +163,34 @@ try {
   });
   assert.equal(clampedVolumePlan.playbackClips[0].volume, 0);
   assert.equal(clampedVolumePlan.audioTracks[0].volume, 100);
+
+  const silentAudioAudit = validateExportAudioMix({
+    playbackClips: [{ ...clips[0], start: 0, duration: 2, volume: 0 }],
+    audioTracks: [{ ...audioTracks[0], volume: 0, startTime: 0, duration: 2, endTime: 2 }],
+    shouldMixAudio: true,
+    totalDuration: 3,
+  });
+  assert.deepEqual(silentAudioAudit.errors, []);
+  assert.ok(silentAudioAudit.warnings.some((warning) => warning.includes("Export audio muet")));
+  assert.ok(silentAudioAudit.warnings.some((warning) => warning.includes("Piste audio muette")));
+  assert.ok(silentAudioAudit.warnings.some((warning) => warning.includes("Audio clip muet")));
+
+  const missingAudioAudit = validateExportAudioMix({
+    playbackClips: [],
+    audioTracks: [],
+    shouldMixAudio: true,
+    totalDuration: 3,
+  });
+  assert.ok(missingAudioAudit.errors.some((error) => error.includes("sans source audio active")));
+
+  const badAudioAudit = validateExportAudioMix({
+    playbackClips: [],
+    audioTracks: [{ id: "bad-audio", name: "Bad Audio", startTime: 4, duration: 1, endTime: 5, volume: 50 }],
+    shouldMixAudio: true,
+    totalDuration: 3,
+  });
+  assert.ok(badAudioAudit.errors.some((error) => error.includes("sans URL")));
+  assert.ok(badAudioAudit.errors.some((error) => error.includes("hors timeline")));
 
   const mutedPlan = resolveTimelineRenderPlan({
     clips,
@@ -110,6 +208,7 @@ try {
     ],
   });
   assert.equal(mutedPlan.textOverlays.length, 0);
+  assert.equal(mutedPlan.audioClipItems.length, 2);
   assert.equal(mutedPlan.audioTracks.length, 0);
   assert.equal(mutedPlan.playbackClips[0].volume, 0);
 
@@ -145,6 +244,23 @@ try {
   });
   assert.ok(overlapAudit.errors.some((error) => error.includes("Overlap video non couvert")));
 
+  const canonicalCutOverlapAudit = validateTimelineRenderPlan({
+    totalDuration: 3,
+    plan: {
+      clips: [
+        { id: "a", name: "A", url: "/a.webm", start: 0, duration: 2, trimStart: 0, trimEnd: 2 },
+        { id: "b", name: "B", url: "/b.webm", start: 1.5, duration: 1.5, trimStart: 0, trimEnd: 1.5 },
+      ],
+      transitions: {},
+      transitionItems: [],
+      allTransitions: [
+        { id: "cut-a-b", type: "crossfade", start: 1.5, duration: 0.5, fromItemId: "a", toItemId: "b", trackId: "transition-main", params: { placement: "cut" } },
+      ],
+      audioTracks: [],
+    },
+  });
+  assert.deepEqual(canonicalCutOverlapAudit.errors, []);
+
   const transitionOverlap = findTransitionItemOverlap([
     { id: "tr-a", type: "flash", start: 0.5, duration: 1, trackId: "transition-main" },
     { id: "tr-b", type: "fade", start: 1.2, duration: 0.5, trackId: "transition-main" },
@@ -169,6 +285,69 @@ try {
   });
   assert.ok(transitionOverlapAudit.errors.some((error) => error.includes("Overlap transition")));
 
+  const audioOverlapAudit = validateTimelineRenderPlan({
+    totalDuration: 4,
+    plan: {
+      clips: [
+        { id: "a", name: "A", url: "/a.webm", start: 0, duration: 4, trimStart: 0, trimEnd: 4 },
+      ],
+      transitions: {},
+      transitionItems: [],
+      audioTracks: [
+        { id: "music-a", name: "Music A", url: "/a.mp3", trackId: "music-main", start: 0, duration: 2, startTime: 0, endTime: 2 },
+        { id: "music-b", name: "Music B", url: "/b.mp3", trackId: "music-main", start: 1.5, duration: 2, startTime: 1.5, endTime: 3.5 },
+      ],
+    },
+  });
+  assert.ok(audioOverlapAudit.errors.some((error) => error.includes("Overlap audio interdit")));
+
+  const overlappingTextPlan = {
+    clips: [
+      { id: "a", name: "A", url: "/a.webm", start: 0, duration: 4, trimStart: 0, trimEnd: 4 },
+    ],
+    transitions: {},
+    transitionItems: [],
+    audioTracks: [],
+    textOverlays: [
+      { id: "txt-a", content: "A", trackId: "text-main", startTime: 0, endTime: 2 },
+      { id: "txt-b", content: "B", trackId: "text-main", startTime: 1, endTime: 3 },
+    ],
+  };
+  const overlappingTextAllowedAudit = validateTimelineRenderPlan({
+    totalDuration: 4,
+    plan: overlappingTextPlan,
+  });
+  assert.deepEqual(overlappingTextAllowedAudit.errors, []);
+
+  const overlappingTextBlockedAudit = validateTimelineRenderPlan({
+    totalDuration: 4,
+    plan: {
+      ...overlappingTextPlan,
+      tracks: getDefaultTracks().map((track) => track.id === "text-main" ? { ...track, allowOverlap: false } : track),
+    },
+  });
+  assert.ok(overlappingTextBlockedAudit.errors.some((error) => error.includes("Overlap interdit sur piste Texte")));
+
+  const detachedItemAudit = validateTimelineRenderPlan({
+    totalDuration: 3,
+    plan: {
+      clips: [
+        { id: "a", name: "A", url: "/a.webm", start: 0, duration: 3, trimStart: 0, trimEnd: 3 },
+      ],
+      transitions: {},
+      transitionItems: [],
+      audioTracks: [],
+      audioClipItems: [
+        { id: "orphan-audio", sourceId: "missing", trackId: "audio-main", start: 0, duration: 1 },
+      ],
+      effectItems: [
+        { id: "late-effect", sourceId: "a", trackId: "effect-main", start: 0.4, duration: 1, params: { clipId: "a" } },
+      ],
+    },
+  });
+  assert.ok(detachedItemAudit.errors.some((error) => error.includes("Audio clip sans clip source actif")));
+  assert.ok(detachedItemAudit.warnings.some((warning) => warning.includes("Effet clip desynchronise")));
+
   const exportAudit = validateExportTimeline({
     clips: plan.clips,
     audioTracks: plan.audioTracks,
@@ -184,11 +363,31 @@ try {
   assert.equal(exactFrameSchedule.totalFrames, 135);
   assert.equal(exactFrameSchedule.frameDuration, 1 / 30);
   assert.equal(exactFrameSchedule.lastFrameTime, 134 / 30);
+  const transitionFrameCoverage = validateExportFrameCoverage({
+    frameSchedule: exactFrameSchedule,
+    transitionItems: canonicalTransitions,
+    totalDuration,
+  });
+  assert.deepEqual(transitionFrameCoverage.errors, []);
+  assert.ok(transitionFrameCoverage.samples.some((sample) => sample.label.includes("transition:crossfade")));
+  const cutMidpointSample = getNearestExportFrameSample({
+    frameSchedule: exactFrameSchedule,
+    time: cutTransition.start + cutTransition.duration / 2,
+    label: "cut-midpoint",
+  });
+  assert.equal(cutMidpointSample.index, 83);
+  assert.ok(Math.abs(cutMidpointSample.time - (83 / 30)) < 0.000001);
 
   const fractionalFrameSchedule = buildExportFrameSchedule({ totalDuration: 4.52, fps: 30 });
   assert.equal(fractionalFrameSchedule.totalFrames, 136);
   assert.ok(fractionalFrameSchedule.lastFrameTime < fractionalFrameSchedule.totalDuration);
   assert.ok(fractionalFrameSchedule.expectedDuration >= fractionalFrameSchedule.totalDuration);
+  const uncoveredTransitionAudit = validateExportFrameCoverage({
+    frameSchedule: buildExportFrameSchedule({ totalDuration: 1, fps: 5 }),
+    transitionItems: [{ id: "tiny-transition", type: "flash", start: 0.05, duration: 0.1 }],
+    totalDuration: 1,
+  });
+  assert.ok(uncoveredTransitionAudit.errors.some((error) => error.includes("sans frame export")));
 
   console.log("Video timeline model smoke passed");
 } finally {

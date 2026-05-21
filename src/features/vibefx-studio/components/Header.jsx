@@ -1,19 +1,19 @@
 import React from 'react';
-import { Camera, Sun, Moon, Zap, Layers, LayoutTemplate, Aperture, Download, Library, Film, Send, CreditCard } from 'lucide-react';
+import { Camera, Sun, Moon, Zap, Layers, LayoutTemplate, Aperture, Download, Library, Film, Send, Sparkles, Music2, CreditCard } from 'lucide-react';
 import MusicPlayer from './MusicPlayer';
 
-const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, onExport, onImportPublication, onOpenPublications }) => {
+const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, onExport, onImportPublication, onOpenPublications, isAiRailOpen, onToggleAiRail, aiJobActive }) => {
     // Helper simple pour les icônes conditionnelles
     const getIcon = (name) => {
-        const map = { Zap, Layers, LayoutTemplate, Aperture, Library, Film, CreditCard };
+        const map = { Zap, Layers, LayoutTemplate, Aperture, Library, Music2, CreditCard, Film };
         const Icon = map[name];
         return Icon ? <Icon size={14} /> : null;
     };
 
     return (
-        <header className={`border-b backdrop-blur-md sticky top-0 z-20 shrink-0 transition-colors duration-300 ${isDarkMode ? 'border-neutral-800 bg-black/90' : 'border-gray-200 bg-white/90'}`}>
-            <div className="max-w-[1920px] mx-auto px-2 sm:px-6 h-14 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 sm:gap-4 min-w-0 sm:min-w-[150px] shrink-0">
+        <header className={`vibefx-studio-header border-b backdrop-blur-md sticky top-0 z-20 shrink-0 transition-colors duration-300 ${isDarkMode ? 'border-neutral-800 bg-black/90' : 'border-gray-200 bg-white/90'}`}>
+            <div className="vibefx-studio-header__inner max-w-[1920px] mx-auto px-2 sm:px-6 h-24 sm:h-14 flex flex-wrap sm:flex-nowrap items-center justify-between gap-0 sm:gap-2">
+                <div className="vibefx-studio-header__brand order-1 flex h-12 sm:h-full items-center gap-2 sm:gap-4 min-w-0 sm:min-w-[150px] shrink">
                     <div className="w-8 h-8 bg-indigo-600 flex items-center justify-center shadow-[0_0_15px_rgba(79,70,229,0.3)]">
                         <Camera size={16} className="text-white" />
                     </div>
@@ -26,15 +26,18 @@ const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, 
                     >
                         {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
                     </button>
-                    <MusicPlayer isDarkMode={isDarkMode} />
+                    <div className="hidden md:block">
+                        <MusicPlayer isDarkMode={isDarkMode} />
+                    </div>
                 </div>
 
-                <div className="flex-1 min-w-0 flex h-full items-center gap-1 overflow-x-auto scrollbar-hide md:justify-center">
+                <div className="vibefx-studio-header__tabs order-3 sm:order-2 w-full sm:w-auto flex-none sm:flex-1 min-w-0 flex h-12 sm:h-full items-center gap-1 overflow-x-auto scrollbar-hide md:justify-center">
                     {[
                         { id: 'studio', icon: 'Zap', label: 'Studio' },
                         { id: 'fusion', icon: 'Layers', label: 'Fusion' },
                         { id: 'layout', icon: 'LayoutTemplate', label: 'Layout' },
                         { id: 'library', icon: 'Library', label: 'Library' },
+                        { id: 'soundtrack', icon: 'Music2', label: 'Soundtrack' },
                         { id: 'credits', icon: 'CreditCard', label: 'Credits' },
                         { id: 'vision-pro', icon: 'Aperture', label: 'Vision' },
                         { id: 'video', icon: 'Film', label: 'Video' }
@@ -53,7 +56,22 @@ const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, 
                     ))}
                 </div>
 
-                <div className="flex gap-2 sm:gap-4 min-w-0 sm:min-w-[150px] justify-end items-center shrink-0">
+                <div className="vibefx-studio-header__actions order-2 sm:order-3 flex h-12 sm:h-full gap-2 sm:gap-4 min-w-0 sm:min-w-[150px] justify-end items-center shrink-0 ml-auto sm:ml-0">
+                    {onToggleAiRail && (
+                        <button
+                            type="button"
+                            onClick={onToggleAiRail}
+                            data-testid="studio-ai-toggle"
+                            data-active={isAiRailOpen ? 'true' : 'false'}
+                            className="vf-ai-header-button"
+                            aria-pressed={isAiRailOpen}
+                            title="Ouvrir les agents IA"
+                        >
+                            <Sparkles size={13} />
+                            AI
+                            {aiJobActive && <span className="vf-ai-header-button__badge">RUN</span>}
+                        </button>
+                    )}
                     {onOpenPublications && (
                         <button onClick={onOpenPublications} className={`hidden lg:flex text-[10px] uppercase font-mono tracking-widest px-3 py-1 transition-colors duration-200 border ${isDarkMode ? 'border-neutral-800 text-neutral-500 hover:text-white hover:border-indigo-500/50' : 'border-gray-200 text-gray-500 hover:text-black'}`}>Publications</button>
                     )}

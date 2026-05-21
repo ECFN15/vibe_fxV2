@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { buildTimelineModel, clampVolumePercent, findTransitionItemOverlap, getDefaultTracks, getTrackForItemType, isTrackLocked as isTimelineTrackLocked } from '../model/timelineModel';
+import { buildTimelineModel, clampVolumePercent, doesTrackAllowOverlap, findTimelineItemOverlap, getDefaultTracks, getTrackForItemType, isTrackLocked as isTimelineTrackLocked } from '../model/timelineModel';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -14,6 +14,9 @@ const useVideoStore = create((set, get) => ({
 
     // === CANONICAL TIMELINE MODEL ===
     tracks: getDefaultTracks(),
+    timelineEditNotice: null,
+    clearTimelineEditNotice: () => set({ timelineEditNotice: null }),
+    notifyTimelineEditRejected: (code = 'timeline-rejected', message = 'Edition timeline ignoree.') => rejectTimelineEdit(set, code, message),
     setTrackState: (id, updates) => set((s) => ({
         tracks: s.tracks.map(track => track.id === id ? { ...track, ...updates } : track),
     })),
@@ -33,9 +36,10 @@ const useVideoStore = create((set, get) => ({
         const state = get();
         const timelineItem = state.getTimelineModel().items.find(item => item.id === id);
         if (!timelineItem) return;
-        if (isTimelineTrackLocked(state.tracks, timelineItem.trackId)) return;
-
-        if (options.history) pushHistory(state);
+        if (isTimelineTrackLocked(state.tracks, timelineItem.trackId)) {
+            rejectTimelineEdit(set, 'track-locked', 'Piste verrouillee: deplacement ignore.');
+            return;
+        }
 
         const normalizedUpdates = {
             ...updates,
@@ -43,19 +47,19 @@ const useVideoStore = create((set, get) => ({
         };
 
         if (timelineItem.type === 'transition') {
-            get().updateTransitionItem(id, normalizedUpdates);
+            get().updateTransitionItem(id, normalizedUpdates, { history: options.history });
             return;
         }
         if (timelineItem.type === 'text') {
-            get().updateTextOverlay(id, normalizedUpdates);
+            get().updateTextOverlay(id, normalizedUpdates, { history: options.history });
             return;
         }
         if (timelineItem.type === 'audio') {
-            get().updateAudioTrack(id, normalizedUpdates);
+            get().updateAudioTrack(id, normalizedUpdates, { history: options.history });
             return;
         }
         if (timelineItem.type === 'video') {
-            get().updateClip(id, pickClipTimelineUpdates(normalizedUpdates));
+            get().updateClip(id, pickClipTimelineUpdates(normalizedUpdates), { history: options.history });
         }
     },
     snapEnabled: false,
@@ -63,19 +67,38 @@ const useVideoStore = create((set, get) => ({
     beginHistoryTransaction: (label = 'timeline-edit') => {
         const state = get();
         if (state._historyTransaction) return;
+        const snapshot = createSnapshot(state);
         pushHistory(state, { force: true });
-        set({ _historyTransaction: { label, startedAt: Date.now() } });
+        set({ _historyTransaction: { label, startedAt: Date.now(), snapshot } });
     },
-    commitHistoryTransaction: () => set({ _historyTransaction: null }),
+    commitHistoryTransaction: () => {
+        const state = get();
+        if (!state._historyTransaction) return;
+        if (isSnapshotUnchanged(state, state._historyTransaction.snapshot)) {
+            const history = state._history.slice(0, -1);
+            set({
+                _historyTransaction: null,
+                _history: history,
+                _historyIndex: history.length - 1,
+            });
+            return;
+        }
+        set({ _historyTransaction: null });
+    },
 
     // === CLIPS ===
     clips: [],
     selectedClipId: null,
     setSelectedClipId: (id) => set({ selectedClipId: id }),
+    filterPreviewBypassClipId: null,
+    setFilterPreviewBypassClipId: (id) => set({ filterPreviewBypassClipId: id }),
 
     addClip: (clipData) => {
         const state = get();
-        if (isTimelineTrackLocked(state.tracks, 'video-main')) return;
+        if (isTimelineTrackLocked(state.tracks, 'video-main')) {
+            rejectTimelineEdit(set, 'track-locked', 'Piste video verrouillee: import ignore.');
+            return;
+        }
         pushHistory(state);
         set((s) => {
             const newClip = {
@@ -91,16 +114,20 @@ const useVideoStore = create((set, get) => ({
                 speed: 1,
                 volume: 100,
                 filters: { brightness: 100, contrast: 100, saturation: 100, temperature: 0, vignette: 0, grain: 0 },
+                waveform: clipData.waveform || { status: 'pending', peaks: [] },
             };
             const clips = [...s.clips, newClip];
-            const totalDuration = computeTotalDuration(clips, s.transitions);
-            return { clips, totalDuration, currentTime: clamp(s.currentTime, 0, totalDuration) };
+            const totalDuration = computeTotalDuration(clips, s.transitions, s.transitionItems);
+            return { clips, totalDuration, currentTime: clamp(s.currentTime, 0, totalDuration), timelineEditNotice: null };
         });
     },
 
     removeClip: (id) => {
         const state = get();
-        if (isTimelineTrackLocked(state.tracks, 'video-main')) return;
+        if (isTimelineTrackLocked(state.tracks, 'video-main')) {
+            rejectTimelineEdit(set, 'track-locked', 'Piste video verrouillee: suppression ignoree.');
+            return;
+        }
         pushHistory(state);
         set((s) => {
             const clips = s.clips.filter(c => c.id !== id);
@@ -111,58 +138,73 @@ const useVideoStore = create((set, get) => ({
                     delete transitions[key];
                 }
             });
-            const totalDuration = computeTotalDuration(clips, transitions);
+            const transitionItems = removeTransitionItemsForMissingClips(s.transitionItems, clips);
+            const totalDuration = computeTotalDuration(clips, transitions, transitionItems);
             return {
                 clips,
                 transitions,
+                transitionItems,
                 totalDuration,
                 currentTime: clamp(s.currentTime, 0, totalDuration),
                 selectedClipId: s.selectedClipId === id ? null : s.selectedClipId,
+                selectedTransitionId: s.selectedTransitionId && transitionItems.some(item => item.id === s.selectedTransitionId) ? s.selectedTransitionId : null,
+                timelineEditNotice: null,
             };
         });
     },
 
     reorderClips: (fromIndex, toIndex) => {
         const state = get();
-        if (isTimelineTrackLocked(state.tracks, 'video-main')) return;
+        if (isTimelineTrackLocked(state.tracks, 'video-main')) {
+            rejectTimelineEdit(set, 'track-locked', 'Piste video verrouillee: reorder ignore.');
+            return;
+        }
         pushHistory(state);
         set((s) => {
             const cutTransitions = s.clips.slice(0, -1).map((clip, index) => (
-                s.transitions[`${clip.id}->${s.clips[index + 1].id}`] || null
+                getCutTransitionForPair(s.transitions, s.transitionItems, clip.id, s.clips[index + 1].id)
             ));
             const clips = [...s.clips];
             const [moved] = clips.splice(fromIndex, 1);
             clips.splice(toIndex, 0, moved);
-            const transitions = Object.fromEntries(
-                cutTransitions
-                    .map((transition, index) => {
-                        if (!transition || !clips[index + 1]) return null;
-                        return [`${clips[index].id}->${clips[index + 1].id}`, transition];
-                    })
-                    .filter(Boolean)
-            );
-            const totalDuration = computeTotalDuration(clips, transitions);
-            return { clips, transitions, totalDuration, currentTime: clamp(s.currentTime, 0, totalDuration) };
+            const transitions = {};
+            const transitionItems = reassignCutTransitionSlots(s.transitionItems, cutTransitions, clips);
+            const totalDuration = computeTotalDuration(clips, transitions, transitionItems);
+            return {
+                clips,
+                transitions,
+                transitionItems,
+                selectedTransitionId: s.selectedTransitionId && transitionItems.some(item => item.id === s.selectedTransitionId) ? s.selectedTransitionId : null,
+                totalDuration,
+                currentTime: clamp(s.currentTime, 0, totalDuration),
+                timelineEditNotice: null,
+            };
         });
     },
 
     updateClip: (id, updates, options = {}) => {
         const state = get();
-        if (isTimelineTrackLocked(state.tracks, 'video-main')) return;
+        if (isTimelineTrackLocked(state.tracks, getClipUpdateTrackId(updates))) {
+            rejectTimelineEdit(set, 'track-locked', 'Piste verrouillee: edition clip ignoree.');
+            return;
+        }
         if (options.history) pushHistory(state);
         set((s) => {
         const normalizedUpdates = Object.prototype.hasOwnProperty.call(updates, 'volume')
             ? { ...updates, volume: clampVolumePercent(updates.volume) }
             : updates;
         const clips = s.clips.map(c => c.id === id ? { ...c, ...normalizedUpdates } : c);
-        const totalDuration = computeTotalDuration(clips, s.transitions);
-        return { clips, totalDuration, currentTime: clamp(s.currentTime, 0, totalDuration) };
+        const totalDuration = computeTotalDuration(clips, s.transitions, s.transitionItems);
+        return { clips, totalDuration, currentTime: clamp(s.currentTime, 0, totalDuration), timelineEditNotice: null };
         });
     },
 
     splitClip: (id, atTime) => {
         const state = get();
-        if (isTimelineTrackLocked(state.tracks, 'video-main')) return;
+        if (isTimelineTrackLocked(state.tracks, 'video-main')) {
+            rejectTimelineEdit(set, 'track-locked', 'Piste video verrouillee: split ignore.');
+            return;
+        }
         pushHistory(state);
         set((s) => {
             const idx = s.clips.findIndex(c => c.id === id);
@@ -186,14 +228,32 @@ const useVideoStore = create((set, get) => ({
                     delete transitions[oldKey];
                 }
             }
+            const transitionItems = s.transitionItems.map(item => {
+                if ((item.params?.placement || 'free') !== 'cut') return item;
+                if (item.fromItemId === id && s.clips[idx + 1]?.id === item.toItemId) {
+                    return {
+                        ...item,
+                        id: item.id === `cut-${id}-${item.toItemId}` ? `cut-${clipBId}-${item.toItemId}` : item.id,
+                        fromItemId: clipBId,
+                        params: {
+                            ...(item.params || {}),
+                            legacyKey: `${clipBId}->${item.toItemId}`,
+                            placement: 'cut',
+                        },
+                    };
+                }
+                return item;
+            });
 
-            const totalDuration = computeTotalDuration(clips, transitions);
+            const totalDuration = computeTotalDuration(clips, transitions, transitionItems);
             return {
                 clips,
                 transitions,
+                transitionItems,
                 totalDuration,
                 currentTime: clamp(s.currentTime, 0, totalDuration),
                 selectedClipId: clipBId,
+                timelineEditNotice: null,
             };
         });
     },
@@ -206,20 +266,34 @@ const useVideoStore = create((set, get) => ({
 
     setTransition: (fromId, toId, transition) => {
         const state = get();
-        if (isTimelineTrackLocked(state.tracks, getTrackForItemType('transition'))) return;
+        if (isTimelineTrackLocked(state.tracks, getTrackForItemType('transition'))) {
+            rejectTimelineEdit(set, 'track-locked', 'Piste transition verrouillee: changement ignore.');
+            return;
+        }
         pushHistory(state);
         set((s) => {
             const key = `${fromId}->${toId}`;
-            const transitions = { ...s.transitions, [key]: transition };
-            const totalDuration = computeTotalDuration(s.clips, transitions);
-            return { transitions, totalDuration, currentTime: clamp(s.currentTime, 0, totalDuration) };
+            const transitions = { ...s.transitions };
+            delete transitions[key];
+            const transitionItems = upsertCutTransitionItem(s.transitionItems, fromId, toId, transition);
+            const totalDuration = computeTotalDuration(s.clips, transitions, transitionItems);
+            return {
+                transitions,
+                transitionItems,
+                totalDuration,
+                currentTime: clamp(s.currentTime, 0, totalDuration),
+                timelineEditNotice: null,
+            };
         });
     },
 
     addTransitionItem: (transition) => {
         const state = get();
         const trackId = transition.trackId || getTrackForItemType('transition');
-        if (isTimelineTrackLocked(state.tracks, trackId)) return;
+        if (isTimelineTrackLocked(state.tracks, trackId)) {
+            rejectTimelineEdit(set, 'track-locked', 'Piste transition verrouillee: ajout ignore.');
+            return;
+        }
         const duration = Math.max(0.1, transition.duration || transition.defaultDuration || 0.5);
         const maxEnd = Math.max(0.1, state.totalDuration || 0.1);
         const startTime = clamp(transition.startTime ?? state.currentTime ?? 0, 0, Math.max(0, maxEnd - duration));
@@ -239,11 +313,15 @@ const useVideoStore = create((set, get) => ({
             endTime: startTime + duration,
             duration,
         };
-        if (findTransitionItemOverlap([...state.transitionItems, nextItem], state.totalDuration)) return;
+        if (hasDisallowedItemOverlap(state.tracks, [...state.transitionItems, nextItem], trackId)) {
+            rejectTimelineEdit(set, 'track-overlap', 'Overlap interdit sur cette piste: transition ignoree.');
+            return;
+        }
         pushHistory(state);
         set((s) => ({
             transitionItems: [...s.transitionItems, nextItem],
             selectedTransitionId: id,
+            timelineEditNotice: null,
         }));
     },
 
@@ -251,7 +329,10 @@ const useVideoStore = create((set, get) => ({
         const state = get();
         const target = state.transitionItems.find(item => item.id === id);
         if (!target) return;
-        if (isTimelineTrackLocked(state.tracks, target.trackId || getTrackForItemType('transition'))) return;
+        if (isTimelineTrackLocked(state.tracks, target.trackId || getTrackForItemType('transition'))) {
+            rejectTimelineEdit(set, 'track-locked', 'Piste transition verrouillee: edition ignoree.');
+            return;
+        }
         const nextTransitionItems = state.transitionItems.map((item) => {
             if (item.id !== id) return item;
             const next = { ...item, ...updates };
@@ -285,32 +366,50 @@ const useVideoStore = create((set, get) => ({
                 params: next.params || {},
             };
         });
-        if (findTransitionItemOverlap(nextTransitionItems, state.totalDuration)) return;
+        if (hasDisallowedItemOverlap(state.tracks, nextTransitionItems, target.trackId || getTrackForItemType('transition'))) {
+            rejectTimelineEdit(set, 'track-overlap', 'Overlap interdit sur cette piste: transition restauree.');
+            return;
+        }
         if (options.history) pushHistory(state);
-        set({ transitionItems: nextTransitionItems });
+        set({ transitionItems: nextTransitionItems, timelineEditNotice: null });
     },
 
     removeTransitionItem: (id) => {
         const state = get();
         const target = state.transitionItems.find(item => item.id === id);
-        if (target && isTimelineTrackLocked(state.tracks, target.trackId || getTrackForItemType('transition'))) return;
+        if (target && isTimelineTrackLocked(state.tracks, target.trackId || getTrackForItemType('transition'))) {
+            rejectTimelineEdit(set, 'track-locked', 'Piste transition verrouillee: suppression ignoree.');
+            return;
+        }
         pushHistory(state);
         set((s) => ({
             transitionItems: s.transitionItems.filter(item => item.id !== id),
             selectedTransitionId: s.selectedTransitionId === id ? null : s.selectedTransitionId,
+            timelineEditNotice: null,
         }));
     },
 
     removeTransition: (fromId, toId) => {
         const state = get();
-        if (isTimelineTrackLocked(state.tracks, getTrackForItemType('transition'))) return;
+        if (isTimelineTrackLocked(state.tracks, getTrackForItemType('transition'))) {
+            rejectTimelineEdit(set, 'track-locked', 'Piste transition verrouillee: suppression ignoree.');
+            return;
+        }
         pushHistory(state);
         set((s) => {
             const key = `${fromId}->${toId}`;
             const transitions = { ...s.transitions };
             delete transitions[key];
-            const totalDuration = computeTotalDuration(s.clips, transitions);
-            return { transitions, totalDuration, currentTime: clamp(s.currentTime, 0, totalDuration) };
+            const transitionItems = removeCutTransitionItem(s.transitionItems, fromId, toId);
+            const totalDuration = computeTotalDuration(s.clips, transitions, transitionItems);
+            return {
+                transitions,
+                transitionItems,
+                selectedTransitionId: s.selectedTransitionId && transitionItems.some(item => item.id === s.selectedTransitionId) ? s.selectedTransitionId : null,
+                totalDuration,
+                currentTime: clamp(s.currentTime, 0, totalDuration),
+                timelineEditNotice: null,
+            };
         });
     },
 
@@ -321,52 +420,64 @@ const useVideoStore = create((set, get) => ({
     addAudioTrack: (track) => {
         const state = get();
         const trackId = track.trackId || getTrackForItemType('audio');
-        if (isTimelineTrackLocked(state.tracks, trackId)) return;
-        pushHistory(state);
+        if (isTimelineTrackLocked(state.tracks, trackId)) {
+            rejectTimelineEdit(set, 'track-locked', 'Piste audio verrouillee: ajout ignore.');
+            return;
+        }
         const id = track.id || uid();
-        set((s) => ({
-            audioTracks: [...s.audioTracks, {
-                id,
-                name: track.name || 'Audio',
-                url: track.url,
-                file: track.file || null,
-                volume: 100,
-                trackId,
-                startTime: track.startTime || 0,
-                duration: track.duration || 10,
-                endTime: (track.startTime || 0) + (track.duration || 10),
-                ...track,
-                id,
-                volume: clampVolumePercent(track.volume ?? 100),
-            }],
+        const nextTrack = normalizeAudioTrack(track, {
+            id,
+            trackId,
+            totalDuration: state.totalDuration,
+        });
+        const nextAudioTracks = [...state.audioTracks, nextTrack];
+        if (hasDisallowedItemOverlap(state.tracks, nextAudioTracks, trackId)) {
+            rejectTimelineEdit(set, 'track-overlap', 'Overlap interdit sur cette piste: audio ignore.');
+            return;
+        }
+        pushHistory(state);
+        set(() => ({
+            audioTracks: nextAudioTracks,
             selectedAudioTrackId: id,
+            timelineEditNotice: null,
         }));
     },
     removeAudioTrack: (id) => {
         const state = get();
         const target = state.audioTracks.find(track => track.id === id);
-        if (target && isTimelineTrackLocked(state.tracks, target.trackId || getTrackForItemType('audio'))) return;
+        if (target && isTimelineTrackLocked(state.tracks, target.trackId || getTrackForItemType('audio'))) {
+            rejectTimelineEdit(set, 'track-locked', 'Piste audio verrouillee: suppression ignoree.');
+            return;
+        }
         pushHistory(state);
         set((s) => ({
             audioTracks: s.audioTracks.filter(t => t.id !== id),
             selectedAudioTrackId: s.selectedAudioTrackId === id ? null : s.selectedAudioTrackId,
+            timelineEditNotice: null,
         }));
     },
     updateAudioTrack: (id, updates, options = {}) => {
         const state = get();
         const target = state.audioTracks.find(track => track.id === id);
-        if (target && isTimelineTrackLocked(state.tracks, target.trackId || getTrackForItemType('audio'))) return;
-        if (options.history) pushHistory(state);
-        set((s) => ({
-        audioTracks: s.audioTracks.map((track) => {
+        if (target && isTimelineTrackLocked(state.tracks, target.trackId || getTrackForItemType('audio'))) {
+            rejectTimelineEdit(set, 'track-locked', 'Piste audio verrouillee: edition ignoree.');
+            return;
+        }
+        const nextAudioTracks = state.audioTracks.map((track) => {
             if (track.id !== id) return track;
-            const next = { ...track, ...updates };
-            const maxEnd = Math.max(0.1, s.totalDuration || 0.1);
-            const startTime = clamp(next.startTime || 0, 0, Math.max(0, maxEnd - 0.1));
-            const endTime = Math.min(maxEnd, Math.max(startTime + 0.1, next.endTime || startTime + (next.duration || 0.1)));
-            return { ...next, startTime, endTime, duration: Math.max(0.1, endTime - startTime), volume: clampVolumePercent(next.volume ?? 100) };
-        })
-        }));
+            return normalizeAudioTrack({ ...track, ...updates }, {
+                id: track.id,
+                trackId: updates.trackId || track.trackId || getTrackForItemType('audio'),
+                totalDuration: state.totalDuration,
+            });
+        });
+        const nextTrackId = updates.trackId || target?.trackId || getTrackForItemType('audio');
+        if (hasDisallowedItemOverlap(state.tracks, nextAudioTracks, nextTrackId)) {
+            rejectTimelineEdit(set, 'track-overlap', 'Overlap interdit sur cette piste: audio restaure.');
+            return;
+        }
+        if (options.history) pushHistory(state);
+        set({ audioTracks: nextAudioTracks, timelineEditNotice: null });
     },
 
     // === TEXT OVERLAYS ===
@@ -377,55 +488,64 @@ const useVideoStore = create((set, get) => ({
     addTextOverlay: (text) => {
         const state = get();
         const trackId = text.trackId || getTrackForItemType('text');
-        if (isTimelineTrackLocked(state.tracks, trackId)) return;
-        pushHistory(state);
+        if (isTimelineTrackLocked(state.tracks, trackId)) {
+            rejectTimelineEdit(set, 'track-locked', 'Piste texte verrouillee: ajout ignore.');
+            return;
+        }
         const id = uid();
-        set((s) => ({
-            textOverlays: [...s.textOverlays, {
-                id,
-                content: text.content || 'Your Text',
-                trackId,
-                startTime: text.startTime || 0,
-                endTime: text.endTime || 3,
-                x: 0.5, y: 0.5,
-                font: 'Inter',
-                fontSize: 48,
-                color: '#ffffff',
-                bold: true,
-                italic: false,
-                animation: 'fade',
-                animationOut: 'fade',
-                ...text,
-                id,
-            }],
+        const nextText = normalizeTextOverlay(text, {
+            id,
+            trackId,
+            totalDuration: state.totalDuration,
+        });
+        const nextTextOverlays = [...state.textOverlays, nextText];
+        if (hasDisallowedItemOverlap(state.tracks, nextTextOverlays, trackId)) {
+            rejectTimelineEdit(set, 'track-overlap', 'Overlap interdit sur cette piste: texte ignore.');
+            return;
+        }
+        pushHistory(state);
+        set(() => ({
+            textOverlays: nextTextOverlays,
             selectedTextId: id,
+            timelineEditNotice: null,
         }));
     },
     removeTextOverlay: (id) => {
         const state = get();
         const target = state.textOverlays.find(text => text.id === id);
-        if (target && isTimelineTrackLocked(state.tracks, target.trackId || getTrackForItemType('text'))) return;
+        if (target && isTimelineTrackLocked(state.tracks, target.trackId || getTrackForItemType('text'))) {
+            rejectTimelineEdit(set, 'track-locked', 'Piste texte verrouillee: suppression ignoree.');
+            return;
+        }
         pushHistory(state);
         set((s) => ({
             textOverlays: s.textOverlays.filter(t => t.id !== id),
             selectedTextId: s.selectedTextId === id ? null : s.selectedTextId,
+            timelineEditNotice: null,
         }));
     },
     updateTextOverlay: (id, updates, options = {}) => {
         const state = get();
         const target = state.textOverlays.find(text => text.id === id);
-        if (target && isTimelineTrackLocked(state.tracks, target.trackId || getTrackForItemType('text'))) return;
-        if (options.history) pushHistory(state);
-        set((s) => ({
-        textOverlays: s.textOverlays.map((text) => {
+        if (target && isTimelineTrackLocked(state.tracks, target.trackId || getTrackForItemType('text'))) {
+            rejectTimelineEdit(set, 'track-locked', 'Piste texte verrouillee: edition ignoree.');
+            return;
+        }
+        const nextTextOverlays = state.textOverlays.map((text) => {
             if (text.id !== id) return text;
-            const next = { ...text, ...updates };
-            const maxEnd = Math.max(0.1, s.totalDuration || 0.1);
-            const startTime = clamp(next.startTime || 0, 0, Math.max(0, maxEnd - 0.1));
-            const endTime = Math.min(maxEnd, Math.max(startTime + 0.1, next.endTime || startTime + 0.1));
-            return { ...next, startTime, endTime };
-        })
-        }));
+            return normalizeTextOverlay({ ...text, ...updates }, {
+                id: text.id,
+                trackId: updates.trackId || text.trackId || getTrackForItemType('text'),
+                totalDuration: state.totalDuration,
+            });
+        });
+        const nextTrackId = updates.trackId || target?.trackId || getTrackForItemType('text');
+        if (hasDisallowedItemOverlap(state.tracks, nextTextOverlays, nextTrackId)) {
+            rejectTimelineEdit(set, 'track-overlap', 'Overlap interdit sur cette piste: texte restaure.');
+            return;
+        }
+        if (options.history) pushHistory(state);
+        set({ textOverlays: nextTextOverlays, timelineEditNotice: null });
     },
 
     // === PLAYBACK ===
@@ -488,7 +608,7 @@ const useVideoStore = create((set, get) => ({
             _future: future,
             _historyIndex: history.length - 1,
             _historyTransaction: null,
-            totalDuration: computeTotalDuration(snapshot.clips, snapshot.transitions),
+            totalDuration: computeTotalDuration(snapshot.clips, snapshot.transitions, snapshot.transitionItems),
         });
     },
 
@@ -504,7 +624,7 @@ const useVideoStore = create((set, get) => ({
             _future: s._future.slice(1),
             _historyIndex: history.length - 1,
             _historyTransaction: null,
-            totalDuration: computeTotalDuration(snapshot.clips, snapshot.transitions),
+            totalDuration: computeTotalDuration(snapshot.clips, snapshot.transitions, snapshot.transitionItems),
         });
     },
 
@@ -522,10 +642,26 @@ function pushHistory(state, options = {}) {
     });
 }
 
+function rejectTimelineEdit(set, code, message) {
+    set({
+        timelineEditNotice: {
+            id: `${code}-${Date.now()}`,
+            level: 'warning',
+            code,
+            message,
+        },
+    });
+}
+
 function createSnapshot(state) {
     const snapshot = {};
     SNAPSHOT_KEYS.forEach(key => { snapshot[key] = state[key]; });
     return snapshot;
+}
+
+function isSnapshotUnchanged(state, snapshot) {
+    if (!snapshot) return false;
+    return SNAPSHOT_KEYS.every(key => state[key] === snapshot[key]);
 }
 
 function normalizeTimelineItemUpdates(item, updates = {}, totalDuration = 0) {
@@ -569,15 +705,150 @@ function pickClipTimelineUpdates(updates = {}) {
     );
 }
 
-function computeTotalDuration(clips, transitions = {}) {
+function normalizeAudioTrack(track = {}, { id = track.id || uid(), trackId = track.trackId || getTrackForItemType('audio'), totalDuration = 0 } = {}) {
+    const maxEnd = Math.max(0.1, totalDuration || track.endTime || track.duration || 10);
+    const requestedStart = Number(track.startTime ?? track.start ?? 0);
+    const startTime = clamp(Number.isFinite(requestedStart) ? requestedStart : 0, 0, Math.max(0, maxEnd - 0.1));
+    const requestedEnd = Number(track.endTime ?? (startTime + Number(track.duration ?? 10)));
+    const endTime = Math.min(maxEnd, Math.max(startTime + 0.1, Number.isFinite(requestedEnd) ? requestedEnd : startTime + 0.1));
+    const duration = Math.max(0.1, endTime - startTime);
+
+    return {
+        id,
+        name: track.name || 'Audio',
+        url: track.url,
+        file: track.file || null,
+        volume: clampVolumePercent(track.volume ?? 100),
+        trackId,
+        ...track,
+        id,
+        trackId,
+        startTime,
+        endTime,
+        duration,
+        volume: clampVolumePercent(track.volume ?? 100),
+    };
+}
+
+function normalizeTextOverlay(text = {}, { id = text.id || uid(), trackId = text.trackId || getTrackForItemType('text'), totalDuration = 0 } = {}) {
+    const maxEnd = Math.max(0.1, totalDuration || text.endTime || 3);
+    const requestedStart = Number(text.startTime ?? text.start ?? 0);
+    const startTime = clamp(Number.isFinite(requestedStart) ? requestedStart : 0, 0, Math.max(0, maxEnd - 0.1));
+    const requestedEnd = Number(text.endTime ?? (startTime + Number(text.duration ?? 3)));
+    const endTime = Math.min(maxEnd, Math.max(startTime + 0.1, Number.isFinite(requestedEnd) ? requestedEnd : startTime + 0.1));
+
+    return {
+        id,
+        content: text.content || 'Your Text',
+        trackId,
+        startTime,
+        endTime,
+        x: 0.5,
+        y: 0.5,
+        font: 'Inter',
+        fontSize: 48,
+        color: '#ffffff',
+        bold: true,
+        italic: false,
+        animation: 'fade',
+        animationOut: 'fade',
+        ...text,
+        id,
+        trackId,
+        startTime,
+        endTime,
+    };
+}
+
+function hasDisallowedItemOverlap(tracks = [], items = [], trackId = '') {
+    if (!trackId || doesTrackAllowOverlap(tracks, trackId)) return false;
+    return Boolean(findTimelineItemOverlap(
+        items.filter(item => (item.trackId || '') === trackId),
+        { tolerance: 0.001 }
+    ));
+}
+
+function getClipUpdateTrackId(updates = {}) {
+    const keys = Object.keys(updates || {});
+    if (keys.length > 0 && keys.every(key => key === 'filters')) return 'effect-main';
+    return 'video-main';
+}
+
+function makeCutTransitionItem(fromId, toId, transition = {}, { preserveId = true } = {}) {
+    const id = preserveId && transition.id ? transition.id : `cut-${fromId}-${toId}`;
+    const duration = Math.max(0.1, Number(transition.duration ?? transition.defaultDuration ?? 0.5) || 0.5);
+    return {
+        id,
+        type: transition.type || 'crossfade',
+        start: 0,
+        startTime: 0,
+        endTime: duration,
+        duration,
+        trackId: transition.trackId || getTrackForItemType('transition'),
+        fromItemId: fromId,
+        toItemId: toId,
+        params: {
+            ...(transition.params || {}),
+            legacyKey: `${fromId}->${toId}`,
+            placement: 'cut',
+        },
+        name: transition.name || transition.type || 'Transition',
+        icon: transition.icon || '*',
+        category: transition.category || 'basic',
+    };
+}
+
+function upsertCutTransitionItem(items = [], fromId, toId, transition = {}) {
+    const nextItem = makeCutTransitionItem(fromId, toId, transition);
+    const replaced = items.map(item => isCutTransitionForPair(item, fromId, toId) ? { ...item, ...nextItem } : item);
+    return replaced.some(item => isCutTransitionForPair(item, fromId, toId))
+        ? replaced
+        : [...items, nextItem];
+}
+
+function reassignCutTransitionSlots(items = [], cutTransitions = [], clips = []) {
+    const freeItems = items.filter(item => (item.params?.placement || 'free') !== 'cut');
+    const reassignedCuts = cutTransitions
+        .map((transition, index) => {
+            if (!transition || !clips[index + 1]) return null;
+            return makeCutTransitionItem(clips[index].id, clips[index + 1].id, transition, { preserveId: false });
+        })
+        .filter(Boolean);
+    return [...freeItems, ...reassignedCuts];
+}
+
+function removeCutTransitionItem(items = [], fromId, toId) {
+    return items.filter(item => !isCutTransitionForPair(item, fromId, toId));
+}
+
+function removeTransitionItemsForMissingClips(items = [], clips = []) {
+    const clipIds = new Set(clips.map(clip => clip.id).filter(Boolean));
+    return items.filter(item => {
+        if ((item.params?.placement || 'free') !== 'cut') return true;
+        return clipIds.has(item.fromItemId) && clipIds.has(item.toItemId);
+    });
+}
+
+function isCutTransitionForPair(item = {}, fromId, toId) {
+    return (item.params?.placement || 'free') === 'cut'
+        && item.fromItemId === fromId
+        && item.toItemId === toId;
+}
+
+function getCutTransitionForPair(transitions = {}, transitionItems = [], fromId, toId) {
+    return transitionItems.find(item => isCutTransitionForPair(item, fromId, toId))
+        || transitions[`${fromId}->${toId}`]
+        || null;
+}
+
+function computeTotalDuration(clips, transitions = {}, transitionItems = []) {
     if (clips.length === 0) return 0;
     let total = 0;
     clips.forEach((clip, i) => {
         const clipDur = (clip.trimEnd - clip.trimStart) / (clip.speed || 1);
         total += clipDur;
         if (i < clips.length - 1) {
-            const key = `${clip.id}->${clips[i + 1].id}`;
-            const tr = transitions[key];
+            const tr = getCutTransitionForPair(transitions, transitionItems, clip.id, clips[i + 1].id);
             if (tr) total -= tr.duration || 0;
         }
     });

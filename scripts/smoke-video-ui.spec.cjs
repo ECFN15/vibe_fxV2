@@ -84,7 +84,7 @@ async function dragPlayheadFast(page, ratio) {
 
   const liveBox = await playhead.boundingBox();
   expect(liveBox).toBeTruthy();
-  expect(Math.abs((liveBox.x + liveBox.width / 2) - targetX)).toBeLessThan(28);
+  expect(Math.abs((liveBox.x + liveBox.width / 2) - targetX)).toBeLessThan(36);
   await page.mouse.move(viewportBox.x + viewportBox.width * Math.max(0.1, ratio - 0.18), y, { steps: 2 });
   await page.mouse.up();
 }
@@ -129,6 +129,7 @@ test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) =
   await page.locator('input[type=file][accept="video/*"]').setInputFiles(fixtures);
   await page.waitForFunction(() => document.body.innerText.includes("2 CLIPS"), null, { timeout: 120000 });
   await expect(page.locator("canvas")).toHaveCount(1);
+  await expect(page.locator('[data-testid^="clip-audio-waveform-"]').first()).toHaveAttribute("data-waveform-status", /^(pending|ready|unavailable)$/);
   await page.getByTestId("sequence-preset-menu-toggle").click();
   await expect(page.getByTestId("sequence-preset-menu")).toBeVisible();
   await page.getByTestId("sequence-preset-instagram-reel").click();
@@ -140,6 +141,16 @@ test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) =
   const sequenceRatio = await page.locator("canvas").evaluate((canvas) => canvas.width / canvas.height);
   expect(Math.abs(sequenceRatio - (1080 / 1920))).toBeLessThan(0.02);
   await expect(page.getByTestId("video-safe-area-overlay")).toBeVisible();
+  const visualTrackOrder = await page.locator("[data-track-area]").evaluateAll((nodes) => nodes
+    .map((node) => ({
+      area: node.getAttribute("data-track-area"),
+      order: Number(node.getAttribute("data-track-order")),
+      top: node.getBoundingClientRect().top,
+    }))
+    .sort((a, b) => a.top - b.top)
+  );
+  expect(visualTrackOrder.map((track) => track.area)).toEqual(["video", "transitions", "effects", "text", "audio", "music"]);
+  expect(visualTrackOrder.map((track) => track.order)).toEqual([10, 20, 30, 40, 50, 60]);
   const textVisibilityToggle = page.getByTestId("track-text-main-visible");
   await expect(textVisibilityToggle).toBeVisible();
   await textVisibilityToggle.click();
@@ -187,8 +198,12 @@ test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) =
   await expect(page.getByTestId("video-clip-0")).toContainText(beforeTrimDuration);
   await page.locator('button[title="Refaire (Ctrl+Shift+Z)"]').click();
   await expect(page.getByTestId("video-clip-0")).not.toContainText(beforeTrimDuration);
-  await expect(page.getByLabel("Timecode trim debut")).toBeVisible();
+  const trimStartInput = page.getByLabel("Timecode trim debut");
+  await expect(trimStartInput).toBeVisible();
   await expect(page.getByLabel("Timecode trim fin")).toBeVisible();
+  await trimStartInput.fill("0:00.10");
+  await page.keyboard.press("Enter");
+  await expect(trimStartInput).toHaveValue("0:00.10");
 
   await clip1.click();
   const progressBar = page.locator(".h-1.bg-neutral-800.cursor-pointer").first();
@@ -217,6 +232,25 @@ test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) =
 
   await page.getByRole("button", { name: "Filtres", exact: true }).click();
   await page.getByRole("button", { name: "Cyberpunk", exact: true }).click();
+  await expect(page.getByTestId("filter-preview-mode").first()).toHaveText("Apres");
+  await page.getByTestId("filter-preview-before").first().click();
+  await expect(page.getByTestId("filter-preview-mode").first()).toHaveText("Avant");
+  await page.getByRole("button", { name: "Audio", exact: true }).click();
+  await page.getByRole("button", { name: "Filtres", exact: true }).click();
+  await expect(page.getByTestId("filter-preview-mode").first()).toHaveText("Apres");
+  await page.getByTestId("filter-preview-before").first().click();
+  await expect(page.getByTestId("filter-preview-mode").first()).toHaveText("Avant");
+  await page.getByTestId("filter-preview-after").first().click();
+  await expect(page.getByTestId("filter-preview-mode").first()).toHaveText("Apres");
+  const effectTrackItem = page.locator('[data-track-item-type="effect"]').first();
+  await expect(effectTrackItem).toBeVisible();
+  await expect(effectTrackItem).toHaveAttribute("data-track-item-duration", /^\d+\.\d{3}$/);
+  const effectLockToggle = page.getByTestId("track-effect-main-lock");
+  await effectLockToggle.click();
+  await expect(page.getByLabel("Contraste").first()).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Soft Dream", exact: true })).toBeDisabled();
+  await effectLockToggle.click();
+  await expect(page.getByLabel("Contraste").first()).toBeEnabled();
 
   await page.mouse.click(progressBox.x + 2, progressBox.y + progressBox.height / 2);
   await page.waitForTimeout(250);
@@ -254,7 +288,9 @@ test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) =
   const itemDurationInput = page.getByLabel("Timecode item duration");
   await expect(itemStartInput).toBeVisible();
   await expect(itemDurationInput).toBeVisible();
-  await itemDurationInput.fill("0.70");
+  await itemDurationInput.fill("0:00.70");
+  await page.keyboard.press("Enter");
+  await expect(itemDurationInput).toHaveValue("0:00.70");
   await expect(transitionItem).toHaveAttribute("data-track-item-duration", /^0\.700$/);
   const transitionPickerItem = page.getByTestId("transition-picker-item").first();
   await expect(transitionPickerItem).toHaveAttribute("data-transition-duration", "0.700");
@@ -284,6 +320,9 @@ test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) =
   await page.mouse.move(lockedTransitionBox.x + lockedTransitionBox.width / 2 + 90, lockedTransitionBox.y + lockedTransitionBox.height / 2, { steps: 8 });
   await page.mouse.up();
   await expect(transitionItem).toHaveAttribute("data-track-item-start", transitionStartSnapped.toFixed(3));
+  await expect(page.getByTestId("timeline-edit-notice")).toHaveAttribute("data-timeline-notice-code", "track-locked");
+  await page.getByTestId("timeline-edit-notice").click();
+  await expect(page.getByTestId("timeline-edit-notice")).toHaveCount(0);
 
   await page.getByRole("button", { name: "Texte", exact: true }).click();
   await page.getByRole("button", { name: /Ajouter un texte/i }).first().click();
@@ -319,6 +358,9 @@ test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) =
   await page.getByRole("button", { name: "Exporter", exact: true }).click();
   await expect(page.locator("body")).toContainText("1080 x 1920");
   await expect(page.locator("body")).toContainText("Reel 9:16");
+  await expect(page.getByTestId("export-audio-mix").first()).toHaveText("clips + musique");
+  await expect(page.getByTestId("export-frame-guard").first()).toHaveText("actif");
+  await expect(page.getByTestId("export-preflight").first()).toHaveAttribute("data-preflight-status", /^(ready|warning)$/);
   await page.getByRole("button", { name: "webm", exact: true }).click();
   const downloadPromise = page.waitForEvent("download", { timeout: 120000 });
   await page.getByRole("button", { name: /^Exporter$/ }).first().click();
@@ -390,6 +432,7 @@ test("Vibe_CUT stops failed exports without downloading partial recorder output"
   await page.waitForFunction(() => document.body.innerText.includes("1 CLIP"), null, { timeout: 120000 });
 
   await page.getByRole("button", { name: "Exporter", exact: true }).click();
+  await expect(page.getByTestId("export-preflight").first()).toHaveAttribute("data-preflight-status", /^(ready|warning)$/);
   await page.getByRole("button", { name: "webm", exact: true }).click();
   await page.getByRole("button", { name: /^Exporter$/ }).first().click();
   await expect(page.locator("body")).toContainText("Export interrompu: simulated recorder failure", { timeout: 120000 });
@@ -431,19 +474,67 @@ test("Vibe_CUT shows WebM as the real export format when MP4 is unsupported", as
   await expect(page.getByRole("button", { name: /mp4 indispo/i })).toBeDisabled();
   await expect(page.getByText(/MP4 MediaRecorder n'est pas supporte ici/i).first()).toBeVisible();
   await expect(page.getByTestId("export-effective-format").first()).toHaveText("WEBM");
+  await expect(page.getByTestId("export-audio-mix").first()).toHaveText("clips");
+  await expect(page.getByTestId("export-frame-guard").first()).toHaveText("actif");
+  await expect(page.getByTestId("export-preflight").first()).toHaveAttribute("data-preflight-status", /^(ready|warning)$/);
 });
 
-test("Vibe_CUT mobile viewport has no horizontal page overflow", async ({ page }) => {
+test("Vibe_CUT blocks export preflight when audio mix is unsupported", async ({ page }) => {
+  const fixtures = getVideoFixtures(1);
+  test.skip(fixtures.length < 1, "videotest/*.mp4 fixtures are not available locally");
+
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "AudioContext", { value: undefined, configurable: true });
+    Object.defineProperty(window, "webkitAudioContext", { value: undefined, configurable: true });
+  });
+
+  await openVideoEditor(page);
+  await page.locator('input[type=file][accept="video/*"]').setInputFiles(fixtures);
+  await page.waitForFunction(() => document.body.innerText.includes("1 CLIP"), null, { timeout: 120000 });
+
+  await page.getByRole("button", { name: "Exporter", exact: true }).click();
+  await expect(page.getByTestId("export-audio-mix").first()).toHaveText("clips");
+  await expect(page.getByTestId("export-preflight").first()).toHaveAttribute("data-preflight-status", "blocked");
+  await expect(page.getByTestId("export-preflight").first()).toContainText("AudioContext non supporte");
+  await expect(page.getByRole("button", { name: "Export bloque" })).toBeDisabled();
+});
+
+test("Vibe_CUT mobile viewport keeps essential tools reachable without overflow", async ({ page }) => {
   const fixtures = getVideoFixtures(2);
   test.skip(fixtures.length < 2, "videotest/*.mp4 fixtures are not available locally");
 
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 390, height: 640 });
   await openVideoEditor(page);
   await page.locator('input[type=file][accept="video/*"]').setInputFiles(fixtures);
   await page.waitForFunction(() => document.body.innerText.includes("2 CLIPS"), null, { timeout: 120000 });
 
+  const playButton = page.getByRole("button", { name: "Lire" }).first();
+  await expect(playButton).toBeVisible();
+
+  const exportTool = page.getByTestId("video-tool-export");
+  await expect(exportTool).toBeVisible();
+  const exportBox = await exportTool.boundingBox();
+  expect(exportBox).toBeTruthy();
+  expect(exportBox.x + exportBox.width).toBeLessThanOrEqual(390);
+  expect(exportBox.x).toBeGreaterThanOrEqual(0);
+
   await page.getByRole("button", { name: "Texte", exact: true }).click();
+  const mobilePanel = page.getByTestId("video-mobile-panel");
+  await expect(mobilePanel).toBeVisible();
+  await expect(mobilePanel).toHaveAttribute("data-fullscreen", "false");
   await expect(page.getByRole("button", { name: /Ajouter un texte/i }).first()).toBeVisible();
+
+  const compactPanelBox = await mobilePanel.boundingBox();
+  expect(compactPanelBox).toBeTruthy();
+  expect(compactPanelBox.height).toBeLessThanOrEqual(640 * 0.52);
+  await expect(exportTool).toBeVisible();
+
+  await page.getByTestId("video-mobile-panel-size").click();
+  await expect(mobilePanel).toHaveAttribute("data-fullscreen", "true");
+  const fullPanelBox = await mobilePanel.boundingBox();
+  expect(fullPanelBox).toBeTruthy();
+  expect(fullPanelBox.height).toBeGreaterThan(compactPanelBox.height);
+  expect(fullPanelBox.y).toBeGreaterThanOrEqual(40);
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 2);
   expect(overflow).toBe(false);

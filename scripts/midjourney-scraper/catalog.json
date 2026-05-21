@@ -1,5 +1,1200 @@
 [
   {
+    "jobId": "d42f3704-a960-49ae-a291-6fb444f5a344",
+    "prompt": "an antique victorian lightbulb switched off, plain dark background",
+    "themes": [
+      "vintage_retro"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/d42f3704-a960-49ae-a291-6fb444f5a344/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/d42f3704-a960-49ae-a291-6fb444f5a344",
+    "scrapedAt": "2026-05-20T22:04:15.892Z"
+  },
+  {
+    "jobId": "7df9806a-a1d8-42ed-ad8d-8839a5b59133",
+    "prompt": "A young girl in pajamas sitting on a porch step, holding a black cat gently in her arms. Behind them, a full moon glows in the night sky. The girl’s hair is slightly messy, and the rabbit’s ears are perked up. Warm lighting from the house spills onto the porch. Rear view, storytelling composition, in the style of Norman Rockwell.",
+    "themes": [
+      "portraits",
+      "animals"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/7df9806a-a1d8-42ed-ad8d-8839a5b59133/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/7df9806a-a1d8-42ed-ad8d-8839a5b59133",
+    "scrapedAt": "2026-05-20T22:04:08.505Z"
+  },
+  {
+    "jobId": "7518b034-b6bc-434d-825a-40842bf57211",
+    "prompt": "capital starship firing at enemy fleet",
+    "themes": [
+      "spacecraft"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/7518b034-b6bc-434d-825a-40842bf57211/0_1.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/7518b034-b6bc-434d-825a-40842bf57211",
+    "scrapedAt": "2026-05-20T22:04:04.604Z"
+  },
+  {
+    "jobId": "9692fee2-f89d-4117-ba00-90940d3a02c4",
+    "prompt": "1964 black and white low angle photo of redhead mod girl in raincoat and mod hat sitting alone on the seat of a mod scooter in london",
+    "themes": [
+      "portraits",
+      "photography"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/9692fee2-f89d-4117-ba00-90940d3a02c4/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/9692fee2-f89d-4117-ba00-90940d3a02c4",
+    "scrapedAt": "2026-05-20T22:04:00.084Z"
+  },
+  {
+    "jobId": "528e97b5-8862-4cde-a10a-c737b4e93f74",
+    "prompt": "girl shot from back in vintage swimsuit blong short hair",
+    "themes": [
+      "portraits",
+      "vintage_retro"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/528e97b5-8862-4cde-a10a-c737b4e93f74/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/528e97b5-8862-4cde-a10a-c737b4e93f74",
+    "scrapedAt": "2026-05-20T22:03:55.027Z"
+  },
+  {
+    "jobId": "c16fdfce-9815-4a47-9040-cbdc092cb831",
+    "prompt": "abstract sketch drawing of a horse standing on a pasture. Drawn with a pencil.",
+    "themes": [
+      "animals",
+      "abstract"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/c16fdfce-9815-4a47-9040-cbdc092cb831/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/c16fdfce-9815-4a47-9040-cbdc092cb831",
+    "scrapedAt": "2026-05-20T22:03:50.130Z"
+  },
+  {
+    "jobId": "37234d42-9360-461d-abaf-75d6bf74226d",
+    "prompt": "question, nostalgic, surreal photo, shot on Kodak Portra 400 film through an SMC Takumar f/5.6 lens, very heavy blur, heavy grainy film style, reminiscent of vintage 35mm photography",
+    "themes": [
+      "photography",
+      "vintage_retro"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/37234d42-9360-461d-abaf-75d6bf74226d/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/37234d42-9360-461d-abaf-75d6bf74226d",
+    "scrapedAt": "2026-05-20T22:03:46.334Z"
+  },
+  {
+    "jobId": "a3450902-01e1-4d5a-859c-25b65db2fff6",
+    "prompt": "Anime cyberpunk e-girl. waist up. violet hair. sultry look on face.",
+    "themes": [
+      "portraits",
+      "neon_cyberpunk"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/a3450902-01e1-4d5a-859c-25b65db2fff6/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/a3450902-01e1-4d5a-859c-25b65db2fff6",
+    "scrapedAt": "2026-05-20T22:03:41.398Z"
+  },
+  {
+    "jobId": "5b1ea985-bb91-44a1-b030-af7a215bc311",
+    "prompt": "Warhammer 40k cgi, space marine, hd, extreme detail#",
+    "themes": [
+      "render_3d"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/5b1ea985-bb91-44a1-b030-af7a215bc311/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/5b1ea985-bb91-44a1-b030-af7a215bc311",
+    "scrapedAt": "2026-05-20T22:03:35.877Z"
+  },
+  {
+    "jobId": "d248f2e9-618f-45fe-aef6-b7f2ad6b8af0",
+    "prompt": "A cinematic scene imbued with a sense of fantasy: deep within the heart of the Amazon rainforest, nestled amidst cliffs and ravines, lies a colossal cat's eye. In the foreground, a traveler stands atop a massive vine, captured from a bird's-eye perspective. Photographed with a Nikon.",
+    "themes": [
+      "animals",
+      "surreal_fantasy"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/d248f2e9-618f-45fe-aef6-b7f2ad6b8af0/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/d248f2e9-618f-45fe-aef6-b7f2ad6b8af0",
+    "scrapedAt": "2026-05-20T22:03:29.648Z"
+  },
+  {
+    "jobId": "e0557e21-e11c-4726-9b9e-f5b90baadc06",
+    "prompt": "Rose dewitt-bukater. Real to life skin textures ultra-hd natraul 2700k light Canon eos r7 professional photography full legnth photo",
+    "themes": [
+      "flora"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/e0557e21-e11c-4726-9b9e-f5b90baadc06/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/e0557e21-e11c-4726-9b9e-f5b90baadc06",
+    "scrapedAt": "2026-05-20T22:03:25.158Z"
+  },
+  {
+    "jobId": "1ffec3c0-ad40-42eb-9ea2-301f1a68b52e",
+    "prompt": "boys birthday animals cartoon, split in different squares, bright saturated colors, high contrast, isolated on empty white background",
+    "themes": [
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/1ffec3c0-ad40-42eb-9ea2-301f1a68b52e/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/1ffec3c0-ad40-42eb-9ea2-301f1a68b52e",
+    "scrapedAt": "2026-05-20T22:03:19.823Z"
+  },
+  {
+    "jobId": "41e1549b-6dae-4850-a224-434f345d3317",
+    "prompt": "ILLUISTRATION, CHEES BURGER. CENTERED COMPOTISION, ICONIC DESIGN. MINIMALISTIC DESIGN,",
+    "themes": [
+      "food_drink"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/41e1549b-6dae-4850-a224-434f345d3317/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/41e1549b-6dae-4850-a224-434f345d3317",
+    "scrapedAt": "2026-05-20T22:03:11.328Z"
+  },
+  {
+    "jobId": "99d3dafd-648a-435e-8587-582dd1ad0823",
+    "prompt": "minimal tomatoes illustration with bold red shapes and simple typography, clean retro mediterranean poster aesthetic, playful typography \"Ripe Red Tomatoes\", hand-drawn crayon illustration style, warm and cozy feeling, flat illustration, vibrant color, white artboard (kids illustration style, nursery art aesthetic, simple and friendly design)",
+    "themes": [
+      "illustration",
+      "minimalist"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/99d3dafd-648a-435e-8587-582dd1ad0823/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/99d3dafd-648a-435e-8587-582dd1ad0823",
+    "scrapedAt": "2026-05-20T22:03:06.213Z"
+  },
+  {
+    "jobId": "f0b32f99-b861-4e87-8ade-7a94ab6679d4",
+    "prompt": "Simpple 3d statue of a warrior,Sculpt,zbrush,game asset,simple",
+    "themes": [
+      "characters",
+      "render_3d"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/f0b32f99-b861-4e87-8ade-7a94ab6679d4/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/f0b32f99-b861-4e87-8ade-7a94ab6679d4",
+    "scrapedAt": "2026-05-20T22:03:01.113Z"
+  },
+  {
+    "jobId": "2f6b495a-b6e3-47de-aaa8-37e0e2f38345",
+    "prompt": "Colourful, Seamless, minimalist chabby chic pattern for fabrics by Catherine Lansfield",
+    "themes": [
+      "abstract"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/2f6b495a-b6e3-47de-aaa8-37e0e2f38345/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/2f6b495a-b6e3-47de-aaa8-37e0e2f38345",
+    "scrapedAt": "2026-05-20T22:02:56.461Z"
+  },
+  {
+    "jobId": "1e2a2822-6ce9-4bc8-b01e-e29b44b9f418",
+    "prompt": "Young European man, light skin, relaxed expression, wearing a vivid pink blazer over a white shirt, standing full height on a lush green meadow, cradling a small black lamb in both arms. Three white lambs roam around his feet. Dynamic low angle perspective looking slightly upward, full figure against open sky with soft clouds. Golden hour sunlight from the side casting warm directional shadows, rim lighting the pink blazer. Playful, editorial, fashion meets pastoral mood. Shot on Hasselblad X2D 100C, 35mm f/2.0 wide angle, Kodak Portra 400 film aesthetic, fine art environmental portrait, natural soft skin tones, ultra sharp clothing and animal texture detail, shallow background depth of field, muted warm green and soft pink palette with creamy highlights, gentle film grain, minimal retouching, professional editorial quality.",
+    "themes": [
+      "landscapes"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/1e2a2822-6ce9-4bc8-b01e-e29b44b9f418/0_1.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/1e2a2822-6ce9-4bc8-b01e-e29b44b9f418",
+    "scrapedAt": "2026-05-20T22:02:49.257Z"
+  },
+  {
+    "jobId": "79497b12-9cc3-47e2-89a0-0fe137c33f6b",
+    "prompt": "watercolor painting of a colourfull exotic bird perched on a simple branch, soft luminous light, minimal background wash, ethereal atmosphere, sacred stillness, delicate feather detail, gentle glow, muted tones, spiritual and peaceful mood, fine art watercolor",
+    "themes": [
+      "animals",
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/79497b12-9cc3-47e2-89a0-0fe137c33f6b/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/79497b12-9cc3-47e2-89a0-0fe137c33f6b",
+    "scrapedAt": "2026-05-20T22:02:44.978Z"
+  },
+  {
+    "jobId": "8dbb2990-5792-41c3-a594-516662b35829",
+    "prompt": "watercolor clipart of a fairy jam kitchen in a timber-framed country cottage with white walls and berry-colored tiled roof, jars of jam with gingham lids on wooden shelves, open arched windows with curtains, vintage fairy tale style, pastel tones, white background,",
+    "themes": [
+      "characters",
+      "architecture"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/8dbb2990-5792-41c3-a594-516662b35829/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/8dbb2990-5792-41c3-a594-516662b35829",
+    "scrapedAt": "2026-05-20T22:02:38.439Z"
+  },
+  {
+    "jobId": "37065aec-2f75-4ada-974d-f17c6f73d40a",
+    "prompt": "A Colorado mountain landscape, soft yellow #F8E6A8 ambient background, fresh morning energy, flat editorial illustration style, bold dark outlines, limited color palette of light dusty blue, warm peach, and soft yellow, clean minimalist poster, white background",
+    "themes": [
+      "landscapes"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/37065aec-2f75-4ada-974d-f17c6f73d40a/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/37065aec-2f75-4ada-974d-f17c6f73d40a",
+    "scrapedAt": "2026-05-20T22:02:22.723Z"
+  },
+  {
+    "jobId": "66484e38-d01b-478f-b24f-910bf4d0aac4",
+    "prompt": "Extreme wide-angle macro food POV photograph from inside a strawberry milkshake glass, looking upward through a circular whipped-cream opening as a young fashionable person sips through a pastel pink straw. The camera is embedded inside the drink, surrounded by glossy whipped cream, strawberry syrup, crushed ice, and tiny bubbles pressed close to the lens. The person’s face is very close, playful exaggerated expression, glossy red lips around the straw, direct eye contact, distorted by fisheye perspective. Bright blue sky visible through the opening. Hyperreal editorial food photography, surreal commercial advertising aesthetic, vibrant saturated colors, crisp flash lighting, wet glossy textures, high contrast, sharp focus, 35mm fisheye lens, low angle, dynamic composition, tactile, whimsical, summer campaign, ultra-detailed, photorealistic.",
+    "themes": [
+      "food_drink",
+      "photography"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/66484e38-d01b-478f-b24f-910bf4d0aac4/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/66484e38-d01b-478f-b24f-910bf4d0aac4",
+    "scrapedAt": "2026-05-20T22:02:16.605Z"
+  },
+  {
+    "jobId": "078caf6b-f220-4a8a-ac9a-0f6f5ed8cee4",
+    "prompt": "vintage archival, standing still hermit, fragments of gold, klimt, fauvism, golden cocoon, black and white, collage, eclipse vintage expressionist postcard overlay, tarot,dada, simon of the desert, buñuel, album cover",
+    "themes": [
+      "vintage_retro"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/078caf6b-f220-4a8a-ac9a-0f6f5ed8cee4/0_1.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/078caf6b-f220-4a8a-ac9a-0f6f5ed8cee4",
+    "scrapedAt": "2026-05-20T22:02:13.285Z"
+  },
+  {
+    "jobId": "63e89c43-56bd-425a-90b1-504ac1fcb93c",
+    "prompt": "magical rainbow glitter holographic forked path on a wooded trail on a black background",
+    "themes": [
+      "neon_cyberpunk",
+      "surreal_fantasy"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/63e89c43-56bd-425a-90b1-504ac1fcb93c/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/63e89c43-56bd-425a-90b1-504ac1fcb93c",
+    "scrapedAt": "2026-05-20T22:02:06.097Z"
+  },
+  {
+    "jobId": "68263b24-da60-4788-820a-7e0139803bf0",
+    "prompt": "Swan wings out wide, attacked by two large dogs, etching black and white illustration print, rich in detail and finely crafted, set against a pure white background, medieval etching, white black lines",
+    "themes": [
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/68263b24-da60-4788-820a-7e0139803bf0/0_1.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/68263b24-da60-4788-820a-7e0139803bf0",
+    "scrapedAt": "2026-05-20T22:01:57.336Z"
+  },
+  {
+    "jobId": "471b38ff-f36c-4b0b-a639-6edc02cf631b",
+    "prompt": "18 20 year old Chinese woman, half body front portrait, pure white background, historical drama cinematic texture. Orthodox Manchu shaman sacrificial costume: light beige matte fabric, exquisitely embroidered Haidongqing totem (clear lines, strong 3D relief), simple hem, natural drape. Light gray traditional Manchu banner headpiece with four complete eagle wing feathers (natural texture, neat arrangement). Gentle clear eyes with faint hidden sorrow, calm gaze; slender fingers, natural posture; solemn sorrowful expression. Plain classical makeup: outlined eyes and brows, light lip color. Neat traditional Manchu hairstyle, smooth natural luster hair. Soft diffused lighting, gentle uniform light, natural facial shadow transitions highlighting 3D form and costume texture. Cold, calm, compassionate young shaman temperament. Hyper realistic, extremely detailed skin, costume stitching and feather texture, cinematic composition, high definition.",
+    "themes": [
+      "portraits",
+      "cinematic"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/471b38ff-f36c-4b0b-a639-6edc02cf631b/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/471b38ff-f36c-4b0b-a639-6edc02cf631b",
+    "scrapedAt": "2026-05-20T22:01:52.873Z"
+  },
+  {
+    "jobId": "64d136b6-ac68-4adf-958c-120f7d99b29e",
+    "prompt": "vibrant folk art style illustration of a stylized crab against a plain beige background. The crab is heavily decorated with intricate dot patterns, stippling, and dashed striped lines on claws. navy blue, pink, yellow, mid-century color palette. Flat, two-dimensional perspective, playful and colorful naive art aesthetic, gouache painting style, detailed pointillism-inspired patterns.",
+    "themes": [
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/64d136b6-ac68-4adf-958c-120f7d99b29e/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/64d136b6-ac68-4adf-958c-120f7d99b29e",
+    "scrapedAt": "2026-05-20T22:01:48.530Z"
+  },
+  {
+    "jobId": "269abaf4-7e15-4bf4-9a40-f009cf04f741",
+    "prompt": "A surreal, strange, and dark fantasy portrait of a woman is in two parts. The left half has an aged, cracked texture in earthy tones, with an internal light source illuminating a golden scale symbol on her forehead. The right half is smooth and a pale porcelain white, like a doll's, smooth and luminous. Dreamlike symbols appear on the dark background on the right.",
+    "themes": [
+      "portraits",
+      "surreal_fantasy"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/269abaf4-7e15-4bf4-9a40-f009cf04f741/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/269abaf4-7e15-4bf4-9a40-f009cf04f741",
+    "scrapedAt": "2026-05-20T22:01:39.866Z"
+  },
+  {
+    "jobId": "8d9f2572-a51d-4866-8c5b-2c0cdf98108d",
+    "prompt": "portrait analog glitch collage",
+    "themes": [
+      "portraits",
+      "vintage_retro"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/8d9f2572-a51d-4866-8c5b-2c0cdf98108d/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/8d9f2572-a51d-4866-8c5b-2c0cdf98108d",
+    "scrapedAt": "2026-05-20T22:01:24.349Z"
+  },
+  {
+    "jobId": "9e954d1e-789e-4d49-8194-1a72baf7d200",
+    "prompt": "Real color saturated photo, Year 1995, But I can't help myself I can't stop myself I am going crazy",
+    "themes": [
+      "photography"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/9e954d1e-789e-4d49-8194-1a72baf7d200/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/9e954d1e-789e-4d49-8194-1a72baf7d200",
+    "scrapedAt": "2026-05-20T22:01:18.489Z"
+  },
+  {
+    "jobId": "79284abc-a673-4b2d-80b1-5c748caea6e8",
+    "prompt": "a cat with a brown tabby coat is positioned in a bathtub, wearing a white head towel and dark sunglasses. the cat holds a book displaying the words \"sorry i'm busy.\" the bathtub is filled with water, and the background features green tiled walls with a visible faucet and control .",
+    "themes": [
+      "products",
+      "animals"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/79284abc-a673-4b2d-80b1-5c748caea6e8/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/79284abc-a673-4b2d-80b1-5c748caea6e8",
+    "scrapedAt": "2026-05-20T22:01:14.486Z"
+  },
+  {
+    "jobId": "f1fcce59-1ee8-4e88-b5ac-f8165417f219",
+    "prompt": "a half body illustration of a french bulldog wearing a stylish headphone and a casual sweatshirt",
+    "themes": [
+      "portraits",
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/f1fcce59-1ee8-4e88-b5ac-f8165417f219/0_1.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/f1fcce59-1ee8-4e88-b5ac-f8165417f219",
+    "scrapedAt": "2026-05-20T22:00:58.856Z"
+  },
+  {
+    "jobId": "7b2f8173-d647-42ac-ba3f-9999baf971b9",
+    "prompt": "a cat wizard hyperreallistic with a staff",
+    "themes": [
+      "characters",
+      "animals"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/7b2f8173-d647-42ac-ba3f-9999baf971b9/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/7b2f8173-d647-42ac-ba3f-9999baf971b9",
+    "scrapedAt": "2026-05-20T22:00:54.269Z"
+  },
+  {
+    "jobId": "cf529054-bfad-4441-bfbc-3758b657e65b",
+    "prompt": "Different illustration of dogs sleeping on different positions, hand-drawn crayon illustration style, warm and cozy feeling, flat illustration, vibrant color, white background (kids illustration style, nursery art aesthetic, simple and friendly design)",
+    "themes": [
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/cf529054-bfad-4441-bfbc-3758b657e65b/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/cf529054-bfad-4441-bfbc-3758b657e65b",
+    "scrapedAt": "2026-05-20T22:00:45.684Z"
+  },
+  {
+    "jobId": "e5c83c6c-357b-44e0-9734-2ecaa2e192f0",
+    "prompt": "a wideshot scene of just two junkies in a loft apartment, downtown NYC, by Ralph Bakshi",
+    "themes": [
+      "architecture"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/e5c83c6c-357b-44e0-9734-2ecaa2e192f0/0_1.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/e5c83c6c-357b-44e0-9734-2ecaa2e192f0",
+    "scrapedAt": "2026-05-20T22:00:40.362Z"
+  },
+  {
+    "jobId": "3f6d07d2-eea7-47cd-99d5-53f545a35b78",
+    "prompt": "a beautiful illustrated pattern of pastel blue flowers in the style of Henri Matisse among green botanical leaves and vines in the style of William Morris rendered on a white background as a PNG",
+    "themes": [
+      "flora",
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/3f6d07d2-eea7-47cd-99d5-53f545a35b78/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/3f6d07d2-eea7-47cd-99d5-53f545a35b78",
+    "scrapedAt": "2026-05-20T22:00:30.605Z"
+  },
+  {
+    "jobId": "ec9ec73a-0a05-40b1-bde5-ac0872d5c465",
+    "prompt": "Young European woman, light skin, relaxed expression, wearing a vivid pink blazer over a white shirt, standing full height on a lush green meadow, cradling a small black lamb in both arms. Three white lambs roam around his feet. Dynamic low angle perspective looking slightly upward, full figure against open sky with soft clouds. Golden hour sunlight from the side casting warm directional shadows, rim lighting the pink blazer. Playful, editorial, fashion meets pastoral mood. Shot on Hasselblad X2D 100C, 35mm f/2.0 wide angle, Kodak Portra 400 film aesthetic, fine art environmental portrait, natural soft skin tones, ultra sharp clothing and animal texture detail, shallow background depth of field, muted warm green and soft pink palette with creamy highlights, gentle film grain, minimal retouching, professional editorial quality.",
+    "themes": [
+      "portraits",
+      "landscapes"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/ec9ec73a-0a05-40b1-bde5-ac0872d5c465/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/ec9ec73a-0a05-40b1-bde5-ac0872d5c465",
+    "scrapedAt": "2026-05-20T22:00:24.887Z"
+  },
+  {
+    "jobId": "b8b70797-af8f-4703-8fde-fb253a2ebf0b",
+    "prompt": "A whimsical cartoon illustration of an alligator dressed as a cowboy, riding on his motorcycle in the Western style",
+    "themes": [
+      "animals",
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/b8b70797-af8f-4703-8fde-fb253a2ebf0b/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/b8b70797-af8f-4703-8fde-fb253a2ebf0b",
+    "scrapedAt": "2026-05-20T22:00:19.480Z"
+  },
+  {
+    "jobId": "26d6fe1e-ac3b-4f8b-8804-cf20929b0f63",
+    "prompt": "macro editorial detail of macro detail of toothbrush bristles beside a plain toothpaste tube with no label, clean dental clinic tray with neutral background, tooth brushing habit detail, realistic Japanese family oral care context, no readable labels, no dental clinic logos, no toothpaste branding, no medical claims, no visible patient names, clean uncluttered composition, realistic Japanese lifestyle stock photo, shot on 35mm lens, natural window light, slight film grain, no retouching, thumbnail-readable subject, simple uncluttered background, generous copy space, sharp focus, realistic color, no text, no logos, no watermark, no signage, no UI text, no app icons, no brand marks, no deformed hands, no extra fingers, no missing fingers, no distorted face, no extra limbs",
+    "themes": [
+      "japanese"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/26d6fe1e-ac3b-4f8b-8804-cf20929b0f63/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/26d6fe1e-ac3b-4f8b-8804-cf20929b0f63",
+    "scrapedAt": "2026-05-20T22:00:14.849Z"
+  },
+  {
+    "jobId": "a8302d36-9c23-4375-a211-7d61d446b57d",
+    "prompt": "a vase of flower on a desk in front of a window, which with a city view of Paris",
+    "themes": [
+      "flora"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/a8302d36-9c23-4375-a211-7d61d446b57d/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/a8302d36-9c23-4375-a211-7d61d446b57d",
+    "scrapedAt": "2026-05-20T22:00:09.928Z"
+  },
+  {
+    "jobId": "68eed7d4-316c-4c7c-bbc7-af19bc6245c0",
+    "prompt": "A small sailboat with a bright red hull, a crisp orange sail, and a tiny lone figure steering. The boat is drifting through a beautiful, therapeutic abstract world. Instead of literal water and clouds, it floats on a smooth, mirrored surface of flowing pastel gradients in serene blues, soft pinks, and warm golds. Ethereal, swirling light patterns and gentle, dissolving geometric shapes fill the sky, creating a deeply calming, serene, and dreamlike atmosphere.",
+    "themes": [
+      "boats"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/68eed7d4-316c-4c7c-bbc7-af19bc6245c0/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/68eed7d4-316c-4c7c-bbc7-af19bc6245c0",
+    "scrapedAt": "2026-05-20T22:00:02.246Z"
+  },
+  {
+    "jobId": "823ea79e-5371-4c84-9187-eaf6070896db",
+    "prompt": "Create a tiled image of beach themed items. Each should be relatively simple using a limited colour palette in DMC fabric styles. They should be cute and in a pixel art or cross stitch style",
+    "themes": [
+      "landscapes"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/823ea79e-5371-4c84-9187-eaf6070896db/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/823ea79e-5371-4c84-9187-eaf6070896db",
+    "scrapedAt": "2026-05-20T21:59:53.193Z"
+  },
+  {
+    "jobId": "8c72c405-911b-4e92-8559-331a47217d16",
+    "prompt": "Cinematic street photography, strict profile side view of a Korean man in his 30s standing still at the center of a busy Seoul sidewalk. He wears a clean white dress shirt with rolled-up sleeves, dark tailored trousers, formal office shoes, and a black sling bag. He calmly looks up at the sky, hands relaxed by his side. Around him, dozens of Korean office workers in business suits rush past him, captured in strong motion blur, creating a contrast between chaos and stillness. The man remains in sharp focus. Background shows modern Seoul office buildings, slightly desaturated, with subtle warm sunlight hitting his face. Dramatic urban aesthetic, modern cinematic poster look.",
+    "themes": [
+      "photography",
+      "cinematic"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/8c72c405-911b-4e92-8559-331a47217d16/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/8c72c405-911b-4e92-8559-331a47217d16",
+    "scrapedAt": "2026-05-20T21:59:48.509Z"
+  },
+  {
+    "jobId": "12f234b0-4f38-4fc1-885a-05adcea1e42f",
+    "prompt": "abstract liquid, smooth flowing gradients, glossy fluid appearance, vibrant but controlled colors, minimal shapes, immersive and surreal, high-end digital art aesthetic, VR optimized",
+    "themes": [
+      "abstract"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/12f234b0-4f38-4fc1-885a-05adcea1e42f/0_1.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/12f234b0-4f38-4fc1-885a-05adcea1e42f",
+    "scrapedAt": "2026-05-20T21:59:44.523Z"
+  },
+  {
+    "jobId": "f63db26b-05b8-46bc-afed-9d58dcb95360",
+    "prompt": "A vintage astronaut in a worn white spacesuit with reflective gold visor sitting on the hood of a 1990s BMW E34 sedan, an orange tabby cat calmly resting beside him on the hood, parked on an empty asphalt highway at night, surrounding darkness with faint distant horizon, headlights softly illuminating the foreground, grainy 35mm film photograph, heavy film grain, deep shadows with vignette, muted desaturated colors, analog photography aesthetic, found photo look, late night atmosphere, cinematic stillness, mysterious calm mood",
+    "themes": [
+      "cars",
+      "characters"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/f63db26b-05b8-46bc-afed-9d58dcb95360/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/f63db26b-05b8-46bc-afed-9d58dcb95360",
+    "scrapedAt": "2026-05-20T21:59:33.142Z"
+  },
+  {
+    "jobId": "14cc6055-e936-4f21-823b-1296b7b4610f",
+    "prompt": "minimal banana illustration with bold yellow shapes and simple typography, clean retro mediterranean poster aesthetic, playful typography \"Ripe yellow banana\", hand-drawn crayon illustration style, warm and cozy feeling, flat illustration, vibrant color, white artboard (kids illustration style, nursery art aesthetic, simple and friendly design)",
+    "themes": [
+      "illustration",
+      "minimalist"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/14cc6055-e936-4f21-823b-1296b7b4610f/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/14cc6055-e936-4f21-823b-1296b7b4610f",
+    "scrapedAt": "2026-05-20T21:59:29.334Z"
+  },
+  {
+    "jobId": "7674e0f1-24e9-4448-9d6b-bc140631ba38",
+    "prompt": "Buggy the Clown from One Piece, ultra-realistic, mischievous grin with sharp eyes under a large red clown nose and dramatic blue makeup, wild blue hair flowing from under a striped pirate bandana and tricorn hat with skull emblem, wearing a flamboyant red and white striped shirt with a large fur-lined orange cape, confident and theatrical expression, cinematic lighting, photorealistic, 8k resolution, intricate textures on skin, fabric, and costume details, dramatic shadows, hyper-detailed, realistic anime character brought to life, Asian, half body",
+    "themes": [
+      "products",
+      "cinematic"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/7674e0f1-24e9-4448-9d6b-bc140631ba38/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/7674e0f1-24e9-4448-9d6b-bc140631ba38",
+    "scrapedAt": "2026-05-20T21:59:22.782Z"
+  },
+  {
+    "jobId": "5e407a92-2852-493a-adb0-1d55071765f5",
+    "prompt": "Cute fuzzy baby dragon",
+    "themes": [
+      "portraits",
+      "animals"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/5e407a92-2852-493a-adb0-1d55071765f5/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/5e407a92-2852-493a-adb0-1d55071765f5",
+    "scrapedAt": "2026-05-20T21:59:18.057Z"
+  },
+  {
+    "jobId": "62d49933-cdf3-43b8-a779-e87c6231ee60",
+    "prompt": "a close up, abstract portrait features a person with a highly manipulated face, showing multiple overlapping profiles and a central forward facing view. a bright, vertical light beam shines down the center of the head, which is covered in a sheer, light material. the neck is wrapped in a voluminous, ruched, light fabric. the person is dressed in a dark garment, possibly a blazer or coat, with visible shoulders. the background is a simple, light neutral tone.",
+    "themes": [
+      "portraits",
+      "abstract"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/62d49933-cdf3-43b8-a779-e87c6231ee60/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/62d49933-cdf3-43b8-a779-e87c6231ee60",
+    "scrapedAt": "2026-05-20T21:59:13.024Z"
+  },
+  {
+    "jobId": "1852c3be-c205-4290-af13-b5dbddb23082",
+    "prompt": "A detailed, hand-painted illustration Features a brilliant cut, faceted diamond held close to a face with a visible eye, replicating the composition from. Skin surfaces of hands and face are intricately overlaid with clear Central African geometric patterns, such as Kuba textile designs and Luba scarification. Intense radiant warm golden light makes the diamond glow with painterly highlights",
+    "themes": [
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/1852c3be-c205-4290-af13-b5dbddb23082/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/1852c3be-c205-4290-af13-b5dbddb23082",
+    "scrapedAt": "2026-05-20T21:59:04.032Z"
+  },
+  {
+    "jobId": "9c19bc2b-c252-48a7-bd68-bf3b739dbb58",
+    "prompt": "from behind, head turned for a quiet glance, young Japanese girl, early 20s, soft features, fair skin, airy wispy bangs (空气刘海), thin summer dress, translucent in backlight, Tokyo train carriage, half-empty seats, side-backlight through a window, dust in the air, shot on 35mm Kodak Gold film, soft bokeh circles, visible grain in shadows",
+    "themes": [
+      "portraits",
+      "japanese"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/9c19bc2b-c252-48a7-bd68-bf3b739dbb58/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/9c19bc2b-c252-48a7-bd68-bf3b739dbb58",
+    "scrapedAt": "2026-05-20T21:58:59.014Z"
+  },
+  {
+    "jobId": "93ea34d1-37ab-4d9c-8df5-47dc35e5d1d2",
+    "prompt": "ethereal watercolor painting of a white dove resting on an olive branch, soft luminous light, airy neutral palette, minimal background wash, tranquil and peaceful mood, delicate watercolor texture, feathered edges, serene spiritual atmosphere, elegant fine art composition",
+    "themes": [
+      "surreal_fantasy",
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/93ea34d1-37ab-4d9c-8df5-47dc35e5d1d2/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/93ea34d1-37ab-4d9c-8df5-47dc35e5d1d2",
+    "scrapedAt": "2026-05-20T21:58:51.104Z"
+  },
+  {
+    "jobId": "d71f067d-1e34-49b1-8348-9198a02f0890",
+    "prompt": "An Apollo astronaut in full white spacesuit mounted on a powerful dark horse, painted in the style of a grand 18th century equestrian portrait, rich oil paint texture, dramatic Baroque lighting, deep umber and gold background, the astronaut posed like George Washington crossing the Delaware, American flag shoulder patch, lush brushwork, museum-quality classical painting, the absurdity played completely straight",
+    "themes": [
+      "characters",
+      "animals"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/d71f067d-1e34-49b1-8348-9198a02f0890/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/d71f067d-1e34-49b1-8348-9198a02f0890",
+    "scrapedAt": "2026-05-20T21:58:43.351Z"
+  },
+  {
+    "jobId": "783dbef0-9501-4ccd-9dce-0cda5abb7ba9",
+    "prompt": "Cosmic city elements, soft mist and fog layers, divine overhead perspective, ultra-fine details, dramatic downward angle, volumetric fog, photorealistic rendering, fantasy concept art, 8K, ultra-wide angle, massive depth of field. Beneath the clouds lies an endless ocean of lights and architecture. In the foreground stands ancient Chinese palace architecture, blending sci-fi and traditional styles. A lone figure in a Chinese traditional robe stands at the edge of an ancient palace roof. No sky is visible in the frame. Extreme top-down perspective, bird’s-eye straight-down view, overlooking the vast luminous city stretching to the horizon. The curved surface of the planet is visible from high altitude. Unreal Engine 5 render, Chinese immortals aesthetics, grand and serene, lonely and poetic, mysterious, highly fantastical, ArtStation quality.",
+    "themes": [
+      "space",
+      "surreal_fantasy"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/783dbef0-9501-4ccd-9dce-0cda5abb7ba9/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/783dbef0-9501-4ccd-9dce-0cda5abb7ba9",
+    "scrapedAt": "2026-05-20T21:58:38.365Z"
+  },
+  {
+    "jobId": "33408ca2-f5b9-4f09-a9e6-23ee1bfaf5fe",
+    "prompt": "Bold stylized illustration of an androgynous ]skate boarder holding onto a kite in exaggerated extreme perspective, with dramatically oversized legs and sneakers dominating the foreground, feet pushed closest to the viewer for strong foreshortening. The body twists dynamically above the enlarged lower half. Outfit in deep cobalt with warm orange and acid green accents. Background in vivid raspberry red with bold graphic arcs and curved motion lines. Flat graphic color blocks remain strong and high-contrast, but add subtle tonal variation, soft shadow transitions, and a delicate speckled grain overlay across large color areas to avoid a clean vector appearance. Slightly imperfect, hand-drawn outlines and gentle color noise give a printed poster feel. Energetic, confident, contemporary street-sport aesthetic with tactile depth.",
+    "themes": [
+      "shoes",
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/33408ca2-f5b9-4f09-a9e6-23ee1bfaf5fe/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/33408ca2-f5b9-4f09-a9e6-23ee1bfaf5fe",
+    "scrapedAt": "2026-05-20T21:58:34.515Z"
+  },
+  {
+    "jobId": "dbf14393-6a3b-408c-b878-e0bbce4fdb3b",
+    "prompt": "A hilarious tower of 4 cute cats on a kitchen floor, stacked vertically on top of each other, the top cat trying to steal snacks from the counter. A painting of pastel-like colors",
+    "themes": [
+      "architecture",
+      "animals"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/dbf14393-6a3b-408c-b878-e0bbce4fdb3b/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/dbf14393-6a3b-408c-b878-e0bbce4fdb3b",
+    "scrapedAt": "2026-05-20T21:58:22.009Z"
+  },
+  {
+    "jobId": "f7b11aa3-d014-413b-b6fa-83c1c72a71d6",
+    "prompt": "A pink-and-white illustration depicts arale *Shugo Chara!* sitting on a cloud and drinking milk, with a monkey perched atop her head. The text \"재욱 좋아\" appears in KOREAN script within a speech bubble, and the character is surrounded by several smiling stars..",
+    "themes": [
+      "animals",
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/f7b11aa3-d014-413b-b6fa-83c1c72a71d6/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/f7b11aa3-d014-413b-b6fa-83c1c72a71d6",
+    "scrapedAt": "2026-05-20T21:58:15.756Z"
+  },
+  {
+    "jobId": "151dbbca-671f-4b36-9c82-9dc3b290c248",
+    "prompt": "Dark fantasy photorealistic character medium shot, ultra photorealistic, cinematic, 8K",
+    "themes": [
+      "dark_moody",
+      "surreal_fantasy"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/151dbbca-671f-4b36-9c82-9dc3b290c248/0_1.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/151dbbca-671f-4b36-9c82-9dc3b290c248",
+    "scrapedAt": "2026-05-20T21:58:11.371Z"
+  },
+  {
+    "jobId": "300a67d6-3b91-47df-a19a-aea6b5273cb5",
+    "prompt": "Dreamy fashion film lookbook, a young woman with long blonde hair naturally down, holding a real baby deer with soft white angel wings attached to its back, pastel lace studio background, 90s flash editorial mood, surreal yet realistic, gentle and uncanny atmosphere, slow camera push-in, model softly shifting poses, turning her shoulders, lowering her gaze, lifting the deer slightly, delicate hand details, subtle hair movement, soft fabric texture, slight blur, intimate close-ups mixed with portrait framing, nostalgic flash-lit fashion imagery, refined editorial styling, no text, no watermark",
+    "themes": [
+      "portraits",
+      "animals"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/300a67d6-3b91-47df-a19a-aea6b5273cb5/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/300a67d6-3b91-47df-a19a-aea6b5273cb5",
+    "scrapedAt": "2026-05-20T21:58:06.651Z"
+  },
+  {
+    "jobId": "fa464c7c-4671-4fd4-ada3-46271c1c5bf6",
+    "prompt": "A girl, holding an umbrella on a rainy day",
+    "themes": [
+      "portraits"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/fa464c7c-4671-4fd4-ada3-46271c1c5bf6/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/fa464c7c-4671-4fd4-ada3-46271c1c5bf6",
+    "scrapedAt": "2026-05-20T21:58:00.612Z"
+  },
+  {
+    "jobId": "81ae7f63-533b-45e0-be49-8089d3a71a20",
+    "prompt": "Charcoal drawing of a geometric still life exploding at moment of impact: cubes, spheres, pyramids, cones, cylinders, prisms, rings, polyhedrons, crystal forms, and plaster blocks bursting outward in midair, mixed sizes, overlapping and colliding dynamically. A powerful light beam erupts from the explosion's center, illuminating floating debris, charcoal dust, and shattered fragments against a dark atmospheric background. Dramatic chiaroscuro, deep shadows. Academic atelier style: carefully observed structure and perspective, believable volume and spatial depth, realistic charcoal and graphite rendering, refined pencil texture, decisive edges with soft transitions. Strong visual hierarchy, clear focal point, balanced negative space, dynamic but organized composition. Elegant grayscale harmony, cinematic atmosphere, expressive yet controlled draftsmanship, explosive motion frozen in time. Avoid: messy composition, vague forms, weak perspective, muddy shading, chaotic lighting, AI artifacts.",
+    "themes": [
+      "illustration",
+      "abstract"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/81ae7f63-533b-45e0-be49-8089d3a71a20/0_1.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/81ae7f63-533b-45e0-be49-8089d3a71a20",
+    "scrapedAt": "2026-05-20T21:57:56.619Z"
+  },
+  {
+    "jobId": "e6a61e0b-070e-45a3-a8fa-9eccb10e09a5",
+    "prompt": "Photorealistic macro portrait, close-up of a young woman (20-30), fair skin with many freckles across the nose and cheeks, thick dark eyebrows, eyes closed, expression with a slight grimace/squint. Mouth slightly open, white teeth visible. A black toothbrush held horizontally left-to-right in the mouth, brushing the upper front teeth; white toothpaste foam on the bristles and around the lips. Dark hair pulled back. Clean white studio background, soft diffused lighting, high detail of pores and skin texture, sharp focus on the teeth/ brush, shallow depth of field, 85mm macro, f/5.6, ultra high detail, natural color, editorial beauty photo, no-makeup look. Negative prompt: illustration, CGI, 3D, plastic skin, blurry, noise, artifacts, distorted teeth, extra teeth, extra lips, extra hands, deformed face, crooked eyes, text, logo, watermark, low quality.",
+    "themes": [
+      "portraits"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/e6a61e0b-070e-45a3-a8fa-9eccb10e09a5/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/e6a61e0b-070e-45a3-a8fa-9eccb10e09a5",
+    "scrapedAt": "2026-05-20T21:57:51.611Z"
+  },
+  {
+    "jobId": "ffbf0129-2cea-4e09-9069-1c0852b90dc9",
+    "prompt": "Mango Tree on a plain backdrop",
+    "themes": [
+      "flora"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/ffbf0129-2cea-4e09-9069-1c0852b90dc9/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/ffbf0129-2cea-4e09-9069-1c0852b90dc9",
+    "scrapedAt": "2026-05-20T21:57:48.547Z"
+  },
+  {
+    "jobId": "14b87583-7fe4-4398-bd0f-5a1d0e35744c",
+    "prompt": "solitary minimalist summer house in a misty morning meadow, soft pastel sunrise, light fog rolling over grass, no humans, cinematic stillness, muted greens and peach sky, architectural minimalism, vast empty foreground, award-winning landscape photography,",
+    "themes": [
+      "landscapes",
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/14b87583-7fe4-4398-bd0f-5a1d0e35744c/0_1.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/14b87583-7fe4-4398-bd0f-5a1d0e35744c",
+    "scrapedAt": "2026-05-20T21:57:43.249Z"
+  },
+  {
+    "jobId": "3914c15d-c709-4ab4-bd01-46025bccde12",
+    "prompt": "Blue background, photorealistic photograph of an intricate, flattened perspective artwork reminiscent of a decorative textile, showcasing a lively ecosystem. a white horse is positioned to the left of a blue river. two peacocks, one standing and one , are in the lower left. an owl sits within the branches of a large weeping willow tree. a lion is walking towards the center from the right, and a dog with a collar stands in the lower right. the scene is abundant with fruit trees and numerous small, blooming plants against a green ground",
+    "themes": [
+      "photography"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/3914c15d-c709-4ab4-bd01-46025bccde12/0_1.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/3914c15d-c709-4ab4-bd01-46025bccde12",
+    "scrapedAt": "2026-05-20T21:57:39.409Z"
+  },
+  {
+    "jobId": "8b1aaa62-8a0b-4622-8dcb-19bd9cc097d4",
+    "prompt": "a fauvist-style, simple, pencils retro risograph of group sardines fish , 1960s ad poster with text , neutral colours, handrawn naive funny",
+    "themes": [
+      "vintage_retro"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/8b1aaa62-8a0b-4622-8dcb-19bd9cc097d4/0_1.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/8b1aaa62-8a0b-4622-8dcb-19bd9cc097d4",
+    "scrapedAt": "2026-05-20T21:57:33.835Z"
+  },
+  {
+    "jobId": "2b44deaa-772d-426b-bc29-15bb6d008731",
+    "prompt": "Airbrush illustration, word \"WOW COW\" at the bottom and a kitten on a record with diamonds shining on its collar, flames and sparkles in background, pink blue yellow pastels, 90s airbrushed style, gothic kitschy, black background",
+    "themes": [
+      "animals",
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/2b44deaa-772d-426b-bc29-15bb6d008731/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/2b44deaa-772d-426b-bc29-15bb6d008731",
+    "scrapedAt": "2026-05-20T21:57:28.375Z"
+  },
+  {
+    "jobId": "712b123e-09fd-478c-95b3-4f89379cea44",
+    "prompt": "Louis Vuitton campaign style lifestyle photograph, elegant pale skin woman walking on city street, wearing oversized cashmere coat, tailored trousers, hair slicked back minimal makeup, delicate gold jewellery, carrying luxury structured leather dog carrier bag, small apricot toy poodle sitting inside bag head and paws visible peeking out, woman looking slightly away calm confident, Warsaw city street background soft bokeh, cobblestone pavement, warm afternoon light, natural daylight no harsh shadows, sharp fabric texture sharp leather detail, sharp curly poodle fur, luminous skin, rich warm camel brown cream palette, shallow depth of field, medium format feel, Hasselblad 85mm f/2 analog film",
+    "themes": [
+      "products",
+      "portraits"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/712b123e-09fd-478c-95b3-4f89379cea44/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/712b123e-09fd-478c-95b3-4f89379cea44",
+    "scrapedAt": "2026-05-20T21:57:24.420Z"
+  },
+  {
+    "jobId": "436b0e20-5b0b-4df4-9f5e-0ddef0248c2a",
+    "prompt": "A verdant wheat field under a blue sky, with a long strip of cloud hanging in the air.",
+    "themes": [
+      "landscapes"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/436b0e20-5b0b-4df4-9f5e-0ddef0248c2a/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/436b0e20-5b0b-4df4-9f5e-0ddef0248c2a",
+    "scrapedAt": "2026-05-20T21:57:15.931Z"
+  },
+  {
+    "jobId": "df33dc62-88b5-45a4-99e9-f1fa1ffb2afb",
+    "prompt": "ham sandwich",
+    "themes": [
+      "food_drink"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/df33dc62-88b5-45a4-99e9-f1fa1ffb2afb/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/df33dc62-88b5-45a4-99e9-f1fa1ffb2afb",
+    "scrapedAt": "2026-05-20T21:57:12.312Z"
+  },
+  {
+    "jobId": "cc61d6f4-41ea-440e-bf00-ccd65c0ccc12",
+    "prompt": "2D editorial illustration, a dark puppet master holding invisible strings attached to the shadow of the fallen figure, completely controlling the space around them in a deep crimson glow, flat bold colors, obsidian black background, heavy grain, cinematic 9:16, no text, no logos, no watermarks.",
+    "themes": [
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/cc61d6f4-41ea-440e-bf00-ccd65c0ccc12/0_1.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/cc61d6f4-41ea-440e-bf00-ccd65c0ccc12",
+    "scrapedAt": "2026-05-20T21:57:02.692Z"
+  },
+  {
+    "jobId": "3e8093e1-6a93-4b83-ae79-b78220af7ef4",
+    "prompt": "a very cute smiling happy cat takes up a small portion of the middle of the tub and the rest is water in the tub and tile in the background. she has a sweet smile on her face. a luxe cat with a cute orange and white glamorous female tabby coat is positioned in a luxurious bathtub, wearing a white head towel and elegant sunglasses with pretty eyes. the sweet cat holds a book displaying the words \"sorry i'm busy.\" the bathtub is filled with water, and the background features green tiled walls with a visible faucet and control",
+    "themes": [
+      "animals"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/3e8093e1-6a93-4b83-ae79-b78220af7ef4/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/3e8093e1-6a93-4b83-ae79-b78220af7ef4",
+    "scrapedAt": "2026-05-20T21:56:54.370Z"
+  },
+  {
+    "jobId": "cf12826b-1f1b-4904-a9ea-15222ba7b81a",
+    "prompt": "3D Disney Pixar style cartoon character, young woman with long wavy violet purple hair, bright blue eyes, light freckles, rosy cheeks, soft skin, wearing a flowing lavender or teal blouse, silver watch, warm soft lighting, white background, full upper body visible, highly detailed hair strands, big expressive eyes, smooth 3D render, cinematic quality, finger on chin, eyes looking up, soft dreamy expression",
+    "themes": [
+      "portraits",
+      "render_3d"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/cf12826b-1f1b-4904-a9ea-15222ba7b81a/0_1.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/cf12826b-1f1b-4904-a9ea-15222ba7b81a",
+    "scrapedAt": "2026-05-20T21:56:49.621Z"
+  },
+  {
+    "jobId": "397b4b4b-32d0-495e-b709-672d02f394d5",
+    "prompt": "A surreal minimalist seascape at sunset, calm reflective ocean stretching to the horizon, pastel sky with soft lavender, peach and pink gradients. A floating purple cloud hovering above the water, slightly textured and smoky, dreamy and ethereal. Thin glowing white light trails forming smooth orbital arcs around the cloud, like abstract celestial rings, soft neon glow. Perfect mirror reflection of the cloud and light trails on the water surface, gentle ripples, tranquil atmosphere. Cinematic composition, soft lighting, low contrast, meditative mood, modern surrealism, digital art, ultra clean, no noise.",
+    "themes": [
+      "landscapes",
+      "flora"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/397b4b4b-32d0-495e-b709-672d02f394d5/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/397b4b4b-32d0-495e-b709-672d02f394d5",
+    "scrapedAt": "2026-05-20T21:56:45.203Z"
+  },
+  {
+    "jobId": "d08b1292-d5b2-4ddc-a94c-2b2ceb4e3b85",
+    "prompt": "the fool, the jester in the infinite, cybernetic by Joaquín Sorolla!!!, John Lavery!!, Greg Rutkowski, Thomas Kinkade, Michael Whelan, Kilian Eng, Edward Okun, Jakub Rebelka, teamLab, Filip Hodas, astrophotography!!!! ripple effect by Victo Ngai, Ilya Kuvshinov, cosmic nebulae, rippling, aurora, flowing whirling cosmos, robot futurism, retrofuture, wires and cables, ones and zeroes, octane, behance HD, cgsociety, hyper detailed, hyperrealistic\", wide angle shot",
+    "themes": [
+      "futuristic"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/d08b1292-d5b2-4ddc-a94c-2b2ceb4e3b85/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/d08b1292-d5b2-4ddc-a94c-2b2ceb4e3b85",
+    "scrapedAt": "2026-05-20T21:56:39.599Z"
+  },
+  {
+    "jobId": "16cd61a2-9fbd-4f97-a2de-0caa873bed5d",
+    "prompt": "40-year-old woman with authentic Portuguese Mediterranean features, natural olive skin tone, dark brown hair, expressive brown eyes, clean model test portrait, agency casting photo, minimal makeup, neutral expression, simple black tank top, soft natural window light, plain white studio background, realistic skin texture, professional portrait photography, shot on Canon DSLR, 85mm lens, shallow depth of field, ultra realistic, photorealistic, sharp focus, high-end fashion test shoot, flyway hairs, loose strands, natural hair texture, soft hair highlights, natural eye reflections, catchlight in eyes, moist eyes, subtle shine, natural skin texture, visible pores, natural form of nouse",
+    "themes": [
+      "portraits",
+      "products"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/16cd61a2-9fbd-4f97-a2de-0caa873bed5d/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/16cd61a2-9fbd-4f97-a2de-0caa873bed5d",
+    "scrapedAt": "2026-05-20T21:56:35.554Z"
+  },
+  {
+    "jobId": "171e285f-ab3b-447a-b457-38b6d9045f04",
+    "prompt": "a towering retro-futuristic gundam standing motionless inside a moonlit gothic cathedral, polished chrome armor illuminated by holographic stained glass and drifting synthwave fog while giant analog star machines rotate behind, cinematic retro clash dark fantasy realism, Hasselblad H6D-100c, 85mm",
+    "themes": [
+      "architecture",
+      "dark_moody"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/171e285f-ab3b-447a-b457-38b6d9045f04/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/171e285f-ab3b-447a-b457-38b6d9045f04",
+    "scrapedAt": "2026-05-20T21:56:26.908Z"
+  },
+  {
+    "jobId": "44c64caa-1225-47d4-8189-7743e776b270",
+    "prompt": "a stick figure person sitting at a desk, ballpoint pen doodle, single black ink line, naive hand-drawn sketch, scrappy marginalia, no color no shading no fill, on plain cream paper, white background. a tiny doodle of a person in a suit at a laptop, with a small speech bubble saying \"humbled to announce\" and a tiny \"in\" badge floating above",
+    "themes": [
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/44c64caa-1225-47d4-8189-7743e776b270/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/44c64caa-1225-47d4-8189-7743e776b270",
+    "scrapedAt": "2026-05-20T21:56:21.203Z"
+  },
+  {
+    "jobId": "a93e9fab-25a6-483a-88e4-e903bc3bcb6a",
+    "prompt": "Hyper-realistic digital matte painting, Subway station passageway, Clean tile wall, Liminal space aesthetic, Sterile white atmosphere, texture: glass reflection, razor-sharp details, 8K",
+    "themes": [
+      "trains"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/a93e9fab-25a6-483a-88e4-e903bc3bcb6a/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/a93e9fab-25a6-483a-88e4-e903bc3bcb6a",
+    "scrapedAt": "2026-05-20T21:56:16.371Z"
+  },
+  {
+    "jobId": "b6eb20f6-e6f8-427b-a875-fd8625443fd7",
+    "prompt": "a solitary black robot resembling a horse is captured in a minimalist, darkened space. its mechanical structure is clear, showcasing components, joints, and wires that make up its form. the robot's head is directed towards the floor, from which a thin black wire hangs. it stands on a clean, light gray floor, which contrasts with the dark, gray wall in the background. the lighting is low key, highlighting the robot's silhouette and intricate details while casting a soft shadow on the ground.",
+    "themes": [
+      "characters",
+      "animals"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/b6eb20f6-e6f8-427b-a875-fd8625443fd7/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/b6eb20f6-e6f8-427b-a875-fd8625443fd7",
+    "scrapedAt": "2026-05-20T21:56:11.008Z"
+  },
+  {
+    "jobId": "509d1e5a-afb2-43c7-94a8-4bed8e3d4809",
+    "prompt": "Visualizer music Mtv real style video: We go fast in my fancy bitch car .........crazy girls and boys cool sexy",
+    "themes": [
+      "cars"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/509d1e5a-afb2-43c7-94a8-4bed8e3d4809/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/509d1e5a-afb2-43c7-94a8-4bed8e3d4809",
+    "scrapedAt": "2026-05-20T21:56:07.496Z"
+  },
+  {
+    "jobId": "dce113be-6a38-4085-a235-f912099d5ab4",
+    "prompt": "back view of a woman wearing an ivory cream heavyweight oversized crew neck sweatshirt, head is a complete black silhouette against a deep terracotta background, background transitions from deep terracotta to dark brown at the edges, the back of the sweatshirt features a technical data-card style print layout in small dark type with WE RUN HOT as large headline text at top, dramatic studio lighting, high contrast, 35mm film grain, analog photography quality",
+    "themes": [
+      "portraits"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/dce113be-6a38-4085-a235-f912099d5ab4/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/dce113be-6a38-4085-a235-f912099d5ab4",
+    "scrapedAt": "2026-05-20T21:56:02.632Z"
+  },
+  {
+    "jobId": "6f1a7686-2f14-4b72-8aa4-b04b5ee43840",
+    "prompt": "Different illustration of dogs sleeping on different positions, hand-drawn crayon illustration style, warm and cozy feeling, flat illustration, vibrant color, white background (kids illustration style, nursery art aesthetic, simple and friendly design)",
+    "themes": [
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/6f1a7686-2f14-4b72-8aa4-b04b5ee43840/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/6f1a7686-2f14-4b72-8aa4-b04b5ee43840",
+    "scrapedAt": "2026-05-20T21:55:53.286Z"
+  },
+  {
+    "jobId": "4a6f97fd-2451-4149-8cef-6ba15b4b98b2",
+    "prompt": "Airbrush illustration, a kitten on a record with diamonds shining on its collar, flames and sparkles in background, pink blue yellow pastels, 90s airbrushed style, gothic kitschy, black background",
+    "themes": [
+      "animals",
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/4a6f97fd-2451-4149-8cef-6ba15b4b98b2/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/4a6f97fd-2451-4149-8cef-6ba15b4b98b2",
+    "scrapedAt": "2026-05-20T21:55:46.298Z"
+  },
+  {
+    "jobId": "6015633a-76af-4641-8eee-1e0c96b2dfd7",
+    "prompt": "A flat 2D graphic print of a seamless geometric pattern. The design features clean and sharply defined Missoni-inspired chevron zigzag waves, painted in a refined watercolor style with subtle fluid gradients. The entire color palette is strictly limited to hades of pastel pink, blush pink, soft rose, and cream, using only these tones against a crisp white background.",
+    "themes": [
+      "abstract"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/6015633a-76af-4641-8eee-1e0c96b2dfd7/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/6015633a-76af-4641-8eee-1e0c96b2dfd7",
+    "scrapedAt": "2026-05-20T21:55:41.765Z"
+  },
+  {
+    "jobId": "7017deca-8cd8-497a-b11c-000aec23eedd",
+    "prompt": "\"Luna Park\" Woman with curly strawberry blonde hair pin up sitting on the crescent moon, Neo-Impressionism, Symbolism, Luna park, top hat, vaudeville, night, spotlight, amusement park, bohemian, 1910s, Seattle, waterfront, crescent moon , oil painting",
+    "themes": [
+      "portraits"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/7017deca-8cd8-497a-b11c-000aec23eedd/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/7017deca-8cd8-497a-b11c-000aec23eedd",
+    "scrapedAt": "2026-05-20T21:55:36.592Z"
+  },
+  {
+    "jobId": "c5c0127b-845e-4716-be2d-09a86ae7da49",
+    "prompt": "This is a coloured photograph with a cinematic and edgy art style, capturing an expressive and bold composition. The scene shows a woman in a leather coat and stockings, striking a relaxed pose on a subway seat facing the camera with her legs wide open. Her head leans back, her eyes closed, exuding confidence. She wears studded boots, adding a punk flair. Above her, a poster with red and white coloured subway train and the word \"RAPID Kuala Lumpur\" creates contrast. The subway’s metallic interior and window reflections enhance the urban setting. The image conveys a blend of sophistication and rebellion, typically characteristic of modern, artistic street photography.",
+    "themes": [
+      "photography",
+      "cinematic"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/c5c0127b-845e-4716-be2d-09a86ae7da49/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/c5c0127b-845e-4716-be2d-09a86ae7da49",
+    "scrapedAt": "2026-05-20T21:55:30.516Z"
+  },
+  {
+    "jobId": "7746087d-b1c3-4ac0-88d0-45159d972fb3",
+    "prompt": "Toddler standing up, binky in mouth, with watering can in hand, watering a few flowers, Painterly storybook illustration, visible oil-paint texture, simple brushstrokes",
+    "themes": [
+      "portraits"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/7746087d-b1c3-4ac0-88d0-45159d972fb3/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/7746087d-b1c3-4ac0-88d0-45159d972fb3",
+    "scrapedAt": "2026-05-20T21:55:26.396Z"
+  },
+  {
+    "jobId": "6653473a-0fb0-4a1c-a9d7-5a0c904d50a2",
+    "prompt": "Extreme close-up of a woman biting into a sandwich, fashion hipster social media post, 35mm film camera, candid",
+    "themes": [
+      "portraits",
+      "food_drink"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/6653473a-0fb0-4a1c-a9d7-5a0c904d50a2/0_1.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/6653473a-0fb0-4a1c-a9d7-5a0c904d50a2",
+    "scrapedAt": "2026-05-20T21:55:21.119Z"
+  },
+  {
+    "jobId": "d3f2e290-15f5-4ae6-8809-f0de9e3e47dc",
+    "prompt": "6. Ultra-realistic vertical 9:16 alpine valley campsite at night, a glowing yellow dome tent placed in the lower left foreground on rocky dry ground, warm interior light illuminating the tent fabric, small stones, and nearby camping area, a simple telescope or small astronomy stand near the center-right foreground, dark mountain walls rising on both sides with snow-streaked peaks visible in the far valley, deep open sky above the mountains filled with countless stars, the Milky Way rising powerfully from behind the distant peaks and stretching upward through the center with smoky black dust lanes, creamy white star clusters, muted blue and warm amber galactic tones, quiet remote mountain expedition atmosphere, strong vertical depth from tent to valley to sky, realistic natural night color grading, no people, no text, no logo, no watermark, no UI elements",
+    "themes": [
+      "architecture",
+      "landscapes"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/d3f2e290-15f5-4ae6-8809-f0de9e3e47dc/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/d3f2e290-15f5-4ae6-8809-f0de9e3e47dc",
+    "scrapedAt": "2026-05-20T21:55:11.932Z"
+  },
+  {
+    "jobId": "1e87cca9-feb2-4206-9a4e-9cd9fd247572",
+    "prompt": "Decorative painting, Abstract landscape, dreamy ethereal, soft glow, some bas relief texture, minimal gold leaf accents",
+    "themes": [
+      "landscapes",
+      "surreal_fantasy"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/1e87cca9-feb2-4206-9a4e-9cd9fd247572/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/1e87cca9-feb2-4206-9a4e-9cd9fd247572",
+    "scrapedAt": "2026-05-20T21:55:03.705Z"
+  },
+  {
+    "jobId": "42175370-a4ed-4757-9027-18d47e67cd62",
+    "prompt": "54. Eyelet Leaf Sprig Create a clean French embroidery pattern book plate featuring an eyelet leaf sprig with small open leaf shapes, tiny dot openings, fine curved stem, and refined whitework simplicity. The motif should be suitable for broderie anglaise details, French whitework, guest towels, baby linens, handkerchiefs, linen pouches, wedding keepsakes, and heirloom embroidery. Use warm ivory background, crisp stitch friendly outlines, elegant negative space, no text, no watermark, no realistic scene.",
+    "themes": [
+      "abstract",
+      "minimalist"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/42175370-a4ed-4757-9027-18d47e67cd62/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/42175370-a4ed-4757-9027-18d47e67cd62",
+    "scrapedAt": "2026-05-20T21:54:59.832Z"
+  },
+  {
+    "jobId": "7269da7b-6b65-4db1-a6c1-a4a2a4a45bb4",
+    "prompt": "Surreal hairless Manx cat in the style of kazimir Malevich",
+    "themes": [
+      "animals",
+      "surreal_fantasy"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/7269da7b-6b65-4db1-a6c1-a4a2a4a45bb4/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/7269da7b-6b65-4db1-a6c1-a4a2a4a45bb4",
+    "scrapedAt": "2026-05-20T21:54:54.392Z"
+  },
+  {
+    "jobId": "1a214a55-99c1-4d01-9b98-8acaa4c765af",
+    "prompt": "a girl and a dog",
+    "themes": [
+      "portraits",
+      "animals"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/1a214a55-99c1-4d01-9b98-8acaa4c765af/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/1a214a55-99c1-4d01-9b98-8acaa4c765af",
+    "scrapedAt": "2026-05-20T21:54:49.239Z"
+  },
+  {
+    "jobId": "87a6f211-6ec4-4735-b89a-9ce13990f00b",
+    "prompt": "anime girl wearing a balaclava sitting on the roof of a van holding a gun, black and white in the style of tekkonkinkreet",
+    "themes": [
+      "portraits",
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/87a6f211-6ec4-4735-b89a-9ce13990f00b/0_1.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/87a6f211-6ec4-4735-b89a-9ce13990f00b",
+    "scrapedAt": "2026-05-20T21:54:45.668Z"
+  },
+  {
+    "jobId": "9c22bc3d-6a75-43fc-b0d9-6a5176ee5a58",
+    "prompt": "A pink-and-white illustration depicts arale *Shugo Chara!* sitting on a cloud and drinking milk, with a monkey perched atop her head. The text \"Amu\" appears in Japanese script within a speech bubble, and the character is surrounded by several smiling stars..",
+    "themes": [
+      "animals",
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/9c22bc3d-6a75-43fc-b0d9-6a5176ee5a58/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/9c22bc3d-6a75-43fc-b0d9-6a5176ee5a58",
+    "scrapedAt": "2026-05-20T21:54:38.056Z"
+  },
+  {
+    "jobId": "1b0513d3-902c-42f4-b25a-be335c091598",
+    "prompt": "Minimalist art, silhouette of a demon character behind semi transparent frosted glass, front view, hands spread forward and palms touched on the glass, light and shadow hazy and soft, background is a pure light gray cool tone, overall presenting a low contrast soft atmosphere, cold tone minimalist aesthetics, high-quality CG rendering, movie grade light and shadow, minimalist music cover style, 8K ultra high definition.",
+    "themes": [
+      "minimalist"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/1b0513d3-902c-42f4-b25a-be335c091598/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/1b0513d3-902c-42f4-b25a-be335c091598",
+    "scrapedAt": "2026-05-20T21:54:28.332Z"
+  },
+  {
+    "jobId": "7558bf81-e892-4f6e-a51b-2ef2f1875a55",
+    "prompt": "a simple, stylized illustration of a man with teal eyes and dark hair - on a white background - no text - with teal, light blue, orange, and gold accents",
+    "themes": [
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/7558bf81-e892-4f6e-a51b-2ef2f1875a55/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/7558bf81-e892-4f6e-a51b-2ef2f1875a55",
+    "scrapedAt": "2026-05-20T21:54:24.456Z"
+  },
+  {
+    "jobId": "296b337d-1a0b-4b00-82d7-5a53aaee76fa",
+    "prompt": "in illustration of steak frites",
+    "themes": [
+      "food_drink",
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/296b337d-1a0b-4b00-82d7-5a53aaee76fa/0_1.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/296b337d-1a0b-4b00-82d7-5a53aaee76fa",
+    "scrapedAt": "2026-05-20T21:54:19.952Z"
+  },
+  {
+    "jobId": "aaa95191-29e4-47cc-a8c7-c9c10fb8e9dd",
+    "prompt": "Cinematic 9:16 vertical film still. A massive translucent creature drifts at the edge of a dark forest at night. Its dome head is a glass globe filled with swirling red-violet light, like a Christmas ornament containing an electrical storm. Long wet tentacles trail behind it like a glossy ruby robe. The forest is black, dense, still. In the foreground, a beautiful teenage girl in a cherry-red halter prom gown faces the creature. She has long brunette hair and a California tan. A rhinestone tiara catches the red-violet glow. She is not running. She is tilting her head. The creature's light is the only beautiful thing in the frame. Film grain. Deep red and black against violet light. 9:16 vertical. No text, no watermarks.",
+    "themes": [
+      "cinematic"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/aaa95191-29e4-47cc-a8c7-c9c10fb8e9dd/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/aaa95191-29e4-47cc-a8c7-c9c10fb8e9dd",
+    "scrapedAt": "2026-05-20T21:54:15.913Z"
+  },
+  {
+    "jobId": "f9eab9e8-539d-41ce-a024-c73acfecc672",
+    "prompt": "sculpted miniature queen of hearts child doll steps out of a playing card",
+    "themes": [
+      "portraits"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/f9eab9e8-539d-41ce-a024-c73acfecc672/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/f9eab9e8-539d-41ce-a024-c73acfecc672",
+    "scrapedAt": "2026-05-20T21:54:11.728Z"
+  },
+  {
+    "jobId": "7be745bc-2306-463e-8a24-5bf958864e45",
+    "prompt": "woman in red dress standing inside of big big giant hedge maze",
+    "themes": [
+      "portraits"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/7be745bc-2306-463e-8a24-5bf958864e45/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/7be745bc-2306-463e-8a24-5bf958864e45",
+    "scrapedAt": "2026-05-20T21:54:06.674Z"
+  },
+  {
+    "jobId": "320b0ccf-48b4-4ebf-b393-e29ae46a1c57",
+    "prompt": "A realistic photograph of a beautiful woman looking slightly sideways , she has clear super smooth skin and dark straight hair, no freckles. Asian girl. There are three white lilies around her head ,,on white background",
+    "themes": [
+      "portraits",
+      "photography"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/320b0ccf-48b4-4ebf-b393-e29ae46a1c57/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/320b0ccf-48b4-4ebf-b393-e29ae46a1c57",
+    "scrapedAt": "2026-05-20T21:54:02.718Z"
+  },
+  {
+    "jobId": "89d0f188-dec8-4b4b-a1ee-21b2487b3d6f",
+    "prompt": "A gentle baby bear sitting quietly in a soft meadow, looking curiously at a natural beehive inside an old tree trunk with bees gently flying in and out. gouache watercolor storybook illustration inspired by Jon Klassen, Oliver Jeffers, Eric Carle, and Mary Blair. minimal whimsical nursery art, muted woodland theme. Palette: oatmeal cream, warm caramel, cinnamon brown, dusty honey gold, pale fog gray, misty sage green, muted olive, soft butter yellow, faded sky blue accents. soft grain texture, hand-painted look, airy composition, Scandinavian nursery aesthetic, cozy vintage feel, gentle morning light, clean background, high-end children’s illustration",
+    "themes": [
+      "landscapes",
+      "portraits"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/89d0f188-dec8-4b4b-a1ee-21b2487b3d6f/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/89d0f188-dec8-4b4b-a1ee-21b2487b3d6f",
+    "scrapedAt": "2026-05-20T21:53:59.325Z"
+  },
+  {
+    "jobId": "13ae8519-1c64-45ad-8249-f4c52be4dd79",
+    "prompt": "a book cover with a soft beige background presents \"margaret atwood\" in dark green capital letters at the top. below, the title \"the edible woman\" is centered in a burnt orange, sans serif font. the illustration shows a detailed woman with black hair and a blue shirt, appearing to be asleep or passed out on a white dinner plate that has a dark green border. her left arm and hand extend onto a dark green surface, which serves as a table.",
+    "themes": [
+      "graphic_design"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/13ae8519-1c64-45ad-8249-f4c52be4dd79/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/13ae8519-1c64-45ad-8249-f4c52be4dd79",
+    "scrapedAt": "2026-05-20T21:53:54.604Z"
+  },
+  {
+    "jobId": "ee6fec40-683d-4e8e-97df-8ca19c0b19c5",
+    "prompt": "whimsical Paris fashion girl walking with elegant floral luggage through charming Paris streets filled with flowers and cafés, expressive rosy cheeks, couture floral dress, sketchy watercolor and ink illustration, romantic Paris atmosphere, premium commercial clipart, white background",
+    "themes": [
+      "portraits",
+      "flora"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/ee6fec40-683d-4e8e-97df-8ca19c0b19c5/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/ee6fec40-683d-4e8e-97df-8ca19c0b19c5",
+    "scrapedAt": "2026-05-20T21:53:50.081Z"
+  },
+  {
+    "jobId": "9b380a21-8576-43c0-ac80-e04f0f1c0c54",
+    "prompt": "Futuristic minimalist male editorial campaign, experimental premium aesthetics. Cinematic studio photography, extreme hard flash, fine editorial grain. Fully infinite intense carmine red background - wall and floor identical color, zero visible separation. Male model frozen mid movement, fluid unnatural poses as if suspended by altered gravity. Oversized black/white clothing slightly floating from motion inertia, pure white accessories suspended mid air at freeze frame peak. Unconventional extreme angles - aggressive tilted perspectives, ultra low floor shots, wide distorted framing. Harsh frontal flash with deep shadow rebounds across red wall, duplicated surreal shadows. Monochromatic black and white styling, pure white accessories only. Extreme carmine red vs. pure white contrast, elegant specular highlights. Minimalist sculptural objects suspended or scattered. Realistic RAW texture, Ultra HDR, controlled cinematic grain, natural depth. iPhone 17 Pro Max, premium editorial optics. Refined rebellious energy, dramatic bouncing shadows, strong commercial impact.",
+    "themes": [
+      "futuristic"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/9b380a21-8576-43c0-ac80-e04f0f1c0c54/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/9b380a21-8576-43c0-ac80-e04f0f1c0c54",
+    "scrapedAt": "2026-05-20T21:53:39.037Z"
+  },
+  {
+    "jobId": "adb5d6e0-8219-42c6-8d52-c7ba03ad8ee4",
+    "prompt": "a surreal composition of fragmented human faces, each with light skin and defined by orange red lipstick on their lips. the faces are multiplied and overlaid, forming a symmetrical yet chaotic pattern of facial features. bright, glittering specks are visible, creating a dynamic interplay of light and shadow. the background is a wash of warm, diffused colors, contributing to the soft, out of focus nature of the artwork.",
+    "themes": [
+      "surreal_fantasy"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/adb5d6e0-8219-42c6-8d52-c7ba03ad8ee4/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/adb5d6e0-8219-42c6-8d52-c7ba03ad8ee4",
+    "scrapedAt": "2026-05-20T21:53:29.498Z"
+  },
+  {
+    "jobId": "4022744d-34fb-451c-93c5-d13843c0940b",
+    "prompt": "in the blended style of Charles Schulz and Michael Leunig cute A whimsical full-color cartoon scene of two small thoughtful children exploring near Hadrian's Wall, one wearing a blue jacket and the other an olive green and black jacket, accompanied by a playful French bulldog, with Sycamore Gap in the background at golden hour. The environment is rendered as a real cinematic photograph richly detailed natural textures, authentic lighting, shallow depth of field, softly blurred distant landscape, faint seagulls, reflections in wet stone and puddles. The children and dog are clearly separate hand-drawn cartoon elements, as if painted on transparent animation cels layered over the photograph background, with expressive ink outlines, flat vivid colors, slight cel shadowing, subtle edge texture, and a classic mixed-media animation look. Introspective, gentle mood, whimsical and atmospheric, blending real photography with charming illustrated characters",
+    "themes": [
+      "landscapes",
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/4022744d-34fb-451c-93c5-d13843c0940b/0_1.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/4022744d-34fb-451c-93c5-d13843c0940b",
+    "scrapedAt": "2026-05-20T21:53:23.655Z"
+  },
+  {
+    "jobId": "f7a1341f-8fdf-4bb8-a9ff-90c6dc8a033b",
+    "prompt": "depressed emotional expression, sadness and loneliness, woman, bird, feeling, surreal, drops, whimsical, omg how beautiful, old town gothic houses, witchy feeling. detailed textures, foggy, in the style of Gabriel Pacheco,",
+    "themes": [
+      "portraits",
+      "animals"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/f7a1341f-8fdf-4bb8-a9ff-90c6dc8a033b/0_3.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/f7a1341f-8fdf-4bb8-a9ff-90c6dc8a033b",
+    "scrapedAt": "2026-05-20T21:53:11.194Z"
+  },
+  {
+    "jobId": "ba20fa59-8fb2-4471-a2a2-7873150f95c6",
+    "prompt": "Miniature Schnauzer dog, black and silver coat color sitting on toilet reading newspaper in a bathroom, Matisse style painting, gouache painting",
+    "themes": [
+      "animals"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/ba20fa59-8fb2-4471-a2a2-7873150f95c6/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/ba20fa59-8fb2-4471-a2a2-7873150f95c6",
+    "scrapedAt": "2026-05-20T21:53:06.953Z"
+  },
+  {
+    "jobId": "c14dca6d-c87f-4bf3-8fab-c4570f23a367",
+    "prompt": "substitute this porsche for a fiat uno Vertical portrait magazine spec sheet, aspect ratio 2:3, poster print orientation. 1993 Porsche 911 (964) Turbo in Guards Red, clean side profile view centered in composition. Plain warm cream background with subtle paper grain texture, no environment, no realistic shadows. All text and car within a centered safe zone, fully readable when cropped to 4:5 or 1:1.41. Large \"PORSCHE 911\" horizontally above the car in elegant black serif typography. Horizontal specs row below the car: \"FLAT 6 TURBO · 360 HP · RWD · 290 KM/H\" in large readable type. \"1993\" near upper left of safe zone in classic serif. Minimal signature \"AIR COOLED ERA\" near lower right of safe zone. Thin elegant horizontal divider lines above and below specs. Vintage editorial magazine layout, classy and refined. Only large clearly visible text. Sharp detailed illustration highlighting body curves and whale tail spoiler, isolated composition, print ready, no frame or border.",
+    "themes": [
+      "portraits",
+      "cars"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/c14dca6d-c87f-4bf3-8fab-c4570f23a367/0_1.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/c14dca6d-c87f-4bf3-8fab-c4570f23a367",
+    "scrapedAt": "2026-05-20T21:53:00.919Z"
+  },
+  {
+    "jobId": "53fdad9d-a8a7-4677-854f-b2b2728c1182",
+    "prompt": "Editorial fashion photography, a young female model walking confidently on an overcast city street, hair blowing in the wind. She is wearing a light beige long-sleeve top with a lightweight Tencel wool texture, paired with olive green wide-leg tailored trousers. She is carrying a large oversized dark brown suede tote bag under her arm and wearing black thick-framed sunglasses. Candid street style, soft diffused natural daylight. Blurred background with classic city architecture and passing vehicles, shallow depth of field, shot on 35mm lens, f/2.8, film grain, highly detailed fabric textures, photorealistic, cinematic vibe",
+    "themes": [
+      "portraits",
+      "photography"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/53fdad9d-a8a7-4677-854f-b2b2728c1182/0_0.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/53fdad9d-a8a7-4677-854f-b2b2728c1182",
+    "scrapedAt": "2026-05-20T21:52:56.631Z"
+  },
+  {
+    "jobId": "404b7c63-d746-4d8e-a95a-3c22118c0031",
+    "prompt": "full body cartoon black fat cat character, on a frisco bolt-on sposter chopper, wear black sunglasses, ignorant style, deliberately terrible drawing, thick uneven black ink lines only, wobbly anatomy, flat solid blue background, no fills, no shading, scratchy prison tattoo quality, naive raw line work",
+    "themes": [
+      "animals",
+      "illustration"
+    ],
+    "highResUrl": "https://cdn.midjourney.com/404b7c63-d746-4d8e-a95a-3c22118c0031/0_2.webp",
+    "detailUrl": "https://www.midjourney.com/jobs/404b7c63-d746-4d8e-a95a-3c22118c0031",
+    "scrapedAt": "2026-05-20T21:52:41.105Z"
+  },
+  {
     "jobId": "ea167dbe-589d-4a79-9b6b-dc3a4b0ee118",
     "prompt": "abstract non-representative modern decorative-graphic painting in bone-whites and beiges and grays and blacks with a pale blue background, impressionistic rhomboid slabs of broken slate and white and gray concrete with jagged and angular edges overlayed and adjacent to each other at varying angles, slashes of blacks and whites, small rectangle of deep green and a small red square inserted into the composition, impasto and rough textured painting, painting is to fill the image from edge to edge",
     "themes": [
