@@ -5,6 +5,7 @@ import { EXPORT_PRESETS, PlaybackEngine } from '../engine/VideoEngine';
 import { drawTextOverlays } from '../preview/VideoPreview';
 import { RIGHTS_STATUS_LABELS, buildExportRightsManifest, getRightsAudit } from '../data/musicRights';
 import { buildExportFrameSchedule, resolveTimelineRenderPlan, validateExportAudioMix, validateExportFrameCoverage, validateExportTimeline, validateTimelineRenderPlan } from '../model/timelineModel';
+import { persistExportRightsManifest } from '../services/exportRightsManifestClient';
 
 const MIME_CANDIDATES = {
     webm: ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'],
@@ -141,6 +142,7 @@ const ExportVideoPanel = () => {
 
         const { fps, frameSchedule, mimeType } = exportPreflight;
         const warningNote = exportPreflight.warnings.length > 0 ? ` Checks: ${exportPreflight.warnings.join(' ')}` : '';
+        const exportId = `export-${Date.now()}`;
         if (exportPreflight.warnings.length > 0) setExportMessage(`Export prepare avec corrections.${warningNote}`);
 
         const exportCanvas = document.createElement('canvas');
@@ -308,7 +310,7 @@ const ExportVideoPanel = () => {
             failExport(`Export interrompu: ${event.error?.message || 'erreur MediaRecorder'}`);
         };
 
-        recorder.onstop = () => {
+        recorder.onstop = async () => {
             cleanup();
             setIsExporting(false);
             if (exportFailureMessage) {
@@ -331,7 +333,25 @@ const ExportVideoPanel = () => {
             link.click();
             link.remove();
             URL.revokeObjectURL(url);
-            const manifestNote = rightsManifest.length > 0 ? ` Manifeste droits pret: ${rightsManifest.length} piste(s).` : '';
+            let manifestNote = '';
+            if (rightsManifest.length > 0) {
+                try {
+                    const persistResult = await persistExportRightsManifest({
+                        audioTracks: exportAudioTracks,
+                        context: {
+                            exportId,
+                            projectName,
+                            exportFormat: extension,
+                            sequencePreset,
+                        },
+                    });
+                    manifestNote = persistResult.persisted
+                        ? ` Manifeste droits sauvegarde: ${persistResult.manifest.id}.`
+                        : ` Manifeste droits pret: ${persistResult.manifest.trackCount} piste(s), non sauvegarde (${persistResult.reason}).`;
+                } catch (error) {
+                    manifestNote = ` Manifeste droits pret: ${rightsManifest.length} piste(s), sauvegarde impossible (${error.message}).`;
+                }
+            }
             setExportMessage(`Export termine (${extension.toUpperCase()}, ${(blob.size / 1024 / 1024).toFixed(1)} Mo).${manifestNote}`);
         };
 

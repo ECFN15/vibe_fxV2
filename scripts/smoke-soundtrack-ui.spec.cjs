@@ -71,16 +71,18 @@ test("Soundtrack opens full screen and keeps favorites/playlists local", async (
   });
 
   await openSoundtrack(page);
-  await page.getByRole("button", { name: /^chercher$/i }).click();
+  await expect(page.getByText("Playlists projet")).toBeVisible();
+  await expect(page.getByPlaceholder("Nouvelle playlist projet")).toBeVisible();
+  await page.getByRole("button", { name: /^scanner$/i }).click();
   await expect(page.getByTestId("soundtrack-track-openverse-smoke-track")).toBeVisible();
   await expect(page.getByText(/Fallback manuel/i)).toBeVisible();
 
   await page.getByRole("button", { name: /Ajouter Smoke CC Track aux favoris/i }).click();
-  await page.getByRole("button", { name: /^favoris$/i }).click();
+  await page.getByRole("button", { name: /^favoris locaux$/i }).click();
   await expect(page.getByTestId("soundtrack-track-openverse-smoke-track")).toBeVisible();
 
-  await page.getByPlaceholder("Nouvelle playlist").fill("Launch picks");
-  await page.getByRole("button", { name: "Creer playlist" }).click();
+  await page.getByPlaceholder("Nouvelle playlist", { exact: true }).fill("Launch picks");
+  await page.getByRole("button", { name: "Creer playlist", exact: true }).click();
   await page.getByRole("button", { name: /Ajouter Smoke CC Track a la playlist active/i }).click();
   await expect(page.locator(".soundtrack-playlist-track", { hasText: "Smoke CC Track" })).toBeVisible();
   await page.getByRole("button", { name: "Retirer piste" }).click();
@@ -126,7 +128,7 @@ for (const viewport of [
     await page.setViewportSize(viewport);
     await mockMusicSearch(page);
     await openSoundtrack(page);
-    await page.getByRole("button", { name: /^chercher$/i }).click();
+    await page.getByRole("button", { name: /^scanner$/i }).click();
     await expect(page.getByTestId("soundtrack-track-openverse-smoke-track")).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 2);
     expect(overflow).toBe(false);
@@ -139,9 +141,35 @@ test("music import API rejects unsafe audio sources", async ({ page }) => {
   });
   expect(rejectedImport.status()).toBe(400);
 
+  const unauthenticatedProjectImport = await page.request.post(`${baseUrl}/api/music/project/import-url`, {
+    data: {
+      audioUrl: "https://prod-1.storage.jamendo.com/?trackid=23557&format=mp32",
+      trackMetadata: {
+        sourceName: "Jamendo",
+        sourceUrl: "https://www.jamendo.com/track/23557",
+        license: "Creative Commons BY",
+        licenseUrl: "https://creativecommons.org/licenses/by/3.0/",
+        rightsStatus: "credit-required",
+      },
+    },
+  });
+  expect(unauthenticatedProjectImport.status()).toBe(401);
+
   const search = await page.request.get(`${baseUrl}/api/music/free-search?provider=openverse&q=ambient`);
   expect(search.status()).toBe(200);
   const payload = await search.json();
   expect(Array.isArray(payload.providers)).toBe(true);
   expect(payload.providers.some((provider) => provider.id === "openverse")).toBe(true);
+
+  const pixabaySearch = await page.request.get(`${baseUrl}/api/music/free-search?provider=pixabay&q=ambient&limit=50&pages=9`);
+  expect(pixabaySearch.status()).toBe(200);
+  const pixabayPayload = await pixabaySearch.json();
+  expect(pixabayPayload.scan).toEqual({ pages: 3, limit: 20 });
+  expect(pixabayPayload.tracks).toHaveLength(0);
+  expect(pixabayPayload.providers[0].error).toMatch(/pas d endpoint public audio/i);
+
+  const providers = await page.request.get(`${baseUrl}/api/music/providers`);
+  expect(providers.status()).toBe(200);
+  const providersPayload = await providers.json();
+  expect(providersPayload.providers.some((provider) => provider.id === "pixabay" && provider.status === "manual-url-only")).toBe(true);
 });

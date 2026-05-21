@@ -140,8 +140,8 @@ const buildVisionDiagnosticWarnings = (delta, performanceInfo) => {
 };
 
 // --- APP PRINCIPALE ---
-function App({ onImportToPublication, onOpenPublications }) {
-    const [view, setView] = useState('studio');
+function App({ onImportToPublication, onOpenPublications, initialView = 'studio' }) {
+    const [view, setView] = useState(initialView);
     const [images, setImages] = useState([]);
     const [activeCategory, setActiveCategory] = useState(null);
     const [selectedBrand, setSelectedBrand] = useState(null);

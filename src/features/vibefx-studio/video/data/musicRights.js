@@ -182,6 +182,7 @@ export function getTrackRightsIssues(track) {
 export function buildTrackRightsManifest(track, context = {}) {
     return {
         trackId: track.id,
+        title: track.name || track.title || '',
         provider: track.provider || track.sourceName || 'unknown',
         sourceName: track.sourceName || '',
         sourceUrl: track.sourceUrl || '',
@@ -202,6 +203,49 @@ export function buildTrackRightsManifest(track, context = {}) {
 
 export function buildExportRightsManifest(audioTracks, context = {}) {
     return audioTracks.map((track) => buildTrackRightsManifest(track, context));
+}
+
+export function buildExportRightsManifestDocument(audioTracks, context = {}) {
+    const createdAt = context.createdAt || new Date().toISOString();
+    const normalizedCreatedAt = createdAt.replace(/[^0-9a-z]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
+    const exportId = context.exportId || `export-${normalizedCreatedAt || Date.now()}`;
+    const ownerUid = context.ownerUid || context.userId || '';
+    const tracks = buildExportRightsManifest(audioTracks, {
+        ...context,
+        exportId,
+        userId: ownerUid || context.userId || null,
+    });
+    const audits = audioTracks.map((track) => ({
+        trackId: track.id,
+        issues: getTrackRightsIssues(track).issues,
+        warnings: getTrackRightsIssues(track).warnings,
+    }));
+    const blockers = audits.flatMap((audit) => audit.issues.map((issue) => ({
+        trackId: audit.trackId,
+        issue,
+    })));
+    const warnings = audits.flatMap((audit) => audit.warnings.map((warning) => ({
+        trackId: audit.trackId,
+        warning,
+    })));
+
+    return {
+        id: context.manifestId || exportId,
+        ownerUid,
+        userId: ownerUid || null,
+        exportId,
+        projectId: context.projectId || '',
+        projectName: context.projectName || '',
+        exportFormat: context.exportFormat || '',
+        sequencePreset: context.sequencePreset || '',
+        status: blockers.length > 0 ? 'blocked' : warnings.length > 0 ? 'warning' : 'ready',
+        trackCount: tracks.length,
+        tracks,
+        blockers,
+        warnings,
+        createdAt,
+        updatedAt: context.updatedAt || createdAt,
+    };
 }
 
 export function getRightsAudit(audioTracks) {

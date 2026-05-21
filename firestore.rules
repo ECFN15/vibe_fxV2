@@ -40,6 +40,81 @@ service cloud.firestore {
         ]);
     }
 
+    function isSoundtrackTrackValid(userId) {
+      return ownsUserDoc(userId)
+        && request.resource.data.ownerUid == userId
+        && request.resource.data.keys().hasOnly([
+          'id',
+          'ownerUid',
+          'title',
+          'artist',
+          'sourceProvider',
+          'provider',
+          'sourceName',
+          'sourceUrl',
+          'sourcePageUrl',
+          'license',
+          'licenseUrl',
+          'attribution',
+          'contentIdWarning',
+          'rightsStatus',
+          'storagePath',
+          'downloadUrl',
+          'previewUrl',
+          'duration',
+          'bpm',
+          'waveform',
+          'tags',
+          'category',
+          'mood',
+          'genre',
+          'favorite',
+          'archived',
+          'commercialUse',
+          'socialUse',
+          'licenseSnapshotVersion',
+          'importedAt',
+          'updatedAt',
+          'lastUsedAt',
+        ]);
+    }
+
+    function isSoundtrackPlaylistValid(userId) {
+      return ownsUserDoc(userId)
+        && request.resource.data.ownerUid == userId
+        && request.resource.data.keys().hasOnly([
+          'id',
+          'ownerUid',
+          'name',
+          'trackIds',
+          'archived',
+          'createdAt',
+          'updatedAt',
+        ]);
+    }
+
+    function isUserRightsManifestValid(userId) {
+      return ownsUserDoc(userId)
+        && request.resource.data.ownerUid == userId
+        && request.resource.data.keys().hasOnly([
+          'id',
+          'ownerUid',
+          'userId',
+          'exportId',
+          'projectId',
+          'projectName',
+          'exportFormat',
+          'sequencePreset',
+          'status',
+          'trackCount',
+          'tracks',
+          'blockers',
+          'warnings',
+          'createdAt',
+          'updatedAt',
+        ]);
+    }
+
     function isOwnerCreateValid() {
       return signedIn()
         && request.resource.data.ownerUid == request.auth.uid
@@ -69,6 +144,24 @@ service cloud.firestore {
       match /creditLedger/{entryId} {
         allow read: if ownsUserDoc(userId);
         allow write: if false;
+      }
+
+      match /soundtrackTracks/{trackId} {
+        allow read: if ownsUserDoc(userId);
+        allow create, update: if isSoundtrackTrackValid(userId);
+        allow delete: if ownsUserDoc(userId);
+      }
+
+      match /soundtrackPlaylists/{playlistId} {
+        allow read: if ownsUserDoc(userId);
+        allow create, update: if isSoundtrackPlaylistValid(userId);
+        allow delete: if ownsUserDoc(userId);
+      }
+
+      match /rightsManifests/{manifestId} {
+        allow read: if ownsUserDoc(userId);
+        allow create, update: if isUserRightsManifestValid(userId);
+        allow delete: if ownsUserDoc(userId);
       }
     }
 

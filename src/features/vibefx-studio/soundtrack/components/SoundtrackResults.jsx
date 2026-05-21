@@ -5,21 +5,27 @@ import SoundtrackTrackRow from './SoundtrackTrackRow';
 export default function SoundtrackResults({
     results,
     libraryTracks,
+    projectTracks = [],
     showFavorites,
     searchStatus,
     player,
     library,
+    projectLibrary,
+    modeEyebrow,
+    modeTitle,
     onPlayTrack,
     onUseInVideo,
+    onSelectTrack,
 }) {
     const rows = showFavorites ? libraryTracks.filter((track) => track.favorite) : results;
+    const projectTrackIds = new Set(projectTracks.map((track) => track.id));
 
     return (
         <section className="soundtrack-results" aria-label="Resultats soundtrack">
             <header className="soundtrack-section-header">
                 <div>
-                    <p>Catalogue</p>
-                    <h2>{showFavorites ? 'Favoris locaux' : 'Recherche multi-source'}</h2>
+                    <p>{modeEyebrow || (showFavorites ? 'Selection locale' : 'Agregateur')}</p>
+                    <h2>{modeTitle || (showFavorites ? 'Favoris locaux' : 'Sources gratuites')}</h2>
                 </div>
                 <span>{rows.length} piste{rows.length > 1 ? 's' : ''}</span>
             </header>
@@ -32,7 +38,7 @@ export default function SoundtrackResults({
             ) : rows.length === 0 ? (
                 <div className="soundtrack-empty-state">
                     <Music2 size={20} />
-                    <p>{showFavorites ? 'Aucun favori local.' : 'Aucun resultat pour ces filtres.'}</p>
+                    <p>{showFavorites ? 'Aucun favori local.' : searchStatus === 'idle' ? 'Pret a scanner les sources gratuites.' : 'Aucun resultat pour ces filtres.'}</p>
                 </div>
             ) : (
                 <div className="soundtrack-results__list">
@@ -40,14 +46,18 @@ export default function SoundtrackResults({
                         <SoundtrackTrackRow
                             key={track.id}
                             track={libraryTracks.find((item) => item.id === track.id) || track}
+                            importedInProject={projectTrackIds.has(track.id)}
                             playlists={library.playlists}
                             selectedPlaylistId={library.selectedPlaylistId}
                             isPlaying={player.playingId === track.id}
                             isBusy={library.busyTrackId === track.id}
+                            isProjectBusy={projectLibrary?.busyTrackId === track.id}
                             onPlay={onPlayTrack}
+                            onSelect={onSelectTrack}
                             onFavorite={library.toggleFavorite}
                             onAddToPlaylist={library.addToPlaylist}
                             onDownload={library.downloadTrackLocally}
+                            onImportProject={projectLibrary?.importTrackToProject}
                             onUseInVideo={onUseInVideo}
                         />
                     ))}

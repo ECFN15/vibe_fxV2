@@ -48,6 +48,13 @@ service firebase.storage {
       allow delete: if ownsPath(userId);
     }
 
+    match /users/{userId}/soundtrack/{trackId}/{fileName} {
+      allow get: if ownsPath(userId);
+      allow list: if false;
+      allow create, update: if ownsPath(userId) && isSafeAudioUpload(150 * 1024 * 1024);
+      allow delete: if ownsPath(userId);
+    }
+
     match /users/{userId}/uploads/video/{allPaths=**} {
       allow get: if ownsPath(userId);
       allow list: if false;

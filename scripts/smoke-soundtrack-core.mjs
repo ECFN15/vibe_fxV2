@@ -1,0 +1,235 @@
+import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
+const root = process.cwd();
+const tempDir = await mkdtemp(path.join(root, ".tmp-soundtrack-core-"));
+
+async function copyModule(sourcePath, targetName, replacements = []) {
+  let source = await readFile(path.join(root, sourcePath), "utf8");
+  for (const [from, to] of replacements) source = source.replaceAll(from, to);
+  const targetPath = path.join(tempDir, targetName);
+  await writeFile(targetPath, source, "utf8");
+  return pathToFileURL(targetPath).href;
+}
+
+try {
+  const manifestUrl = await copyModule(
+    "src/features/vibefx-studio/soundtrack/services/soundtrackManifest.js",
+    "soundtrackManifest.mjs",
+    [["../data/soundtrackDefaults", "./soundtrackDefaults.mjs"]]
+  );
+  await writeFile(
+    path.join(tempDir, "soundtrackDefaults.mjs"),
+    "export const SOUNDTRACK_MANIFEST_FILE = 'vibefx-soundtrack.json';\n",
+    "utf8"
+  );
+  const projectModelUrl = await copyModule(
+    "src/features/vibefx-studio/soundtrack/services/projectSoundLibraryModel.js",
+    "projectSoundLibraryModel.mjs",
+    [["./soundtrackManifest", "./soundtrackManifest.mjs"]]
+  );
+  const providerSearchUrl = await copyModule(
+    "src/features/vibefx-studio/soundtrack/services/providerSearchClient.js",
+    "providerSearchClient.mjs"
+  );
+  const musicRightsUrl = await copyModule(
+    "src/features/vibefx-studio/video/data/musicRights.js",
+    "musicRights.mjs"
+  );
+  const soundtrackRightsUrl = await copyModule(
+    "src/features/vibefx-studio/soundtrack/services/soundtrackRights.js",
+    "soundtrackRights.mjs",
+    [["../../video/data/musicRights", "./musicRights.mjs"]]
+  );
+
+  const {
+    normalizeSoundtrackTrack,
+    buildSoundtrackManifest,
+  } = await import(manifestUrl);
+  const {
+    addTrackToProjectPlaylist,
+    buildProjectSoundStoragePath,
+    moveTrackInProjectPlaylist,
+    normalizeProjectSoundPlaylist,
+    normalizeProjectSoundTrack,
+    removeTrackFromProjectPlaylist,
+    serializeProjectPlaylist,
+    serializeProjectTrack,
+    validateProjectTrackRights,
+  } = await import(projectModelUrl);
+  const {
+    buildProviderScanCacheKey,
+    buildProviderSearchUrl,
+    normalizeProviderScanFilters,
+  } = await import(providerSearchUrl);
+  const {
+    buildExportRightsManifestDocument,
+  } = await import(musicRightsUrl);
+  const {
+    getSoundtrackRightsAudit,
+    normalizeSearchTrackRights,
+  } = await import(soundtrackRightsUrl);
+
+  const providerTrack = normalizeSearchTrackRights({
+    id: "openverse-test-track",
+    provider: "openverse",
+    title: "Test Track",
+    artist: "Test Artist",
+    sourceName: "Openverse / Jamendo",
+    sourceUrl: "https://www.jamendo.com/track/test",
+    license: "Creative Commons BY",
+    licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
+    attribution: "Test Track by Test Artist",
+    rightsStatus: "credit-required",
+    socialUse: true,
+    commercialUse: true,
+    contentIdWarning: "Verify upstream source before publication.",
+    duration: 42,
+    tags: ["ambient", "loop"],
+    downloadUrl: "https://prod-1.storage.jamendo.com/?trackid=test&format=mp32",
+  });
+  const projectTrack = normalizeProjectSoundTrack(providerTrack, "uid-test");
+  assert.equal(projectTrack.ownerUid, "uid-test");
+  assert.equal(projectTrack.sourceProvider, "openverse");
+  assert.equal(projectTrack.sourcePageUrl, providerTrack.sourceUrl);
+  assert.equal(projectTrack.license, "Creative Commons BY");
+  assert.equal(projectTrack.rightsStatus, "cleared-social");
+  assert.deepEqual(projectTrack.tags, ["ambient", "loop"]);
+  assert.equal(validateProjectTrackRights(projectTrack).ok, true);
+
+  const missingLicense = validateProjectTrackRights(normalizeProjectSoundTrack({
+    title: "No license",
+    provider: "local-upload",
+    sourceUrl: "user-declared",
+    licenseUrl: "user-declared",
+    rightsStatus: "user-declared",
+  }, "uid-test"));
+  assert.equal(missingLicense.ok, false);
+  assert.ok(missingLicense.missing.includes("license"), "project import must reject tracks without license metadata");
+
+  const blocked = validateProjectTrackRights(normalizeProjectSoundTrack({
+    title: "Blocked",
+    provider: "archive",
+    sourceUrl: "https://archive.org/details/test",
+    license: "Unknown",
+    licenseUrl: "https://archive.org/details/test",
+    rightsStatus: "blocked",
+  }, "uid-test"));
+  assert.equal(blocked.ok, false);
+  assert.ok(blocked.missing.includes("rightsStatusBlocked"), "blocked rights must prevent project import");
+
+  const unknownContentId = normalizeProjectSoundTrack({
+    title: "Looks Clear But Unknown",
+    provider: "pixabay",
+    sourceUrl: "https://pixabay.com/music/test",
+    license: "Pixabay Content License",
+    licenseUrl: "https://pixabay.com/service/license-summary/",
+    rightsStatus: "cleared-social",
+  }, "uid-test");
+  assert.equal(unknownContentId.rightsStatus, "needs-review", "missing Content ID evidence must force needs-review");
+
+  const serialized = serializeProjectTrack(projectTrack);
+  assert.equal(serialized.ownerUid, "uid-test");
+  assert.equal(serialized.localObjectUrl, undefined, "project metadata serialization must not persist local object URLs");
+  assert.equal(serialized.file, undefined, "project metadata serialization must not persist File/Blob objects");
+
+  const storagePath = buildProjectSoundStoragePath({
+    uid: "uid-test",
+    track: { ...projectTrack, id: "track-123", title: "A/B Test Audio" },
+    contentType: "audio/ogg",
+    fileName: "Unsafe Name ?.ogg",
+  });
+  assert.equal(storagePath, "users/uid-test/soundtrack/track-123/Unsafe-Name-.ogg");
+  assert.throws(() => buildProjectSoundStoragePath({ uid: "", track: projectTrack }), /uid_required/);
+
+  const localTrack = normalizeSoundtrackTrack({
+    title: "Local",
+    provider: "local-file",
+    sourceUrl: "local-file",
+    license: "User declared",
+    licenseUrl: "user-declared",
+    rightsStatus: "user-declared",
+    socialUse: false,
+  });
+  const audit = getSoundtrackRightsAudit(localTrack);
+  assert.equal(audit.blocked, true);
+  assert.ok(audit.issues.includes("Usage social non confirme"));
+
+  const manifest = buildSoundtrackManifest({
+    tracks: [{ ...localTrack, localObjectUrl: "blob:test", file: { ignored: true } }],
+    playlists: [{ id: "playlist-a", name: "A", trackIds: [localTrack.id] }],
+  });
+  assert.equal(manifest.tracks[0].localObjectUrl, undefined);
+  assert.equal(manifest.tracks[0].file, undefined);
+  assert.equal(manifest.playlists[0].trackIds[0], localTrack.id);
+
+  const exportManifest = buildExportRightsManifestDocument([{
+    id: "audio-export-a",
+    name: "Export Audio A",
+    provider: "openverse",
+    sourceName: "Openverse",
+    sourceUrl: "https://openverse.org/audio/test",
+    license: "Creative Commons BY",
+    licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
+    attribution: "Export Audio A by Artist",
+    rightsStatus: "credit-required",
+    socialUse: true,
+    commercialUse: true,
+    contentIdWarning: "Verify source page.",
+  }], {
+    ownerUid: "uid-test",
+    exportId: "export-test-1",
+    projectName: "Smoke Project",
+    exportFormat: "webm",
+    sequencePreset: "youtube",
+    createdAt: "2026-05-21T00:00:00.000Z",
+  });
+  assert.equal(exportManifest.ownerUid, "uid-test");
+  assert.equal(exportManifest.userId, "uid-test");
+  assert.equal(exportManifest.exportId, "export-test-1");
+  assert.equal(exportManifest.trackCount, 1);
+  assert.equal(exportManifest.status, "warning", "Content ID warning should keep a persisted manifest reviewable");
+  assert.equal(exportManifest.tracks[0].exportId, "export-test-1");
+  assert.equal(exportManifest.tracks[0].userId, "uid-test");
+  assert.equal(exportManifest.tracks[0].title, "Export Audio A");
+
+  const filters = normalizeProviderScanFilters({
+    provider: "openverse",
+    query: "  Ambient Launch  ",
+    genre: "ambient",
+    pages: 9,
+    limit: 99,
+  });
+  assert.equal(filters.pages, 3);
+  assert.equal(filters.limit, 20);
+  const cacheKeyA = buildProviderScanCacheKey(filters);
+  const cacheKeyB = buildProviderScanCacheKey({ ...filters, query: "ambient launch" });
+  assert.equal(cacheKeyA, cacheKeyB, "provider cache key must normalize query casing and whitespace");
+  assert.notEqual(cacheKeyA, buildProviderScanCacheKey({ ...filters, genre: "cinematic" }));
+  assert.match(buildProviderSearchUrl(filters), /\/api\/music\/free-search\?/);
+  assert.match(buildProviderSearchUrl(filters), /limit=20/);
+  assert.match(buildProviderSearchUrl(filters), /pages=3/);
+
+  const playlist = normalizeProjectSoundPlaylist({
+    id: "playlist-project-a",
+    name: "  Cut Batch  ",
+    trackIds: ["track-a", "track-a", "", "track-b"],
+  }, "uid-test");
+  assert.equal(playlist.ownerUid, "uid-test");
+  assert.equal(playlist.name, "Cut Batch");
+  assert.deepEqual(playlist.trackIds, ["track-a", "track-b"], "project playlists must dedupe track ids");
+  const withTrack = addTrackToProjectPlaylist(playlist, "track-c");
+  assert.deepEqual(withTrack.trackIds, ["track-a", "track-b", "track-c"]);
+  assert.deepEqual(addTrackToProjectPlaylist(withTrack, "track-c").trackIds, withTrack.trackIds, "playlist add must be idempotent");
+  assert.deepEqual(moveTrackInProjectPlaylist(withTrack, "track-c", -1).trackIds, ["track-a", "track-c", "track-b"]);
+  assert.deepEqual(removeTrackFromProjectPlaylist(withTrack, "track-a").trackIds, ["track-b", "track-c"]);
+  const serializedPlaylist = serializeProjectPlaylist(withTrack);
+  assert.equal(serializedPlaylist.ownerUid, "uid-test");
+  assert.equal(serializedPlaylist.localObjectUrl, undefined, "project playlists must only persist allowlisted fields");
+
+  console.log("soundtrack core smoke passed");
+} finally {
+  await rm(tempDir, { recursive: true, force: true });
+}

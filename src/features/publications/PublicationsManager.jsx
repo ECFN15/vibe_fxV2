@@ -24,6 +24,7 @@ export default function PublicationsManager({ initialMode = "dashboard" }) {
   const [publications, setPublications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState(initialMode);
+  const [layoutInitialView, setLayoutInitialView] = useState("studio");
   const [draft, setDraft] = useState(null);
   const [selectedPublication, setSelectedPublication] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
@@ -133,6 +134,11 @@ export default function PublicationsManager({ initialMode = "dashboard" }) {
     setMode("publish");
   };
 
+  const openLayoutFromPublications = () => {
+    setLayoutInitialView("layout");
+    setMode("layout");
+  };
+
   const handleSelectPublication = (publication) => {
     setSelectedPublication(publication);
     setDraft(null);
@@ -175,8 +181,12 @@ export default function PublicationsManager({ initialMode = "dashboard" }) {
       {mode === "layout" ? (
         <div className="pub-layout-fullscreen">
           <VibeFxStudio
+            initialView={layoutInitialView}
             publicationsCount={publications.length}
-            onOpenPublications={() => setMode("dashboard")}
+            onOpenPublications={() => {
+              setLayoutInitialView("studio");
+              setMode("dashboard");
+            }}
             onImportToPublication={handleImport}
           />
         </div>
@@ -189,7 +199,7 @@ export default function PublicationsManager({ initialMode = "dashboard" }) {
           authError={authError}
           currentUser={currentUser}
           accountData={accountData}
-          onBackToLayout={() => setMode("layout")}
+          onBackToLayout={openLayoutFromPublications}
           onSelectPublication={handleSelectPublication}
           onDeletePublication={handleDelete}
           onSetHomeFeature={handleSetHomeFeature}

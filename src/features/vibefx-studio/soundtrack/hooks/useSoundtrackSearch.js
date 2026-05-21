@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { getStarterSoundtrackTracks } from '../data/soundtrackDefaults';
+import { buildProviderSearchUrl } from '../services/providerSearchClient';
 import { normalizeSoundtrackTrack } from '../services/soundtrackManifest';
 import { normalizeSearchTrackRights } from '../services/soundtrackRights';
 
@@ -95,12 +96,10 @@ export function useSoundtrackSearch() {
         }
 
         try {
-            const params = new URLSearchParams({
+            const response = await fetch(buildProviderSearchUrl({
+                ...activeFilters,
                 provider: activeFilters.provider === 'all' ? 'all' : activeFilters.provider,
-                q: activeFilters.query || activeFilters.mood || activeFilters.genre || 'ambient',
-            });
-            if (activeFilters.genre) params.set('genre', activeFilters.genre);
-            const response = await fetch(`/api/music/free-search?${params.toString()}`, { signal: controller.signal });
+            }), { signal: controller.signal });
             if (!response.ok) throw new Error('Recherche musique indisponible.');
             const payload = await response.json();
             const remoteTracks = Array.isArray(payload.tracks) ? payload.tracks : [];

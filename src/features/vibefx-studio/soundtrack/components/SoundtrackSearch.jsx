@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Search, SlidersHorizontal } from 'lucide-react';
 import {
     SOUNDTRACK_BPM_FILTERS,
@@ -21,12 +21,6 @@ const SelectControl = ({ label, value, onChange, options }) => (
 );
 
 export default function SoundtrackSearch({ search }) {
-    useEffect(() => {
-        search.search();
-        // Initial load only; subsequent searches are explicit to avoid remote churn.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
     const submit = (event) => {
         event.preventDefault();
         search.search();
@@ -43,7 +37,7 @@ export default function SoundtrackSearch({ search }) {
                     aria-label="Recherche musique multi-source"
                 />
                 <button type="submit" disabled={search.status === 'loading'}>
-                    {search.status === 'loading' ? 'Recherche...' : 'Chercher'}
+                    {search.status === 'loading' ? 'Scan...' : 'Scanner'}
                 </button>
             </form>
 
@@ -61,6 +55,9 @@ export default function SoundtrackSearch({ search }) {
             </div>
 
             <div className="soundtrack-provider-status" aria-label="Statut providers musique">
+                {search.status === 'idle' && (
+                    <span data-state="warning">scan volontaire uniquement</span>
+                )}
                 {search.providerStatus.map((provider) => (
                     <span key={provider.id} data-state={provider.error ? 'warning' : 'ready'} title={provider.error || `${provider.count} resultats`}>
                         {provider.label}: {provider.error ? 'config' : provider.count}

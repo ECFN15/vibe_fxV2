@@ -1,5 +1,6 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import * as Icons from "lucide-react";
 import { formatDate } from "../helpers/publicationHelpers";
 import PublicationList from "./PublicationList";
@@ -23,6 +24,7 @@ function providerIds(user) {
 }
 
 export default function PublicationDashboard({ stats, publications, loading, selectedId, onBackToLayout, onSelectPublication, onDeletePublication, onSetHomeFeature, featureSaving, message, currentUser = null, accountData = null }) {
+  const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
   const latest = publications.slice(0, 6);
   const queued = publications.filter((item) => item.status !== "published").slice(0, 3);
   const published = publications.filter((item) => item.status === "published");
@@ -41,14 +43,23 @@ export default function PublicationDashboard({ stats, publications, loading, sel
     <div className="pub-hub">
       <section className="pub-hub-hero">
         <div className="pub-hub-copy">
-          <span className="pub-hub-kicker">Publications</span>
-          <h2>Dashboard publications</h2>
-          <p>Un poste de controle clair pour preparer les visuels, reprendre les brouillons et envoyer le contenu vers le site, Instagram et Facebook.</p>
+          <span className="pub-hub-kicker">PUBLICATIONS</span>
+          <h2>Centre de publication</h2>
+          <p>Finaliser, organiser et publier les contenus issus de Mise en page vers le site, Instagram et Facebook.</p>
         </div>
-        <button type="button" className="pub-hub-primary" onClick={onBackToLayout}>
+        <a
+          href="/studio?workspace=layout"
+          role="button"
+          className="pub-hub-primary"
+          style={{ visibility: hydrated ? "visible" : "hidden" }}
+          onClick={(event) => {
+            event.preventDefault();
+            onBackToLayout();
+          }}
+        >
           <span>Creer une mise en page</span>
           <i><Icons.ArrowUpRight size={17} /></i>
-        </button>
+        </a>
       </section>
 
       {message ? <div className="pub-message final">{message}</div> : null}
@@ -109,18 +120,27 @@ export default function PublicationDashboard({ stats, publications, loading, sel
         <article className="pub-hub-card pub-hub-create">
           <div>
             <span className="pub-hub-card-kicker">Flux conseille</span>
-            <h3>{"Mise en page d'abord, description ensuite."}</h3>
-            <p>{"Le studio Vibe_fx reste plein ecran pour travailler le visuel sans compression. Une fois importe, cette page devient l'espace de finalisation texte et preview Instagram."}</p>
+            <h3>{"Composer, importer, verifier."}</h3>
+            <p>{"Le studio reste plein ecran pour le visuel. Cette surface reprend ensuite le texte, la preview mobile et la publication reseaux."}</p>
           </div>
           <div className="pub-hub-steps">
             <span><b>01</b> Composer le visuel</span>
             <span><b>02</b> Importer vers publication</span>
             <span><b>03</b> Verifier la preview mobile</span>
           </div>
-          <button type="button" className="pub-hub-secondary" onClick={onBackToLayout}>
+          <a
+            href="/studio?workspace=layout"
+            role="button"
+            className="pub-hub-secondary"
+            style={{ visibility: hydrated ? "visible" : "hidden" }}
+            onClick={(event) => {
+              event.preventDefault();
+              onBackToLayout();
+            }}
+          >
             <Icons.LayoutTemplate size={16} />
             Ouvrir la mise en page
-          </button>
+          </a>
         </article>
 
         <aside className="pub-hub-card pub-hub-recent">

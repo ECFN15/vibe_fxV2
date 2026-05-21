@@ -248,31 +248,20 @@ export default function PublicationComposer({ draft, publication, publications, 
     <div className="pub-final-page">
       <header className="pub-final-top">
         <div>
-          <span>Publication</span>
+          <span>PUBLICATIONS</span>
           <h2>{publication?.id ? "Finaliser la publication" : "Description et preview finale"}</h2>
-          <p>{"Le visuel vient de la page Mise en page. Ici on gere le texte, la publication site, la preview Instagram et l'envoi reseaux."}</p>
+          <p>{"Texte, statut, preview et synchronisation Meta depuis le rendu importe de Mise en page."}</p>
         </div>
         <div className="pub-final-actions">
-          <button type="button" className="pub-ghost" onClick={onBackToLayout}><Icons.LayoutTemplate size={15} /> Ouvrir mise en page</button>
+          <button type="button" className="pub-ghost" onClick={onBackToLayout}><Icons.LayoutTemplate size={15} /> Mise en page</button>
           <button type="button" className="pub-secondary" disabled={saving} onClick={() => savePublication("draft")}>{saving ? <span className="mini-spinner" /> : <Icons.Save size={15} />} Brouillon</button>
           <button type="button" className="pub-primary" disabled={saving} onClick={() => savePublication("published")}>{saving ? <span className="mini-spinner" /> : <Icons.Globe2 size={15} />} Publier site</button>
           <button type="button" className="pub-primary purple" disabled={saving || syncing || !canUseMetaFunctions} onClick={publishToMeta}>{syncing ? <span className="mini-spinner" /> : <Icons.Send size={15} />} Site + reseaux</button>
-          <MetaOAuthPanel
-            enabled={canUseMetaFunctions}
-            connected={Boolean(metaOAuth?.connected)}
-            oauthBusy={oauthBusy}
-            saving={saving}
-            syncing={syncing}
-            onConnect={openMetaOAuthConnect}
-            onRefresh={loadMetaOAuthStatus}
-            onPublish={publishToConnectedMeta}
-          />
         </div>
       </header>
 
       {authError ? <div className="pub-message final">{authError}</div> : null}
       {message ? <div className="pub-message final">{message}</div> : null}
-      <div className="pub-message final oauth-status">{metaOAuthLabel}</div>
 
       <section className="pub-final-stagebar" aria-label="Progression publication">
         <article className="done"><Icons.Check size={15} /><span>Visuel importe</span></article>
@@ -348,15 +337,28 @@ export default function PublicationComposer({ draft, publication, publications, 
           )}
         </section>
 
-        <PublicationPreview
-          imageUrl={visualUrl}
-          socialImages={socialImages}
-          format={format}
-          caption={caption}
-          title={title}
-          checker={checker}
-          exportSize={exportSize}
-        />
+        <aside className="pub-final-right-rail">
+          <MetaOAuthPanel
+            enabled={canUseMetaFunctions}
+            connected={Boolean(metaOAuth?.connected)}
+            oauthBusy={oauthBusy}
+            saving={saving}
+            syncing={syncing}
+            statusLabel={metaOAuthLabel}
+            onConnect={openMetaOAuthConnect}
+            onRefresh={loadMetaOAuthStatus}
+            onPublish={publishToConnectedMeta}
+          />
+          <PublicationPreview
+            imageUrl={visualUrl}
+            socialImages={socialImages}
+            format={format}
+            caption={caption}
+            title={title}
+            checker={checker}
+            exportSize={exportSize}
+          />
+        </aside>
       </div>
     </div>
   );

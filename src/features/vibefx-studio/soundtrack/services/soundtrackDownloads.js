@@ -17,11 +17,15 @@ export function downloadJson(payload, fileName = manifestDownloadName()) {
     downloadBlob(blob, fileName);
 }
 
-export async function fetchAudioBlobForTrack(track) {
+export async function fetchAudioBlobForTrack(track, options = {}) {
     const sourceUrl = track.downloadUrl || track.previewUrl || track.url;
     if (!sourceUrl) throw new Error('URL audio manquante.');
 
-    if (sourceUrl.startsWith('/')) {
+    const canFetchDirectly = sourceUrl.startsWith('/')
+        || sourceUrl.includes('firebasestorage.googleapis.com')
+        || sourceUrl.includes('storage.googleapis.com');
+
+    if (canFetchDirectly) {
         const response = await fetch(sourceUrl);
         if (!response.ok) throw new Error('Audio local indisponible.');
         const blob = await response.blob();
@@ -34,10 +38,16 @@ export async function fetchAudioBlobForTrack(track) {
         };
     }
 
-    const response = await fetch('/api/music/import', {
+    const endpoint = options.projectImport ? '/api/music/project/import-url' : '/api/music/import';
+    const headers = { 'Content-Type': 'application/json' };
+    if (options.idToken) headers.Authorization = `Bearer ${options.idToken}`;
+    const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ audioUrl: sourceUrl }),
+        headers,
+        body: JSON.stringify({
+            audioUrl: sourceUrl,
+            trackMetadata: options.trackMetadata || undefined,
+        }),
     });
     if (!response.ok) {
         const payload = await response.json().catch(() => ({}));

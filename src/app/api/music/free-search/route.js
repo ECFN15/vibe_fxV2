@@ -3,7 +3,9 @@ import { NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 
 const MAX_QUERY_LENGTH = 80;
-const MAX_RESULTS_PER_PROVIDER = 8;
+const DEFAULT_RESULTS_PER_PROVIDER = 8;
+const MAX_RESULTS_PER_PROVIDER = 20;
+const MAX_SCAN_PAGES = 3;
 const REQUEST_TIMEOUT_MS = 9000;
 const EXACT_AUDIO_HOSTS = new Set([
     'cdn.pixabay.com',
@@ -24,6 +26,7 @@ const SUBDOMAIN_AUDIO_HOSTS = [
 ];
 
 const PROVIDERS = [
+    { id: 'pixabay', label: 'Pixabay Music', keyRequired: false, manualOnly: true },
     { id: 'openverse', label: 'Openverse Audio', keyRequired: false },
     { id: 'jamendo', label: 'Jamendo Music', keyRequired: true, env: ['JAMENDO_CLIENT_ID', 'MUSIC_JAMENDO_CLIENT_ID'] },
     { id: 'freesound', label: 'Freesound', keyRequired: true, env: ['FREESOUND_API_KEY', 'MUSIC_FREESOUND_API_KEY'] },
@@ -31,11 +34,15 @@ const PROVIDERS = [
     { id: 'wikimedia', label: 'Wikimedia Commons', keyRequired: false },
 ];
 
-const json = (payload, status = 200) => NextResponse.json(payload, { status });
-
 const normaliseText = (value, limit = MAX_QUERY_LENGTH) => (
     typeof value === 'string' ? value.trim().slice(0, limit) : ''
 );
+
+const normaliseNumber = (value, fallback, min, max) => {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return fallback;
+    return Math.max(min, Math.min(max, Math.round(number)));
+};
 
 const isAllowedImportHost = (value = '') => {
     try {
@@ -146,10 +153,11 @@ const buildTrack = ({
     };
 };
 
-const searchOpenverse = async ({ query, genre }) => {
+const searchOpenverse = async ({ query, genre, limit, page }) => {
     const params = new URLSearchParams({
         q: query || genre || 'music',
-        page_size: String(MAX_RESULTS_PER_PROVIDER),
+        page_size: String(limit),
+        page: String(page),
     });
     if (genre) params.set('tags', genre);
     const response = await withTimeout(`https://api.openverse.engineering/v1/audio/?${params.toString()}`);
@@ -175,14 +183,14 @@ const searchOpenverse = async ({ query, genre }) => {
     return { provider: 'openverse', configured: true, tracks };
 };
 
-const searchJamendo = async ({ query, genre }) => {
+const searchJamendo = async ({ query, genre, limit }) => {
     const clientId = getEnv(PROVIDERS.find((provider) => provider.id === 'jamendo').env);
     if (!clientId) return { provider: 'jamendo', configured: false, tracks: [], error: 'JAMENDO_CLIENT_ID manquant.' };
 
     const params = new URLSearchParams({
         client_id: clientId,
         format: 'json',
-        limit: String(MAX_RESULTS_PER_PROVIDER),
+        limit: String(limit),
         imagesize: '100',
         audioformat: 'mp31',
         audiodlformat: 'mp32',
@@ -227,13 +235,13 @@ const searchJamendo = async ({ query, genre }) => {
     return { provider: 'jamendo', configured: true, tracks };
 };
 
-const searchFreesound = async ({ query, genre }) => {
+const searchFreesound = async ({ query, genre, limit }) => {
     const token = getEnv(PROVIDERS.find((provider) => provider.id === 'freesound').env);
     if (!token) return { provider: 'freesound', configured: false, tracks: [], error: 'FREESOUND_API_KEY manquant.' };
 
     const params = new URLSearchParams({
         query: query || genre || 'music loop',
-        page_size: String(MAX_RESULTS_PER_PROVIDER),
+        page_size: String(limit),
         fields: 'id,name,username,url,license,duration,previews,tags',
         token,
     });
@@ -271,12 +279,12 @@ const pickArchiveAudioFile = (files = []) => (
     || files.find((file) => /ogg/i.test(file.name || '') && file.name)
 );
 
-const searchArchive = async ({ query, genre }) => {
+const searchArchive = async ({ query, genre, limit, page }) => {
     const term = normaliseText([query, genre].filter(Boolean).join(' '), 120) || 'music';
     const params = new URLSearchParams({
         q: `mediatype:audio AND (${term}) AND (licenseurl:creativecommons.org OR licenseurl:publicdomain)`,
-        rows: String(Math.min(5, MAX_RESULTS_PER_PROVIDER)),
-        page: '1',
+        rows: String(Math.min(5, limit)),
+        page: String(page),
         output: 'json',
     });
     ['identifier', 'title', 'creator', 'licenseurl'].forEach((field) => params.append('fl[]', field));
@@ -315,14 +323,14 @@ const searchArchive = async ({ query, genre }) => {
 
 const cleanHtml = (value = '') => String(value).replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
 
-const searchWikimedia = async ({ query, genre }) => {
+const searchWikimedia = async ({ query, genre, limit }) => {
     const term = normaliseText([query, genre, 'filetype:ogg'].filter(Boolean).join(' '), 120) || 'music filetype:ogg';
     const params = new URLSearchParams({
         action: 'query',
         generator: 'search',
         gsrsearch: term,
         gsrnamespace: '6',
-        gsrlimit: String(MAX_RESULTS_PER_PROVIDER),
+        gsrlimit: String(limit),
         prop: 'imageinfo',
         iiprop: 'url|extmetadata',
         format: 'json',
@@ -360,6 +368,12 @@ const searchWikimedia = async ({ query, genre }) => {
 };
 
 const SEARCHERS = {
+    pixabay: async () => ({
+        provider: 'pixabay',
+        configured: true,
+        tracks: [],
+        error: 'Pixabay API officielle verifiee: pas d endpoint public audio documente. Import URL directe uniquement, sans scraping.',
+    }),
     openverse: searchOpenverse,
     jamendo: searchJamendo,
     freesound: searchFreesound,
@@ -372,41 +386,72 @@ export async function GET(request) {
     const query = normaliseText(searchParams.get('q')) || 'ambient';
     const genre = normaliseText(searchParams.get('genre'), 40);
     const requestedProvider = normaliseText(searchParams.get('provider'), 30) || 'all';
+    const limit = normaliseNumber(searchParams.get('limit'), DEFAULT_RESULTS_PER_PROVIDER, 1, MAX_RESULTS_PER_PROVIDER);
+    const pages = normaliseNumber(searchParams.get('pages'), 1, 1, MAX_SCAN_PAGES);
     const selectedProviders = requestedProvider === 'all'
         ? PROVIDERS.map((provider) => provider.id)
         : PROVIDERS.some((provider) => provider.id === requestedProvider)
             ? [requestedProvider]
             : ['openverse'];
 
-    const settled = await Promise.allSettled(selectedProviders.map((provider) => SEARCHERS[provider]({ query, genre })));
-    const providerStatus = settled.map((result, index) => {
-        const id = selectedProviders[index];
+    const scanJobs = selectedProviders.flatMap((provider) => (
+        Array.from({ length: pages }, (_, index) => ({ provider, page: index + 1 }))
+    ));
+    const settled = await Promise.allSettled(scanJobs.map((job) => SEARCHERS[job.provider]({ query, genre, limit, page: job.page })));
+    const providerStatusMap = new Map();
+    settled.forEach((result, index) => {
+        const id = scanJobs[index].provider;
         const definition = PROVIDERS.find((provider) => provider.id === id);
         if (result.status === 'fulfilled') {
-            return {
+            const previous = providerStatusMap.get(id) || {
                 id,
                 label: definition.label,
                 configured: result.value.configured,
-                count: result.value.tracks.length,
+                count: 0,
                 error: result.value.error || '',
             };
+            providerStatusMap.set(id, {
+                ...previous,
+                configured: previous.configured || result.value.configured,
+                count: previous.count + result.value.tracks.length,
+                error: previous.error || result.value.error || '',
+            });
+            return;
         }
-        return {
+        providerStatusMap.set(id, {
             id,
             label: definition.label,
             configured: !definition.keyRequired,
             count: 0,
             error: result.reason?.message || 'Recherche indisponible.',
-        };
+        });
     });
+    const providerStatus = selectedProviders.map((id) => providerStatusMap.get(id)).filter(Boolean);
 
-    const tracks = settled.flatMap((result) => result.status === 'fulfilled' ? result.value.tracks : []);
+    const seenTrackIds = new Set();
+    const tracks = settled
+        .flatMap((result) => result.status === 'fulfilled' ? result.value.tracks : [])
+        .filter((track) => {
+            if (seenTrackIds.has(track.id)) return false;
+            seenTrackIds.add(track.id);
+            return true;
+        });
 
-    return json({
+    return NextResponse.json({
         provider: requestedProvider,
         configured: providerStatus.some((status) => status.configured),
         providers: providerStatus,
-        sourceUrl: 'https://docs.openverse.org/api/',
+        scan: { pages, limit },
+        sourceUrl: requestedProvider === 'pixabay' ? 'https://pixabay.com/api/docs/' : 'https://docs.openverse.org/api/',
+        cache: {
+            status: 'controlled',
+            ttlSeconds: 86400,
+            note: 'Pixabay impose un cache 24h pour son API images/videos; les scans Soundtrack restent volontaires et limites.',
+        },
         tracks,
+    }, {
+        headers: {
+            'cache-control': 'private, max-age=300, stale-while-revalidate=86400',
+        },
     });
 }

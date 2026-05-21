@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useSyncExternalStore } from 'react';
 import { Camera, Sun, Moon, Zap, Layers, LayoutTemplate, Aperture, Download, Library, Film, Send, Sparkles, Music2, CreditCard } from 'lucide-react';
 import MusicPlayer from './MusicPlayer';
 
 const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, onExport, onImportPublication, onOpenPublications, isAiRailOpen, onToggleAiRail, aiJobActive }) => {
+    const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
+
     // Helper simple pour les icônes conditionnelles
     const getIcon = (name) => {
         const map = { Zap, Layers, LayoutTemplate, Aperture, Library, Music2, CreditCard, Film };
@@ -66,6 +68,7 @@ const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, 
                             className="vf-ai-header-button"
                             aria-pressed={isAiRailOpen}
                             title="Ouvrir les agents IA"
+                            style={{ visibility: hydrated ? 'visible' : 'hidden' }}
                         >
                             <Sparkles size={13} />
                             AI
@@ -77,7 +80,7 @@ const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, 
                     )}
                     <button onClick={onReset} disabled={!hasImages} className={`hidden sm:block text-[10px] uppercase font-mono tracking-widest px-3 py-1 transition-colors duration-200 disabled:opacity-30 border border-transparent hover:border-red-900/50 ${isDarkMode ? 'text-neutral-500 hover:text-red-400 hover:bg-red-950/20' : 'text-gray-500 hover:text-red-600'}`}>Reset</button>
                     {onImportPublication && (
-                        <button onClick={onImportPublication} disabled={!hasImages} className="hidden lg:flex items-center gap-2 border border-indigo-500/40 bg-indigo-500/10 text-indigo-300 px-4 py-1.5 text-[10px] font-mono font-medium hover:bg-indigo-500 hover:text-white transition disabled:opacity-40 disabled:bg-transparent uppercase tracking-wide">
+                        <button onClick={onImportPublication} disabled={!hasImages} className="flex items-center gap-2 border border-indigo-500/40 bg-indigo-500/10 text-indigo-300 px-2 lg:px-4 py-1.5 text-[10px] font-mono font-medium hover:bg-indigo-500 hover:text-white transition disabled:opacity-40 disabled:bg-transparent uppercase tracking-wide">
                             <Send size={14} /> Publication
                         </button>
                     )}
