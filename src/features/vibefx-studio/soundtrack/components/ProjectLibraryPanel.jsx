@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, ArrowDown, ArrowUp, Film, Heart, Import, ListMusic, Loader2, Music2, Plus, ShieldAlert, Trash2, Upload, X } from 'lucide-react';
+import { Archive, ArrowDown, ArrowUp, Film, Heart, Import, ListMusic, Loader2, Music2, Play, Plus, ShieldAlert, Trash2, Upload, UploadCloud, X } from 'lucide-react';
 import { getRightsLabel, getSoundtrackRightsAudit } from '../services/soundtrackRights';
 
 const formatDuration = (seconds = 0) => {
@@ -71,7 +71,35 @@ const ProjectTrackRow = ({ track, projectLibrary, activePlaylist, isSelected, on
     );
 };
 
-export default function ProjectLibraryPanel({ projectLibrary, selectedTrack, onSelectTrack, onUseInVideo }) {
+const StarterTrackRow = ({ track, isSelected, onSelect, onPlay, onImportProject, onUseInVideo, busy }) => {
+    const audit = getSoundtrackRightsAudit(track);
+    return (
+        <article className="soundtrack-project-row soundtrack-project-row--starter" data-selected={isSelected ? 'true' : 'false'} data-testid={`project-starter-track-${track.id}`}>
+            <button type="button" className="soundtrack-project-row__select" onClick={() => onPlay(track)} title="Ecouter">
+                <Play size={13} />
+            </button>
+            <button type="button" className="soundtrack-project-row__main" onClick={() => onSelect(track)}>
+                <strong>{track.title}</strong>
+                <span>{track.artist || track.sourceName} / {formatDuration(track.duration)}</span>
+            </button>
+            <div className="soundtrack-project-row__meta">
+                <span>incluse</span>
+                <span>{track.genre || track.mood || 'Vibe_CUT'}</span>
+                <span data-state={audit.blocked ? 'danger' : 'warning'}>{getRightsLabel(track.rightsStatus)}</span>
+            </div>
+            <div className="soundtrack-project-row__actions">
+                <button type="button" onClick={() => onImportProject(track)} disabled={busy || audit.blocked} title="Importer dans la bibliotheque projet">
+                    <UploadCloud size={13} />
+                </button>
+                <button type="button" onClick={() => onUseInVideo(track)} disabled={audit.blocked} title="Utiliser dans Vibe_CUT">
+                    <Film size={13} />
+                </button>
+            </div>
+        </article>
+    );
+};
+
+export default function ProjectLibraryPanel({ projectLibrary, starterTracks = [], selectedTrack, onSelectTrack, onPlayTrack, onUseInVideo }) {
     const inputRef = useRef(null);
     const [showArchived, setShowArchived] = useState(false);
     const [playlistName, setPlaylistName] = useState('');
@@ -84,6 +112,10 @@ export default function ProjectLibraryPanel({ projectLibrary, selectedTrack, onS
         const trackMap = new Map(baseTracks.map((track) => [track.id, track]));
         return activePlaylist.trackIds.map((trackId) => trackMap.get(trackId)).filter(Boolean);
     }, [activePlaylist, projectLibrary.tracks, showArchived]);
+    const projectTrackIds = useMemo(() => new Set(projectLibrary.tracks.map((track) => track.sourceTrackId || track.id)), [projectLibrary.tracks]);
+    const visibleStarterTracks = useMemo(() => (
+        activePlaylist ? [] : starterTracks.filter((track) => !projectTrackIds.has(track.id))
+    ), [activePlaylist, projectTrackIds, starterTracks]);
 
     useEffect(() => {
         setDraft({
@@ -113,7 +145,7 @@ export default function ProjectLibraryPanel({ projectLibrary, selectedTrack, onS
                     <h2>Bibliotheque Vibe_fx</h2>
                 </div>
                 <span data-state={projectLibrary.status === 'error' ? 'warning' : 'ready'}>
-                    {projectLibrary.tracks.length} piste{projectLibrary.tracks.length > 1 ? 's' : ''}
+                    {projectLibrary.tracks.length + visibleStarterTracks.length} piste{projectLibrary.tracks.length + visibleStarterTracks.length > 1 ? 's' : ''}
                 </span>
             </header>
 
@@ -208,13 +240,41 @@ export default function ProjectLibraryPanel({ projectLibrary, selectedTrack, onS
                 </form>
             )}
 
-            {visibleTracks.length === 0 ? (
+            {visibleTracks.length === 0 && visibleStarterTracks.length === 0 ? (
                 <div className="soundtrack-empty-state soundtrack-empty-state--compact">
                     <Music2 size={18} />
                     <p>Bibliotheque projet vide.</p>
                 </div>
             ) : (
                 <div className="soundtrack-project-list">
+                    {visibleStarterTracks.length > 0 && (
+                        <div className="soundtrack-project-list__group">
+                            <div className="soundtrack-project-playlists__head">
+                                <span>Pistes Vibe_CUT incluses</span>
+                                <small>{visibleStarterTracks.length}</small>
+                            </div>
+                        </div>
+                    )}
+                    {visibleStarterTracks.map((track) => (
+                        <StarterTrackRow
+                            key={track.id}
+                            track={track}
+                            isSelected={selectedTrack?.id === track.id}
+                            onSelect={onSelectTrack}
+                            onPlay={onPlayTrack}
+                            onImportProject={projectLibrary.importTrackToProject}
+                            onUseInVideo={onUseInVideo}
+                            busy={projectLibrary.busyTrackId === track.id}
+                        />
+                    ))}
+                    {visibleTracks.length > 0 && visibleStarterTracks.length > 0 && (
+                        <div className="soundtrack-project-list__group">
+                            <div className="soundtrack-project-playlists__head">
+                                <span>Imports projet</span>
+                                <small>{visibleTracks.length}</small>
+                            </div>
+                        </div>
+                    )}
                     {visibleTracks.map((track) => (
                         <ProjectTrackRow
                             key={track.id}

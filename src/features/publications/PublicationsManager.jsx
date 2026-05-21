@@ -20,11 +20,11 @@ import PublicationComposer from "./components/PublicationComposer";
 import { normalizeVibeFxDraft } from "./helpers/publicationHelpers";
 import VibeFxStudio from "../vibefx-studio";
 
-export default function PublicationsManager({ initialMode = "dashboard" }) {
+export default function PublicationsManager({ initialMode = "dashboard", initialWorkspace = "studio" }) {
   const [publications, setPublications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState(initialMode);
-  const [layoutInitialView, setLayoutInitialView] = useState("studio");
+  const [layoutInitialView, setLayoutInitialView] = useState(initialWorkspace);
   const [draft, setDraft] = useState(null);
   const [selectedPublication, setSelectedPublication] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);

@@ -8,6 +8,7 @@ export default function SoundtrackResults({
     projectTracks = [],
     showFavorites,
     searchStatus,
+    statusMessage,
     player,
     library,
     projectLibrary,
@@ -38,7 +39,15 @@ export default function SoundtrackResults({
             ) : rows.length === 0 ? (
                 <div className="soundtrack-empty-state">
                     <Music2 size={20} />
-                    <p>{showFavorites ? 'Aucun favori local.' : searchStatus === 'idle' ? 'Pret a scanner les sources gratuites.' : 'Aucun resultat pour ces filtres.'}</p>
+                    <p>
+                        {showFavorites
+                            ? 'Aucun favori local.'
+                            : searchStatus === 'idle'
+                                ? 'Pret a scanner la source active.'
+                                : statusMessage || (searchStatus === 'provider-unavailable' || searchStatus === 'error'
+                                    ? 'Provider indisponible pour ce scan. Reessayez plus tard ou utilisez une autre source active.'
+                                    : 'Aucun resultat pour ces filtres.')}
+                    </p>
                 </div>
             ) : (
                 <div className="soundtrack-results__list">
@@ -50,8 +59,10 @@ export default function SoundtrackResults({
                             playlists={library.playlists}
                             selectedPlaylistId={library.selectedPlaylistId}
                             isPlaying={player.playingId === track.id}
+                            visualizer={player.visualizer}
                             isBusy={library.busyTrackId === track.id}
                             isProjectBusy={projectLibrary?.busyTrackId === track.id}
+                            projectImportUnavailableReason={projectLibrary?.capability?.ready ? '' : projectLibrary?.capability?.reason || 'Firebase projet non configure.'}
                             onPlay={onPlayTrack}
                             onSelect={onSelectTrack}
                             onFavorite={library.toggleFavorite}

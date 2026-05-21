@@ -9,14 +9,29 @@ const formatDuration = (seconds = 0) => {
     return `${mins}:${String(secs).padStart(2, '0')}`;
 };
 
-const Waveform = ({ waveform }) => {
-    const peaks = Array.isArray(waveform?.peaks) && waveform.peaks.length
+const Waveform = ({ waveform, isActive, levels = [] }) => {
+    const fallbackPeaks = Array.isArray(waveform?.peaks) && waveform.peaks.length
         ? waveform.peaks.slice(0, 56)
         : Array.from({ length: 40 }, (_, index) => 0.16 + ((index % 7) / 16));
+    const peaks = isActive && levels.length
+        ? Array.from({ length: 56 }, (_, index) => levels[index % levels.length])
+        : fallbackPeaks;
     return (
-        <div className="soundtrack-waveform" data-status={waveform?.status || 'placeholder'} aria-hidden="true">
+        <div
+            className="soundtrack-waveform"
+            data-status={waveform?.status || 'placeholder'}
+            data-live={isActive ? 'true' : 'false'}
+            data-mode={isActive && !levels.length ? 'pulse' : 'levels'}
+            aria-hidden="true"
+        >
             {peaks.map((peak, index) => (
-                <span key={`${index}-${peak}`} style={{ transform: `scaleY(${Math.max(0.08, peak)})` }} />
+                <span
+                    key={index}
+                    style={{
+                        '--bar-index': index,
+                        transform: `scaleY(${Math.max(0.08, peak)})`,
+                    }}
+                />
             ))}
         </div>
     );
@@ -28,8 +43,10 @@ export default function SoundtrackTrackRow({
     playlists,
     selectedPlaylistId,
     isPlaying,
+    visualizer,
     isBusy,
     isProjectBusy,
+    projectImportUnavailableReason = '',
     onPlay,
     onSelect,
     onFavorite,
@@ -41,19 +58,28 @@ export default function SoundtrackTrackRow({
     const audit = getSoundtrackRightsAudit(track);
     const playableUrl = track.localObjectUrl || track.previewUrl || track.downloadUrl;
     const canUseInVideo = track.fileAvailable || Boolean(track.localObjectUrl) || Boolean(track.storagePath && track.downloadUrl);
+    const isRemoteProviderResult = ['pixabay', 'openverse', 'jamendo', 'freesound', 'archive', 'wikimedia'].includes(track.provider);
+    const showMissingFile = track.fileAvailable === false && !track.storagePath && !isRemoteProviderResult;
+    const canImportProject = track.importStatus === 'importable' && Boolean(track.downloadUrl || track.previewUrl || track.audioUrl);
+    const projectImportDisabledReason = projectImportUnavailableReason || (audit.blocked ? 'Droits bloques pour import projet.' : '');
+    const visualizerActive = visualizer?.trackId === track.id && visualizer.active;
 
     return (
         <article
             className="soundtrack-track-row"
             data-testid={`soundtrack-track-${track.id}`}
-            data-missing={track.fileAvailable === false && !track.storagePath ? 'true' : 'false'}
+            data-import-status={track.importStatus || 'local'}
+            data-missing={showMissingFile ? 'true' : 'false'}
+            data-playing={visualizerActive ? 'true' : 'false'}
             onClick={() => onSelect?.(track)}
         >
             <button
                 type="button"
                 className="soundtrack-track-row__play"
                 onClick={() => onPlay(track, playableUrl)}
+                disabled={!playableUrl}
                 aria-label={isPlaying ? `Pause ${track.title}` : `Ecouter ${track.title}`}
+                title={playableUrl ? 'Ecouter' : 'Preview audio indisponible'}
             >
                 {isPlaying ? <Pause size={15} /> : <Play size={15} />}
             </button>
@@ -63,18 +89,21 @@ export default function SoundtrackTrackRow({
                     <strong>{track.title}</strong>
                     <span>{track.artist || track.sourceName}</span>
                 </div>
-                <Waveform waveform={track.waveform} />
+                <Waveform waveform={track.waveform} isActive={visualizerActive} levels={visualizer?.levels} />
                 <div className="soundtrack-track-row__chips">
                     <span>{track.provider}</span>
                     <span>{formatDuration(track.duration)}</span>
-                    <span>{track.bpm ? `${track.bpm} BPM` : 'BPM n/a'}</span>
+                    {track.bpm ? <span>{track.bpm} BPM</span> : null}
                     <span>{track.license}</span>
                     {importedInProject && <span data-state="success">projet</span>}
+                    {track.importStatus === 'metadata-only' && <span data-state="warning">metadata-only</span>}
+                    {track.importStatus === 'blocked' && <span data-state="danger">blocked</span>}
                     <span data-state={audit.blocked ? 'danger' : track.rightsStatus === 'needs-review' ? 'warning' : 'success'}>
                         {audit.blocked ? <TriangleAlert size={11} /> : <ShieldCheck size={11} />}
                         {getRightsLabel(track.rightsStatus)}
                     </span>
-                    {track.fileAvailable === false && <span data-state="warning">fichier manquant</span>}
+                    {showMissingFile && <span data-state="warning">fichier manquant</span>}
+                    {track.blockedReason && <span data-state="warning">{track.blockedReason}</span>}
                 </div>
             </div>
 
@@ -114,25 +143,33 @@ export default function SoundtrackTrackRow({
                 >
                     <Plus size={14} />
                 </button>
-                <button
-                    type="button"
-                    className="soundtrack-action-button"
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        onImportProject?.(track);
-                    }}
-                    disabled={!onImportProject || isProjectBusy || audit.blocked || importedInProject}
-                    aria-label={`Importer ${track.title} dans la bibliotheque projet`}
-                >
-                    <UploadCloud size={14} />
-                    {importedInProject ? 'Projet' : isProjectBusy ? 'Import...' : 'Importer projet'}
-                </button>
+                {canImportProject || importedInProject ? (
+                    <button
+                        type="button"
+                        className="soundtrack-action-button"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            onImportProject?.(track);
+                        }}
+                        disabled={!onImportProject || isProjectBusy || audit.blocked || importedInProject || Boolean(projectImportUnavailableReason)}
+                        title={projectImportDisabledReason || (importedInProject ? 'Deja dans le projet' : 'Importer dans la bibliotheque projet')}
+                        aria-label={`Importer ${track.title} dans la bibliotheque projet`}
+                    >
+                        <UploadCloud size={14} />
+                        {importedInProject ? 'Projet' : isProjectBusy ? 'Import...' : projectImportUnavailableReason ? 'Projet indispo' : 'Importer projet'}
+                    </button>
+                ) : (
+                    <span className="soundtrack-row-status" data-state={track.importStatus === 'blocked' ? 'danger' : 'warning'}>
+                        {track.importStatus === 'blocked' ? 'Bloque' : 'Source seule'}
+                    </span>
+                )}
                 <button
                     type="button"
                     className="soundtrack-action-button"
                     onClick={() => onDownload(track)}
-                    disabled={isBusy || audit.blocked}
+                    disabled={isBusy || audit.blocked || !playableUrl}
                     aria-label={`Telecharger localement ${track.title}`}
+                    title={playableUrl ? 'Telecharger localement' : 'URL audio indisponible'}
                 >
                     <Download size={14} />
                     {isBusy ? 'Local...' : 'Local'}

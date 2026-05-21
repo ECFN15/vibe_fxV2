@@ -9,10 +9,12 @@ import SoundtrackPlayer from './components/SoundtrackPlayer';
 import SoundtrackPlaylists from './components/SoundtrackPlaylists';
 import SoundtrackResults from './components/SoundtrackResults';
 import SoundtrackRightsPanel from './components/SoundtrackRightsPanel';
+import { getStarterSoundtrackTracks } from './data/soundtrackDefaults';
 import { useLocalSoundtrackLibrary } from './hooks/useLocalSoundtrackLibrary';
 import { useProjectSoundLibrary } from './hooks/useProjectSoundLibrary';
 import { useSoundtrackPlayer } from './hooks/useSoundtrackPlayer';
 import { useSoundtrackSearch } from './hooks/useSoundtrackSearch';
+import { fetchAudioBlobForTrack } from './services/soundtrackDownloads';
 
 const MOBILE_TABS = [
     { id: 'project', label: 'Projet', icon: Library },
@@ -33,6 +35,7 @@ export default function SoundtrackPage({ onUseInVideo }) {
     const library = useLocalSoundtrackLibrary();
     const projectLibrary = useProjectSoundLibrary();
     const player = useSoundtrackPlayer();
+    const starterTracks = useMemo(() => getStarterSoundtrackTracks(), []);
     const [activeMobileTab, setActiveMobileTab] = useState('scan');
     const [activeMode, setActiveMode] = useState('aggregator');
     const [showFavorites, setShowFavorites] = useState(false);
@@ -40,11 +43,12 @@ export default function SoundtrackPage({ onUseInVideo }) {
     const mergedTrackById = useMemo(() => {
         const map = new Map();
         search.results.forEach((track) => map.set(track.id, track));
+        starterTracks.forEach((track) => map.set(track.id, track));
         library.tracks.forEach((track) => map.set(track.id, track));
         projectLibrary.tracks.forEach((track) => map.set(track.id, track));
         return map;
-    }, [library.tracks, projectLibrary.tracks, search.results]);
-    const selectedTrack = mergedTrackById.get(selectedTrackId) || player.currentTrack || projectLibrary.tracks[0] || library.tracks[0] || search.results[0] || null;
+    }, [library.tracks, projectLibrary.tracks, search.results, starterTracks]);
+    const selectedTrack = mergedTrackById.get(selectedTrackId) || player.currentTrack || projectLibrary.tracks[0] || starterTracks[0] || library.tracks[0] || search.results[0] || null;
 
     const playTrack = (track, explicitUrl) => {
         setSelectedTrackId(track.id);
@@ -57,6 +61,10 @@ export default function SoundtrackPage({ onUseInVideo }) {
         if (!file && track.storagePath && track.downloadUrl) {
             const response = await fetch(track.downloadUrl);
             file = await response.blob();
+        }
+        if (!file && (track.downloadUrl || track.previewUrl || track.url)) {
+            const fetched = await fetchAudioBlobForTrack(track);
+            file = fetched.blob;
         }
         if (!file) {
             await library.checkMissingFiles();
@@ -75,6 +83,14 @@ export default function SoundtrackPage({ onUseInVideo }) {
         const trackMap = new Map(baseTracks.map((track) => [track.id, track]));
         return activeProjectPlaylist.trackIds.map((trackId) => trackMap.get(trackId)).filter(Boolean);
     }, [activeProjectPlaylist, projectLibrary.tracks]);
+    const projectModeWithStarterTracks = useMemo(() => {
+        if (activeProjectPlaylist) return projectModeTracks;
+        const projectIds = new Set(projectModeTracks.map((track) => track.id));
+        return [
+            ...starterTracks.filter((track) => !projectIds.has(track.id)),
+            ...projectModeTracks,
+        ];
+    }, [activeProjectPlaylist, projectModeTracks, starterTracks]);
     const visibleMode = activeMode;
 
     return (
@@ -128,8 +144,10 @@ export default function SoundtrackPage({ onUseInVideo }) {
                 <aside className="soundtrack-left-column" data-mobile-active={visibleMode === 'project'}>
                     <ProjectLibraryPanel
                         projectLibrary={projectLibrary}
+                        starterTracks={starterTracks}
                         selectedTrack={selectedTrack}
                         onSelectTrack={(track) => setSelectedTrackId(track.id)}
+                        onPlayTrack={playTrack}
                         onUseInVideo={handleUseInVideo}
                     />
                 </aside>
@@ -177,7 +195,7 @@ export default function SoundtrackPage({ onUseInVideo }) {
                     )}
                     {visibleMode === 'project' && (
                         <SoundtrackResults
-                            results={projectModeTracks}
+                            results={projectModeWithStarterTracks}
                             libraryTracks={[]}
                             projectTracks={projectLibrary.tracks}
                             showFavorites={false}

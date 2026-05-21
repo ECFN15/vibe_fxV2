@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
+import { pixabayAudioAdapter } from '../_providers/pixabayAudioAdapter';
 
 export const runtime = 'nodejs';
 
 const MAX_QUERY_LENGTH = 80;
 const DEFAULT_RESULTS_PER_PROVIDER = 8;
 const MAX_RESULTS_PER_PROVIDER = 20;
-const MAX_SCAN_PAGES = 3;
+const MAX_SCAN_PAGES = 5;
 const REQUEST_TIMEOUT_MS = 9000;
 const EXACT_AUDIO_HOSTS = new Set([
     'cdn.pixabay.com',
@@ -26,7 +27,7 @@ const SUBDOMAIN_AUDIO_HOSTS = [
 ];
 
 const PROVIDERS = [
-    { id: 'pixabay', label: 'Pixabay Music', keyRequired: false, manualOnly: true },
+    { id: 'pixabay', label: 'Pixabay Music', keyRequired: false, pageScan: true },
     { id: 'openverse', label: 'Openverse Audio', keyRequired: false },
     { id: 'jamendo', label: 'Jamendo Music', keyRequired: true, env: ['JAMENDO_CLIENT_ID', 'MUSIC_JAMENDO_CLIENT_ID'] },
     { id: 'freesound', label: 'Freesound', keyRequired: true, env: ['FREESOUND_API_KEY', 'MUSIC_FREESOUND_API_KEY'] },
@@ -368,12 +369,7 @@ const searchWikimedia = async ({ query, genre, limit }) => {
 };
 
 const SEARCHERS = {
-    pixabay: async () => ({
-        provider: 'pixabay',
-        configured: true,
-        tracks: [],
-        error: 'Pixabay API officielle verifiee: pas d endpoint public audio documente. Import URL directe uniquement, sans scraping.',
-    }),
+    pixabay: async (filters) => pixabayAudioAdapter.search(filters),
     openverse: searchOpenverse,
     jamendo: searchJamendo,
     freesound: searchFreesound,
@@ -385,9 +381,24 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const query = normaliseText(searchParams.get('q')) || 'ambient';
     const genre = normaliseText(searchParams.get('genre'), 40);
+    const category = normaliseText(searchParams.get('category'), 40);
     const requestedProvider = normaliseText(searchParams.get('provider'), 30) || 'all';
     const limit = normaliseNumber(searchParams.get('limit'), DEFAULT_RESULTS_PER_PROVIDER, 1, MAX_RESULTS_PER_PROVIDER);
     const pages = normaliseNumber(searchParams.get('pages'), 1, 1, MAX_SCAN_PAGES);
+
+    if (requestedProvider === 'pixabay') {
+        const payload = await pixabayAudioAdapter.search({
+            query,
+            category,
+            pages,
+            limit,
+        });
+        return NextResponse.json(payload, {
+            headers: {
+                'cache-control': 'private, max-age=300, stale-while-revalidate=86400',
+            },
+        });
+    }
     const selectedProviders = requestedProvider === 'all'
         ? PROVIDERS.map((provider) => provider.id)
         : PROVIDERS.some((provider) => provider.id === requestedProvider)

@@ -1,69 +1,114 @@
 import React from 'react';
-import { Search, SlidersHorizontal } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock3, Radio } from 'lucide-react';
 import {
-    SOUNDTRACK_BPM_FILTERS,
-    SOUNDTRACK_DURATION_FILTERS,
-    SOUNDTRACK_GENRES,
-    SOUNDTRACK_LICENSE_FILTERS,
-    SOUNDTRACK_MOOD_FILTERS,
+    SOUNDTRACK_CATEGORY_TAGS,
     SOUNDTRACK_PROVIDERS,
 } from '../data/soundtrackDefaults';
 
-const SelectControl = ({ label, value, onChange, options }) => (
-    <label className="soundtrack-field">
-        <span>{label}</span>
-        <select value={value} onChange={(event) => onChange(event.target.value)}>
-            {options.map((option) => (
-                <option key={option.id} value={option.id}>{option.label || option.name}</option>
-            ))}
-        </select>
-    </label>
-);
+const statusLabel = {
+    active: 'actif',
+    'coming-soon': 'a venir',
+    'provider-missing-key': 'cle manquante',
+    'configured-coming-soon': 'a brancher',
+    'page-scan-blocked': 'scan bloque',
+    disabled: 'desactive',
+};
+
+const ProviderButton = ({ provider, selected, onSelect }) => {
+    const disabled = !provider.enabled;
+    return (
+        <button
+            type="button"
+            className="soundtrack-provider-choice"
+            data-active={selected ? 'true' : 'false'}
+            data-status={provider.status}
+            disabled={disabled}
+            onClick={() => !disabled && onSelect(provider.id)}
+            title={disabled ? `${provider.label}: ${statusLabel[provider.status] || provider.status}` : `${provider.label}: actif`}
+        >
+            <span className="soundtrack-provider-choice__name">{provider.label}</span>
+            <span className="soundtrack-provider-choice__meta">{provider.mediaType}</span>
+            <span className="soundtrack-provider-choice__status">
+                {selected ? <CheckCircle2 size={12} /> : <Clock3 size={12} />}
+                {selected ? 'actif' : statusLabel[provider.status] || provider.status}
+            </span>
+        </button>
+    );
+};
 
 export default function SoundtrackSearch({ search }) {
-    const submit = (event) => {
-        event.preventDefault();
-        search.search();
-    };
+    const ignoredReasons = search.scanStats?.ignoredReasons || [];
+    const activeProviderDefinition = SOUNDTRACK_PROVIDERS.find((provider) => provider.id === search.provider)
+        || SOUNDTRACK_PROVIDERS[0];
+    const activeProvider = search.providerStatus?.find((provider) => provider.id === search.provider);
+    const selectedTag = SOUNDTRACK_CATEGORY_TAGS.find((tag) => tag.id === search.category)
+        || SOUNDTRACK_CATEGORY_TAGS.find((tag) => tag.query === search.query);
+    const providerError = activeProvider?.error || search.error || '';
+    const blockedByProvider = search.status === 'provider-unavailable' || /403|blocked|challenge/i.test(providerError);
+    const scanUnavailable = blockedByProvider || search.status === 'error' || Boolean(providerError);
+    const isPixabayBlocked = search.provider === 'pixabay' && blockedByProvider;
 
     return (
-        <section className="soundtrack-search" aria-label="Recherche soundtrack">
-            <form className="soundtrack-search__command" onSubmit={submit}>
-                <Search size={16} />
-                <input
-                    value={search.query}
-                    onChange={(event) => search.setQuery(event.target.value)}
-                    placeholder="ambient, cyberpunk, intro, jazz..."
-                    aria-label="Recherche musique multi-source"
-                />
-                <button type="submit" disabled={search.status === 'loading'}>
-                    {search.status === 'loading' ? 'Scan...' : 'Scanner'}
-                </button>
-            </form>
-
-            <div className="soundtrack-search__filters">
+        <section className="soundtrack-search soundtrack-search--provider-first" aria-label="Agregateur provider-first">
+            <div className="soundtrack-provider-strip" aria-label="Choix fournisseur audio">
                 <div className="soundtrack-filter-label">
-                    <SlidersHorizontal size={13} />
-                    Filtres
+                    <Radio size={13} />
+                    Provider
                 </div>
-                <SelectControl label="Provider" value={search.provider} onChange={search.setProvider} options={SOUNDTRACK_PROVIDERS} />
-                <SelectControl label="Genre" value={search.genre} onChange={search.setGenre} options={SOUNDTRACK_GENRES} />
-                <SelectControl label="Licence" value={search.license} onChange={search.setLicense} options={SOUNDTRACK_LICENSE_FILTERS} />
-                <SelectControl label="Mood" value={search.mood} onChange={search.setMood} options={SOUNDTRACK_MOOD_FILTERS} />
-                <SelectControl label="BPM" value={search.bpm} onChange={search.setBpm} options={SOUNDTRACK_BPM_FILTERS} />
-                <SelectControl label="Duree" value={search.duration} onChange={search.setDuration} options={SOUNDTRACK_DURATION_FILTERS} />
+                <div className="soundtrack-provider-strip__list">
+                    {SOUNDTRACK_PROVIDERS.map((provider) => (
+                        <ProviderButton
+                            key={provider.id}
+                            provider={provider}
+                            selected={search.provider === provider.id}
+                            onSelect={search.setProvider}
+                        />
+                    ))}
+                </div>
             </div>
 
-            <div className="soundtrack-provider-status" aria-label="Statut providers musique">
-                {search.status === 'idle' && (
-                    <span data-state="warning">scan volontaire uniquement</span>
+            <div className="soundtrack-pixabay-panel" aria-label={`Categories ${activeProviderDefinition.label}`}>
+                <div className="soundtrack-pixabay-tags" aria-label={`Suggestions ${activeProviderDefinition.label}`}>
+                    {SOUNDTRACK_CATEGORY_TAGS.map((tag) => (
+                        <button
+                            type="button"
+                            key={tag.id}
+                            data-active={search.category === tag.id ? 'true' : 'false'}
+                            disabled={search.status === 'loading'}
+                            onClick={() => search.scanCategory(tag)}
+                            aria-label={`Scanner la categorie ${activeProviderDefinition.label} ${tag.label}`}
+                        >
+                            {tag.label}
+                        </button>
+                    ))}
+                </div>
+
+                {scanUnavailable && (
+                    <div className="soundtrack-provider-recovery soundtrack-provider-recovery--compact" data-state="warning">
+                        <AlertTriangle size={15} />
+                        <div>
+                            <strong>{isPixabayBlocked ? 'Pixabay bloque le scan serveur' : `${activeProviderDefinition.label} indisponible`}</strong>
+                            <p>{selectedTag?.label || search.query}: aucun resultat invente ni catalogue local affiche.</p>
+                        </div>
+                    </div>
                 )}
-                {search.providerStatus.map((provider) => (
-                    <span key={provider.id} data-state={provider.error ? 'warning' : 'ready'} title={provider.error || `${provider.count} resultats`}>
-                        {provider.label}: {provider.error ? 'config' : provider.count}
-                    </span>
-                ))}
-                {search.error && <span data-state="warning">{search.error}</span>}
+
+                <div className="soundtrack-scan-summary" aria-label={`Statut scan ${activeProviderDefinition.label}`}>
+                    <span data-state="ready">trouves {search.scanStats?.found || 0}</span>
+                    <span data-state="ready">importables {search.scanStats?.importable || 0}</span>
+                    <span data-state={search.scanStats?.ignored ? 'warning' : 'neutral'}>ignores {search.scanStats?.ignored || 0}</span>
+                    <span data-state={search.cache?.status === 'cached' ? 'ready' : 'neutral'}>cache {search.cache?.status || 'idle'}</span>
+                    {activeProvider?.status && <span data-state={activeProvider.error ? 'warning' : 'ready'}>{activeProvider.status}</span>}
+                    {ignoredReasons.map((item) => (
+                        <span key={item.reason} data-state="warning">{item.reason} x{item.count}</span>
+                    ))}
+                    {search.error && (
+                        <span data-state="warning">
+                            <AlertTriangle size={12} />
+                            {search.error}
+                        </span>
+                    )}
+                </div>
             </div>
         </section>
     );

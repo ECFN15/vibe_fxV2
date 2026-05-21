@@ -34,6 +34,10 @@ try {
     "src/features/vibefx-studio/soundtrack/services/providerSearchClient.js",
     "providerSearchClient.mjs"
   );
+  const pixabayAdapterUrl = await copyModule(
+    "src/app/api/music/_providers/pixabayAudioAdapter.js",
+    "pixabayAudioAdapter.mjs"
+  );
   const musicRightsUrl = await copyModule(
     "src/features/vibefx-studio/video/data/musicRights.js",
     "musicRights.mjs"
@@ -64,6 +68,13 @@ try {
     buildProviderSearchUrl,
     normalizeProviderScanFilters,
   } = await import(providerSearchUrl);
+  const {
+    buildPixabayCacheKey,
+    buildPixabayMusicSearchUrl,
+    dedupePixabayResults,
+    normalizePixabayFilters,
+    parsePixabayMusicHtml,
+  } = await import(pixabayAdapterUrl);
   const {
     buildExportRightsManifestDocument,
   } = await import(musicRightsUrl);
@@ -196,21 +207,76 @@ try {
   assert.equal(exportManifest.tracks[0].title, "Export Audio A");
 
   const filters = normalizeProviderScanFilters({
-    provider: "openverse",
-    query: "  Ambient Launch  ",
-    genre: "ambient",
+    provider: "pixabay",
+    query: "  Piano  ",
+    category: "piano",
     pages: 9,
     limit: 99,
+    license: "cleared-social",
+    bpm: "fast",
+    genre: "ambient",
+    mood: "calm",
+    duration: "two-four",
   });
-  assert.equal(filters.pages, 3);
+  assert.equal(filters.provider, "pixabay");
+  assert.equal(filters.query, "Piano");
+  assert.equal(filters.category, "piano");
+  assert.equal(filters.pages, 5);
   assert.equal(filters.limit, 20);
+  assert.equal(filters.license, undefined, "provider-first filters must not keep generic license");
+  assert.equal(filters.bpm, undefined, "provider-first filters must not keep generic BPM");
+  assert.equal(filters.genre, undefined, "provider-first filters must not keep generic genre");
+  assert.equal(filters.mood, undefined, "provider-first filters must not keep generic mood");
+  assert.equal(filters.duration, undefined, "provider-first filters must not keep generic duration");
   const cacheKeyA = buildProviderScanCacheKey(filters);
-  const cacheKeyB = buildProviderScanCacheKey({ ...filters, query: "ambient launch" });
+  const cacheKeyB = buildProviderScanCacheKey({ ...filters, query: "piano" });
   assert.equal(cacheKeyA, cacheKeyB, "provider cache key must normalize query casing and whitespace");
-  assert.notEqual(cacheKeyA, buildProviderScanCacheKey({ ...filters, genre: "cinematic" }));
+  assert.notEqual(cacheKeyA, buildProviderScanCacheKey({ ...filters, category: "chill" }));
   assert.match(buildProviderSearchUrl(filters), /\/api\/music\/free-search\?/);
+  assert.match(buildProviderSearchUrl(filters), /q=Piano/);
+  assert.match(buildProviderSearchUrl(filters), /category=piano/);
   assert.match(buildProviderSearchUrl(filters), /limit=20/);
-  assert.match(buildProviderSearchUrl(filters), /pages=3/);
+  assert.match(buildProviderSearchUrl(filters), /pages=5/);
+  assert.doesNotMatch(buildProviderSearchUrl(filters), /license=/);
+  assert.doesNotMatch(buildProviderSearchUrl(filters), /bpm=/);
+
+  const pixabayFilters = normalizePixabayFilters({
+    query: " piano ",
+    genre: "cinematic",
+    mood: "calm",
+    category: "piano",
+    duration: "two-four",
+    sort: "popular",
+    pages: 8,
+    limit: 88,
+  });
+  assert.equal(pixabayFilters.pages, 5);
+  assert.equal(pixabayFilters.limit, 20);
+  assert.equal(pixabayFilters.mediaType, "music");
+  assert.equal(pixabayFilters.category, "piano");
+  assert.equal(pixabayFilters.genre, undefined, "pixabay adapter must ignore legacy generic genre filters");
+  assert.equal(pixabayFilters.mood, undefined, "pixabay adapter must ignore legacy generic mood filters");
+  assert.equal(pixabayFilters.duration, undefined, "pixabay adapter must ignore legacy generic duration filters");
+  assert.equal(pixabayFilters.sort, undefined, "pixabay adapter must ignore legacy generic sort filters");
+  assert.match(buildPixabayMusicSearchUrl(pixabayFilters, 1), /https:\/\/pixabay\.com\/music\/search\/piano\//);
+  assert.match(buildPixabayMusicSearchUrl(pixabayFilters, 2), /pagi=2/);
+  assert.equal(buildPixabayCacheKey(pixabayFilters), buildPixabayCacheKey({ ...pixabayFilters, query: "PIANO" }));
+
+  const fixtureHtml = await readFile(path.join(root, "scripts/fixtures/pixabay-music-search.html"), "utf8");
+  const parsedPixabay = parsePixabayMusicHtml(fixtureHtml, pixabayFilters);
+  assert.equal(parsedPixabay.tracks.length, 2, "pixabay parser must not apply removed duration filters");
+  assert.equal(parsedPixabay.tracks[0].provider, "pixabay");
+  assert.equal(parsedPixabay.tracks[0].license, "Pixabay Content License");
+  assert.equal(parsedPixabay.tracks[0].licenseUrl, "https://pixabay.com/service/license-summary/");
+  assert.equal(parsedPixabay.tracks[0].importStatus, "importable");
+  assert.equal(parsedPixabay.tracks[0].downloadUrl.includes("cdn.pixabay.com/download/audio/"), true);
+
+  const parsedAllPixabay = parsePixabayMusicHtml(fixtureHtml, { ...pixabayFilters, duration: "all" });
+  assert.equal(parsedAllPixabay.tracks.length, 2);
+  assert.equal(parsedAllPixabay.stats.importable, 1);
+  assert.equal(parsedAllPixabay.stats.ignored, 1);
+  assert.equal(parsedAllPixabay.tracks.find((track) => track.title === "Metadata Only Fixture").importStatus, "metadata-only");
+  assert.equal(dedupePixabayResults([...parsedAllPixabay.tracks, ...parsedAllPixabay.tracks]).length, 2);
 
   const playlist = normalizeProjectSoundPlaylist({
     id: "playlist-project-a",

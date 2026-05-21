@@ -11,5 +11,13 @@ export const metadata = {
 
 export default async function StudioPage({ searchParams }) {
   const params = await searchParams;
-  return <StudioClient initialMode={params?.workspace === "layout" ? "layout" : "dashboard"} />;
+  const studioWorkspaces = new Set(["studio", "fusion", "layout", "library", "soundtrack", "vision-pro", "video"]);
+  const requestedWorkspace = typeof params?.workspace === "string" ? params.workspace : "";
+  const initialWorkspace = studioWorkspaces.has(requestedWorkspace) ? requestedWorkspace : "studio";
+  return (
+    <StudioClient
+      initialMode={studioWorkspaces.has(requestedWorkspace) ? "layout" : "dashboard"}
+      initialWorkspace={initialWorkspace}
+    />
+  );
 }

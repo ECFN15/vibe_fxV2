@@ -11,12 +11,12 @@ function getBearerToken(request) {
 }
 
 async function verifyFirebaseIdToken(idToken) {
+    if (!idToken) {
+        throw Object.assign(new Error('Authentification requise pour importer dans le projet.'), { status: 401 });
+    }
     const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || '';
     if (!apiKey) {
         throw Object.assign(new Error('Verification auth Firebase indisponible cote serveur.'), { status: 503 });
-    }
-    if (!idToken) {
-        throw Object.assign(new Error('Authentification requise pour importer dans le projet.'), { status: 401 });
     }
 
     let response;

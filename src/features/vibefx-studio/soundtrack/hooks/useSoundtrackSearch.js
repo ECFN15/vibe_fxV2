@@ -1,143 +1,142 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { getStarterSoundtrackTracks } from '../data/soundtrackDefaults';
-import { buildProviderSearchUrl } from '../services/providerSearchClient';
+import { SOUNDTRACK_CATEGORY_TAGS } from '../data/soundtrackDefaults';
+import { buildProviderSearchUrl, normalizeProviderScanFilters } from '../services/providerSearchClient';
 import { normalizeSoundtrackTrack } from '../services/soundtrackManifest';
 import { normalizeSearchTrackRights } from '../services/soundtrackRights';
 
-const durationMatches = (track, filter) => {
-    if (!filter) return true;
-    const duration = Number(track.duration) || 0;
-    if (filter === 'short') return duration > 0 && duration < 60;
-    if (filter === 'medium') return duration >= 60 && duration <= 240;
-    if (filter === 'long') return duration > 240;
-    return true;
-};
-
-const bpmMatches = (track, filter) => {
-    if (!filter) return true;
-    const bpm = Number(track.bpm) || 0;
-    if (!bpm) return true;
-    if (filter === 'slow') return bpm < 90;
-    if (filter === 'mid') return bpm >= 90 && bpm <= 130;
-    if (filter === 'fast') return bpm > 130;
-    return true;
-};
-
-const trackMatchesText = (track, query) => {
-    if (!query) return true;
-    const q = query.toLowerCase();
-    return [track.title, track.artist, track.sourceName, track.license, track.mood, ...(track.tags || [])]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(q);
-};
+const normalizeProviderTrack = (track = {}) => normalizeSoundtrackTrack(normalizeSearchTrackRights({
+    ...track,
+    id: track.id || track.providerTrackId,
+    provider: track.provider || 'openverse',
+    sourceName: track.sourceName || 'Openverse Audio',
+    sourceUrl: track.sourceUrl || track.sourcePageUrl || '',
+    sourcePageUrl: track.sourcePageUrl || track.sourceUrl || '',
+    previewUrl: track.previewUrl || track.audioUrl || '',
+    downloadUrl: track.downloadUrl || track.audioUrl || '',
+    importStatus: track.importStatus || (track.audioUrl || track.downloadUrl ? 'importable' : 'metadata-only'),
+    blockedReason: track.blockedReason || '',
+}));
 
 export function useSoundtrackSearch() {
-    const [query, setQuery] = useState('ambient');
-    const [provider, setProvider] = useState('all');
-    const [genre, setGenre] = useState('');
-    const [license, setLicense] = useState('');
-    const [mood, setMood] = useState('');
-    const [bpm, setBpm] = useState('');
-    const [duration, setDuration] = useState('');
+    const defaultTag = SOUNDTRACK_CATEGORY_TAGS.find((tag) => tag.id === 'instrumental') || SOUNDTRACK_CATEGORY_TAGS[0];
+    const [provider, setProviderState] = useState('openverse');
+    const [query, setQuery] = useState(defaultTag?.query || 'instrumental');
+    const [category, setCategory] = useState(defaultTag?.id || 'instrumental');
+    const [pages, setPages] = useState(1);
     const [results, setResults] = useState([]);
     const [providerStatus, setProviderStatus] = useState([]);
+    const [scanStats, setScanStats] = useState({ found: 0, importable: 0, ignored: 0, ignoredReasons: [] });
+    const [cache, setCache] = useState({ status: 'idle' });
+    const [sourceUrl, setSourceUrl] = useState('');
+    const [warnings, setWarnings] = useState([]);
     const [status, setStatus] = useState('idle');
     const [error, setError] = useState('');
     const abortRef = useRef(null);
 
-    const filters = useMemo(() => ({
-        query,
+    const filters = useMemo(() => normalizeProviderScanFilters({
         provider,
-        genre,
-        license,
-        mood,
-        bpm,
-        duration,
-    }), [bpm, duration, genre, license, mood, provider, query]);
-
-    const applyFilters = useCallback((tracks, activeFilters = filters) => (
-        tracks
-            .map((track) => normalizeSoundtrackTrack(normalizeSearchTrackRights(track)))
-            .filter((track) => trackMatchesText(track, activeFilters.query))
-            .filter((track) => !activeFilters.genre || track.tags.includes(activeFilters.genre) || track.mood.toLowerCase().includes(activeFilters.genre.toLowerCase()))
-            .filter((track) => !activeFilters.license || track.rightsStatus === activeFilters.license || track.rightsStatus === 'verified-free' && activeFilters.license === 'cleared-social')
-            .filter((track) => !activeFilters.mood || track.tags.includes(activeFilters.mood) || track.mood.toLowerCase().includes(activeFilters.mood.toLowerCase()))
-            .filter((track) => bpmMatches(track, activeFilters.bpm))
-            .filter((track) => durationMatches(track, activeFilters.duration))
-    ), [filters]);
+        query,
+        category,
+        pages,
+    }), [category, pages, provider, query]);
 
     const search = useCallback(async (overrides = {}) => {
-        const activeFilters = { ...filters, ...overrides };
+        const activeFilters = normalizeProviderScanFilters({ ...filters, ...overrides });
         if (abortRef.current) abortRef.current.abort();
         const controller = new AbortController();
         abortRef.current = controller;
+        setProviderState(activeFilters.provider);
         setStatus('loading');
         setError('');
-
-        const starterTracks = getStarterSoundtrackTracks(activeFilters.query, activeFilters.genre);
-        if (activeFilters.provider === 'starter' || activeFilters.provider === 'pixabay') {
-            setResults(applyFilters(starterTracks, activeFilters));
-            setProviderStatus(activeFilters.provider === 'pixabay'
-                ? [
-                    {
-                        id: 'pixabay',
-                        label: 'Pixabay Music',
-                        configured: true,
-                        count: 0,
-                        error: 'Import manuel: collez une URL audio directe Pixabay ou telechargez depuis la source officielle.',
-                    },
-                    { id: 'starter', label: 'Starter local', configured: true, count: starterTracks.length, error: '' },
-                ]
-                : [{ id: 'starter', label: 'Starter local', configured: true, count: starterTracks.length, error: '' }]);
-            setStatus('ready');
-            return;
-        }
+        setScanStats({ found: 0, importable: 0, ignored: 0, ignoredReasons: [] });
+        setSourceUrl('');
+        setWarnings([]);
 
         try {
-            const response = await fetch(buildProviderSearchUrl({
-                ...activeFilters,
-                provider: activeFilters.provider === 'all' ? 'all' : activeFilters.provider,
-            }), { signal: controller.signal });
-            if (!response.ok) throw new Error('Recherche musique indisponible.');
-            const payload = await response.json();
-            const remoteTracks = Array.isArray(payload.tracks) ? payload.tracks : [];
-            const merged = activeFilters.provider === 'all' ? [...starterTracks, ...remoteTracks] : remoteTracks;
-            setResults(applyFilters(merged, activeFilters));
-            setProviderStatus([
-                { id: 'starter', label: 'Starter local', configured: true, count: starterTracks.length, error: '' },
-                ...(payload.providers || []),
-            ]);
-            setStatus(merged.length ? 'ready' : 'empty');
+            const response = await fetch(buildProviderSearchUrl(activeFilters), { signal: controller.signal });
+            const payload = await response.json().catch(() => ({}));
+            const providerLabel = activeFilters.provider === 'pixabay' ? 'Pixabay' : 'Openverse';
+            if (!response.ok) throw new Error(payload.error || `Scan ${providerLabel} indisponible.`);
+            const tracks = Array.isArray(payload.tracks) ? payload.tracks.map(normalizeProviderTrack) : [];
+            const stats = payload.stats || {
+                found: tracks.length,
+                importable: tracks.filter((track) => track.importStatus === 'importable').length,
+                ignored: tracks.filter((track) => track.importStatus !== 'importable').length,
+                ignoredReasons: [],
+            };
+            setResults(tracks);
+            setProviderStatus(payload.providers || []);
+            setScanStats(stats);
+            setCache(payload.cache || { status: 'live' });
+            setSourceUrl(payload.sourceUrl || payload.scan?.urls?.[0] || '');
+            setWarnings(Array.isArray(payload.warnings) ? payload.warnings : []);
+            if (payload.status === 'provider-unavailable') {
+                setStatus('provider-unavailable');
+                setError(payload.providers?.[0]?.error || `${providerLabel} temporairement indisponible.`);
+            } else {
+                setStatus(tracks.length ? 'ready' : 'empty');
+            }
         } catch (searchError) {
             if (searchError.name === 'AbortError') return;
-            setResults(applyFilters(starterTracks, activeFilters));
-            setProviderStatus([{ id: 'starter', label: 'Starter local', configured: true, count: starterTracks.length, error: '' }]);
-            setError(searchError.message || 'Recherche distante indisponible. Starter local affiche.');
-            setStatus(starterTracks.length ? 'fallback' : 'error');
+            const providerLabel = activeFilters.provider === 'pixabay' ? 'Pixabay Music' : 'Openverse Audio';
+            setResults([]);
+            setProviderStatus([{
+                id: activeFilters.provider,
+                label: providerLabel,
+                mediaType: activeFilters.provider === 'pixabay' ? 'music' : 'audio',
+                status: 'error',
+                configured: true,
+                count: 0,
+                importable: 0,
+                error: searchError.message || `Scan ${providerLabel} indisponible.`,
+            }]);
+            setError(searchError.message || `Scan ${providerLabel} indisponible.`);
+            setStatus('error');
+            setCache({ status: 'error' });
         }
-    }, [applyFilters, filters]);
+    }, [filters]);
+
+    const scanCategory = useCallback((tag) => {
+        const nextTag = typeof tag === 'string'
+            ? SOUNDTRACK_CATEGORY_TAGS.find((item) => item.id === tag || item.query === tag || item.label === tag)
+            : tag;
+        if (!nextTag) return;
+        setCategory(nextTag.id);
+        setQuery(nextTag.query);
+        search({ provider, query: nextTag.query, category: nextTag.id, pages: 1 });
+    }, [provider, search]);
+
+    const setProvider = useCallback((nextProvider) => {
+        setProviderState(nextProvider);
+        setResults([]);
+        setProviderStatus([]);
+        setScanStats({ found: 0, importable: 0, ignored: 0, ignoredReasons: [] });
+        setCache({ status: 'idle' });
+        setSourceUrl('');
+        setWarnings([]);
+        setError('');
+        setStatus('idle');
+    }, []);
 
     return {
-        query,
-        setQuery,
         provider,
         setProvider,
-        genre,
-        setGenre,
-        license,
-        setLicense,
-        mood,
-        setMood,
-        bpm,
-        setBpm,
-        duration,
-        setDuration,
+        query,
+        setQuery,
+        category,
+        setCategory,
+        pages,
+        setPages,
         results,
         providerStatus,
+        scanStats,
+        cache,
+        sourceUrl,
+        warnings,
         status,
         error,
+        filters,
         search,
+        scanCategory,
     };
 }

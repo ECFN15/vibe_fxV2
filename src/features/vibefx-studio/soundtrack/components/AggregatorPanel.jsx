@@ -11,6 +11,10 @@ export default function AggregatorPanel({
     onUseInVideo,
     onSelectTrack,
 }) {
+    const activeProvider = search.providerStatus?.find((provider) => provider.id === search.provider);
+    const providerTitle = activeProvider?.label
+        || (search.provider === 'pixabay' ? 'Pixabay Music' : 'Openverse Audio');
+
     return (
         <section className="soundtrack-aggregator-panel" aria-label="Agregateur sources gratuites">
             <SoundtrackSearch search={search} />
@@ -20,9 +24,12 @@ export default function AggregatorPanel({
                 projectTracks={projectLibrary.tracks}
                 showFavorites={false}
                 searchStatus={search.status}
+                statusMessage={search.error}
                 player={player}
                 library={localLibrary}
                 projectLibrary={projectLibrary}
+                modeEyebrow="Agregateur provider-first"
+                modeTitle={providerTitle}
                 onPlayTrack={(track, url) => {
                     onSelectTrack(track);
                     onPlayTrack(track, url);

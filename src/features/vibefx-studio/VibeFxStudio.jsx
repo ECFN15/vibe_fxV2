@@ -19,7 +19,6 @@ import CompareModal from './components/modals/CompareModal';
 import AssetLibrary from './components/library/AssetLibrary';
 import AssetLibraryModal from './components/modals/AssetLibraryModal';
 import VideoApp from './VideoApp';
-import CreditsPanel from './components/panels/CreditsPanel';
 import StudioAiRail from './components/ai/StudioAiRail';
 import SoundtrackPage from './soundtrack/SoundtrackPage';
 import useVideoStore from './video/store/videoStore';
@@ -774,8 +773,6 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                     />
                 ) : view === 'soundtrack' ? (
                     <SoundtrackPage onUseInVideo={handleUseSoundtrackInVideo} />
-                ) : view === 'credits' ? (
-                    <CreditsPanel isDarkMode={isDarkMode} />
                 ) : (
                     <div className="flex-1 w-full grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
                         {/* CANVAS AREA */}

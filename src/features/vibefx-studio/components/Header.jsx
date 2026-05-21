@@ -1,5 +1,5 @@
 import React, { useSyncExternalStore } from 'react';
-import { Camera, Sun, Moon, Zap, Layers, LayoutTemplate, Aperture, Download, Library, Film, Send, Sparkles, Music2, CreditCard } from 'lucide-react';
+import { Camera, Sun, Moon, Zap, Layers, LayoutTemplate, Aperture, Download, Library, Film, Send, Sparkles, Music2 } from 'lucide-react';
 import MusicPlayer from './MusicPlayer';
 
 const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, onExport, onImportPublication, onOpenPublications, isAiRailOpen, onToggleAiRail, aiJobActive }) => {
@@ -7,7 +7,7 @@ const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, 
 
     // Helper simple pour les icônes conditionnelles
     const getIcon = (name) => {
-        const map = { Zap, Layers, LayoutTemplate, Aperture, Library, Music2, CreditCard, Film };
+        const map = { Zap, Layers, LayoutTemplate, Aperture, Library, Music2, Film };
         const Icon = map[name];
         return Icon ? <Icon size={14} /> : null;
     };
@@ -40,7 +40,6 @@ const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, 
                         { id: 'layout', icon: 'LayoutTemplate', label: 'Layout' },
                         { id: 'library', icon: 'Library', label: 'Library' },
                         { id: 'soundtrack', icon: 'Music2', label: 'Soundtrack' },
-                        { id: 'credits', icon: 'CreditCard', label: 'Credits' },
                         { id: 'vision-pro', icon: 'Aperture', label: 'Vision' },
                         { id: 'video', icon: 'Film', label: 'Video' }
                     ].map(tab => (
@@ -49,11 +48,10 @@ const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, 
                             onClick={() => setView(tab.id)}
                             aria-label={tab.label}
                             title={tab.label}
-                            className={`relative h-full shrink-0 flex items-center gap-2 px-3 md:px-6 text-[10px] uppercase font-mono tracking-widest transition-all duration-300 border-b-2 ${view === tab.id ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5' : tab.id === 'video' ? 'border-transparent text-purple-500 hover:text-purple-400 hover:bg-purple-500/5' : tab.id === 'credits' ? 'border-transparent text-lime-400 hover:text-lime-300 hover:bg-lime-500/5' : 'border-transparent text-neutral-500 hover:text-white hover:bg-white/5'}`}
+                            className={`relative h-full shrink-0 flex items-center gap-2 px-3 md:px-6 text-[10px] uppercase font-mono tracking-widest transition-all duration-300 border-b-2 ${view === tab.id ? 'border-indigo-500 text-indigo-400 bg-indigo-500/5' : tab.id === 'video' ? 'border-transparent text-purple-500 hover:text-purple-400 hover:bg-purple-500/5' : 'border-transparent text-neutral-500 hover:text-white hover:bg-white/5'}`}
                         >
                             {getIcon(tab.icon)} <span className="hidden md:inline">{tab.label}</span>
                             {tab.id === 'video' && <span className="text-[7px] bg-purple-500/20 text-purple-400 px-1 py-px font-mono uppercase tracking-wider hidden lg:inline">New</span>}
-                            {tab.id === 'credits' && <span className="text-[7px] bg-lime-500/20 text-lime-300 px-1 py-px font-mono uppercase tracking-wider hidden lg:inline">SaaS</span>}
                         </button>
                     ))}
                 </div>
