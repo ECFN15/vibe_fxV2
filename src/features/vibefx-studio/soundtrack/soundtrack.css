@@ -1279,6 +1279,27 @@
     accent-color: var(--st-action);
 }
 
+.soundtrack-project-scrub__notice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    color: var(--st-warn);
+    font: 700 10px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.soundtrack-project-scrub__notice button {
+    border: 1px solid rgba(245, 158, 11, .42);
+    border-radius: var(--st-radius);
+    background: rgba(245, 158, 11, .10);
+    color: var(--st-warn);
+    padding: 5px 8px;
+    font: inherit;
+}
+
 .soundtrack-project-row--starter {
     background: linear-gradient(90deg, rgba(99, 102, 241, .08), transparent 74%);
 }

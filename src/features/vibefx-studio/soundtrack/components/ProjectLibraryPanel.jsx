@@ -40,7 +40,7 @@ const MiniWaveform = ({ track, active = false, levels = [], ratio = 0 }) => {
     );
 };
 
-const TrackScrubPanel = ({ track, isSelected, player, onPlay, playableUrl }) => {
+const TrackScrubPanel = ({ track, isSelected, player, onPlay, playableUrl, onReconnect }) => {
     if (!isSelected) return null;
     const isCurrent = player?.playingId === track.id;
     const isPlaying = isCurrent && player?.status === 'playing';
@@ -99,11 +99,17 @@ const TrackScrubPanel = ({ track, isSelected, player, onPlay, playableUrl }) => 
                     <Square size={12} />
                 </button>
             </div>
+            {!playableUrl && (
+                <p className="soundtrack-project-scrub__notice">
+                    <span>Fichier audio non reconnecte. Reimporte le meme fichier pour restaurer la lecture sans creer de doublon.</span>
+                    <button type="button" onClick={onReconnect}>Reimporter audio</button>
+                </p>
+            )}
         </div>
     );
 };
 
-const ProjectTrackRow = ({ track, projectLibrary, activePlaylist, isSelected, player, onSelect, onPlay, onUseInVideo }) => {
+const ProjectTrackRow = ({ track, projectLibrary, activePlaylist, isSelected, player, onSelect, onPlay, onUseInVideo, onReconnect }) => {
     const audit = getSoundtrackRightsAudit(track);
     const usable = track.downloadUrl && !audit.blocked && track.rightsStatus !== 'blocked';
     const inActivePlaylist = activePlaylist?.trackIds?.includes(track.id);
@@ -163,12 +169,12 @@ const ProjectTrackRow = ({ track, projectLibrary, activePlaylist, isSelected, pl
                     </button>
                 </div>
             </article>
-            <TrackScrubPanel track={track} isSelected={isSelected} player={player} onPlay={onPlay} playableUrl={playableUrl} />
+            <TrackScrubPanel track={track} isSelected={isSelected} player={player} onPlay={onPlay} playableUrl={playableUrl} onReconnect={onReconnect} />
         </>
     );
 };
 
-const LocalTrackRow = ({ track, localLibrary, activePlaylist, inActivePlaylist, isSelected, player, onSelect, onPlay, onUseInVideo }) => {
+const LocalTrackRow = ({ track, localLibrary, activePlaylist, inActivePlaylist, isSelected, player, onSelect, onPlay, onUseInVideo, onReconnect }) => {
     const audit = getSoundtrackRightsAudit(track);
     const usable = (track.localObjectUrl || track.downloadUrl || track.previewUrl) && !audit.blocked;
     const playableUrl = track.localObjectUrl || track.downloadUrl || track.previewUrl;
@@ -217,12 +223,12 @@ const LocalTrackRow = ({ track, localLibrary, activePlaylist, inActivePlaylist, 
                 </button>
             </div>
         </article>
-        <TrackScrubPanel track={track} isSelected={isSelected} player={player} onPlay={onPlay} playableUrl={playableUrl} />
+        <TrackScrubPanel track={track} isSelected={isSelected} player={player} onPlay={onPlay} playableUrl={playableUrl} onReconnect={onReconnect} />
         </>
     );
 };
 
-const StarterTrackRow = ({ track, isSelected, player, onSelect, onPlay, onImportProject, onUseInVideo, busy }) => {
+const StarterTrackRow = ({ track, isSelected, player, onSelect, onPlay, onImportProject, onUseInVideo, busy, onReconnect }) => {
     const audit = getSoundtrackRightsAudit(track);
     const playableUrl = track.localObjectUrl || track.previewUrl || track.downloadUrl;
     return (
@@ -249,7 +255,7 @@ const StarterTrackRow = ({ track, isSelected, player, onSelect, onPlay, onImport
                 </button>
             </div>
         </article>
-        <TrackScrubPanel track={track} isSelected={isSelected} player={player} onPlay={onPlay} playableUrl={playableUrl} />
+        <TrackScrubPanel track={track} isSelected={isSelected} player={player} onPlay={onPlay} playableUrl={playableUrl} onReconnect={onReconnect} />
         </>
     );
 };
@@ -311,6 +317,9 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
     const selectedIsLocal = selectedTrack?.id && localTrackIds.has(selectedTrack.id);
     const selectedIsProject = selectedTrack?.storagePath || projectLibrary.tracks.some((track) => track.id === selectedTrack?.id);
     const canEditSelectedMetadata = selectedIsLocal || selectedIsProject;
+    const reconnectLocalAudio = useCallback(() => {
+        inputRef.current?.click();
+    }, []);
     const saveMetadata = (event) => {
         event.preventDefault();
         if (!selectedTrack?.id) return;
@@ -478,6 +487,7 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
                             onImportProject={projectLibrary.importTrackToProject}
                             onUseInVideo={onUseInVideo}
                             busy={projectLibrary.busyTrackId === track.id}
+                            onReconnect={reconnectLocalAudio}
                         />
                     ))}
                     {visibleLocalTracks.length > 0 && (
@@ -500,6 +510,7 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
                             onSelect={onSelectTrack}
                             onPlay={onPlayTrack}
                             onUseInVideo={onUseInVideo}
+                            onReconnect={reconnectLocalAudio}
                         />
                     ))}
                     {filteredProjectTracks.length > 0 && (visibleStarterTracks.length > 0 || visibleLocalTracks.length > 0) && (
@@ -521,6 +532,7 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
                             onSelect={onSelectTrack}
                             onPlay={onPlayTrack}
                             onUseInVideo={onUseInVideo}
+                            onReconnect={reconnectLocalAudio}
                         />
                     ))}
                 </div>
