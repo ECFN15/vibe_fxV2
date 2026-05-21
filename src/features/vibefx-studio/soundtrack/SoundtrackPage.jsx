@@ -1,12 +1,11 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
-import { Download, Heart, Library, Music2, Radar, ShieldCheck } from 'lucide-react';
+import { Heart, Library, Music2, Radar, X } from 'lucide-react';
 import AggregatorPanel from './components/AggregatorPanel';
 import ProjectLibraryPanel from './components/ProjectLibraryPanel';
 import SoundtrackFolderPanel from './components/SoundtrackFolderPanel';
 import SoundtrackPlayer from './components/SoundtrackPlayer';
-import SoundtrackPlaylists from './components/SoundtrackPlaylists';
 import SoundtrackResults from './components/SoundtrackResults';
 import SoundtrackRightsPanel from './components/SoundtrackRightsPanel';
 import { getStarterSoundtrackTracks } from './data/soundtrackDefaults';
@@ -17,17 +16,13 @@ import { useSoundtrackSearch } from './hooks/useSoundtrackSearch';
 import { fetchAudioBlobForTrack } from './services/soundtrackDownloads';
 
 const MOBILE_TABS = [
-    { id: 'project', label: 'Projet', icon: Library },
     { id: 'scan', label: 'Scan', icon: Radar },
-    { id: 'imports', label: 'Imports', icon: Download },
-    { id: 'rights', label: 'Droits', icon: ShieldCheck },
+    { id: 'project', label: 'Bibliotheque', icon: Library },
 ];
 
 const DESKTOP_MODES = [
     { id: 'project', label: 'Bibliotheque projet' },
     { id: 'aggregator', label: 'Agregateur' },
-    { id: 'imports', label: 'Imports recents' },
-    { id: 'rights', label: 'A verifier' },
 ];
 
 export default function SoundtrackPage({ onUseInVideo }) {
@@ -37,7 +32,7 @@ export default function SoundtrackPage({ onUseInVideo }) {
     const player = useSoundtrackPlayer();
     const starterTracks = useMemo(() => getStarterSoundtrackTracks(), []);
     const [activeMobileTab, setActiveMobileTab] = useState('scan');
-    const [activeMode, setActiveMode] = useState('aggregator');
+    const [libraryOpen, setLibraryOpen] = useState(false);
     const [showFavorites, setShowFavorites] = useState(false);
     const [selectedTrackId, setSelectedTrackId] = useState('');
     const mergedTrackById = useMemo(() => {
@@ -50,9 +45,9 @@ export default function SoundtrackPage({ onUseInVideo }) {
     }, [library.tracks, projectLibrary.tracks, search.results, starterTracks]);
     const selectedTrack = mergedTrackById.get(selectedTrackId) || player.currentTrack || projectLibrary.tracks[0] || starterTracks[0] || library.tracks[0] || search.results[0] || null;
 
-    const playTrack = (track, explicitUrl) => {
+    const playTrack = (track, explicitUrl, options) => {
         setSelectedTrackId(track.id);
-        player.play(track, explicitUrl || track.localObjectUrl || track.previewUrl || track.downloadUrl);
+        player.play(track, explicitUrl || track.localObjectUrl || track.previewUrl || track.downloadUrl, options);
     };
 
     const handleUseInVideo = async (track) => {
@@ -74,25 +69,6 @@ export default function SoundtrackPage({ onUseInVideo }) {
         onUseInVideo?.(track, file);
     };
 
-    const projectTracksNeedingReview = projectLibrary.tracks.filter((track) => track.rightsStatus === 'needs-review' || track.rightsStatus === 'blocked');
-    const importsRecent = projectLibrary.tracks.slice(0, 12);
-    const activeProjectPlaylist = projectLibrary.playlists.find((playlist) => playlist.id === projectLibrary.selectedPlaylistId) || null;
-    const projectModeTracks = useMemo(() => {
-        const baseTracks = projectLibrary.tracks.filter((track) => !track.archived);
-        if (!activeProjectPlaylist) return baseTracks;
-        const trackMap = new Map(baseTracks.map((track) => [track.id, track]));
-        return activeProjectPlaylist.trackIds.map((trackId) => trackMap.get(trackId)).filter(Boolean);
-    }, [activeProjectPlaylist, projectLibrary.tracks]);
-    const projectModeWithStarterTracks = useMemo(() => {
-        if (activeProjectPlaylist) return projectModeTracks;
-        const projectIds = new Set(projectModeTracks.map((track) => track.id));
-        return [
-            ...starterTracks.filter((track) => !projectIds.has(track.id)),
-            ...projectModeTracks,
-        ];
-    }, [activeProjectPlaylist, projectModeTracks, starterTracks]);
-    const visibleMode = activeMode;
-
     return (
         <div className="soundtrack-page" data-testid="soundtrack-page">
             <div className="soundtrack-mobile-tabs" role="tablist" aria-label="Navigation Soundtrack">
@@ -106,7 +82,7 @@ export default function SoundtrackPage({ onUseInVideo }) {
                             aria-selected={activeMobileTab === tab.id}
                             onClick={() => {
                                 setActiveMobileTab(tab.id);
-                                setActiveMode(tab.id === 'scan' ? 'aggregator' : tab.id);
+                                setLibraryOpen(tab.id === 'project');
                             }}
                         >
                             <Icon size={14} />
@@ -126,8 +102,8 @@ export default function SoundtrackPage({ onUseInVideo }) {
                         <button
                             key={mode.id}
                             type="button"
-                            data-active={activeMode === mode.id}
-                            onClick={() => setActiveMode(mode.id)}
+                            data-active={mode.id === 'project' ? libraryOpen : !libraryOpen}
+                            onClick={() => setLibraryOpen(mode.id === 'project')}
                         >
                             {mode.label}
                         </button>
@@ -140,102 +116,37 @@ export default function SoundtrackPage({ onUseInVideo }) {
                 </div>
             </header>
 
-            <div className="soundtrack-workspace">
-                <aside className="soundtrack-left-column" data-mobile-active={visibleMode === 'project'}>
-                    <ProjectLibraryPanel
-                        projectLibrary={projectLibrary}
-                        starterTracks={starterTracks}
-                        selectedTrack={selectedTrack}
-                        onSelectTrack={(track) => setSelectedTrackId(track.id)}
-                        onPlayTrack={playTrack}
-                        onUseInVideo={handleUseInVideo}
-                    />
-                </aside>
-
-                <div className="soundtrack-main-column" data-mobile-active={visibleMode === 'aggregator' || visibleMode === 'imports' || visibleMode === 'rights'}>
-                    {visibleMode === 'aggregator' && (
-                        <>
-                            {!showFavorites && (
-                                <AggregatorPanel
-                                    search={search}
-                                    player={player}
-                                    localLibrary={library}
-                                    projectLibrary={projectLibrary}
-                                    onPlayTrack={playTrack}
-                                    onUseInVideo={handleUseInVideo}
-                                    onSelectTrack={(track) => setSelectedTrackId(track.id)}
-                                />
-                            )}
-                            <div className="soundtrack-toolbar">
-                                <button type="button" data-active={!showFavorites} onClick={() => setShowFavorites(false)}>
-                                    <Music2 size={13} />
-                                    Resultats scan
-                                </button>
-                                <button type="button" data-active={showFavorites} onClick={() => setShowFavorites(true)}>
-                                    <Heart size={13} />
-                                    Favoris locaux
-                                </button>
-                            </div>
-                            {showFavorites && (
-                                <SoundtrackResults
-                                    results={search.results}
-                                    libraryTracks={library.tracks}
-                                    projectTracks={projectLibrary.tracks}
-                                    showFavorites
-                                    searchStatus={search.status}
-                                    player={player}
-                                    library={library}
-                                    projectLibrary={projectLibrary}
-                                    onPlayTrack={playTrack}
-                                    onUseInVideo={handleUseInVideo}
-                                    onSelectTrack={(track) => setSelectedTrackId(track.id)}
-                                />
-                            )}
-                        </>
-                    )}
-                    {visibleMode === 'project' && (
-                        <SoundtrackResults
-                            results={projectModeWithStarterTracks}
-                            libraryTracks={[]}
-                            projectTracks={projectLibrary.tracks}
-                            showFavorites={false}
-                            modeEyebrow={activeProjectPlaylist ? 'Playlist projet' : 'Bibliotheque projet'}
-                            modeTitle={activeProjectPlaylist?.name || 'Pistes projet'}
-                            searchStatus={projectLibrary.status === 'loading' ? 'loading' : 'ready'}
+            <div className="soundtrack-workspace soundtrack-workspace--aggregator">
+                <div className="soundtrack-main-column" data-mobile-active="true">
+                    {!showFavorites && (
+                        <AggregatorPanel
+                            search={search}
                             player={player}
-                            library={library}
+                            localLibrary={library}
                             projectLibrary={projectLibrary}
                             onPlayTrack={playTrack}
                             onUseInVideo={handleUseInVideo}
                             onSelectTrack={(track) => setSelectedTrackId(track.id)}
+                            onImportComplete={() => setLibraryOpen(true)}
                         />
                     )}
-                    {visibleMode === 'imports' && (
+                    <div className="soundtrack-toolbar">
+                        <button type="button" data-active={!showFavorites} onClick={() => setShowFavorites(false)}>
+                            <Music2 size={13} />
+                            Resultats scan
+                        </button>
+                        <button type="button" data-active={showFavorites} onClick={() => setShowFavorites(true)}>
+                            <Heart size={13} />
+                            Favoris locaux
+                        </button>
+                    </div>
+                    {showFavorites && (
                         <SoundtrackResults
-                            results={importsRecent}
-                            libraryTracks={[]}
+                            results={search.results}
+                            libraryTracks={library.tracks}
                             projectTracks={projectLibrary.tracks}
-                            showFavorites={false}
-                            modeEyebrow="Projet"
-                            modeTitle="Imports recents"
-                            searchStatus={projectLibrary.status === 'loading' ? 'loading' : 'ready'}
-                            player={player}
-                            library={library}
-                            projectLibrary={projectLibrary}
-                            onPlayTrack={playTrack}
-                            onUseInVideo={handleUseInVideo}
-                            onSelectTrack={(track) => setSelectedTrackId(track.id)}
-                        />
-                    )}
-                    {visibleMode === 'rights' && (
-                        <SoundtrackResults
-                            results={projectTracksNeedingReview}
-                            libraryTracks={[]}
-                            projectTracks={projectLibrary.tracks}
-                            showFavorites={false}
-                            modeEyebrow="Droits"
-                            modeTitle="A verifier"
-                            searchStatus="ready"
+                            showFavorites
+                            searchStatus={search.status}
                             player={player}
                             library={library}
                             projectLibrary={projectLibrary}
@@ -247,17 +158,47 @@ export default function SoundtrackPage({ onUseInVideo }) {
                 </div>
 
                 <aside className="soundtrack-side-column">
-                    <div data-mobile-active={activeMobileTab === 'imports'}>
-                        <SoundtrackPlaylists library={library} />
-                    </div>
-                    <div data-mobile-active={activeMobileTab === 'imports'}>
+                    <div>
                         <SoundtrackFolderPanel library={library} />
                     </div>
-                    <div data-mobile-active={activeMobileTab === 'rights'}>
+                    <div>
                         <SoundtrackRightsPanel selectedTrack={selectedTrack} />
                     </div>
                 </aside>
             </div>
+
+            {libraryOpen && (
+                <div className="soundtrack-library-backdrop" onClick={() => setLibraryOpen(false)}>
+                    <section
+                        className="soundtrack-library-modal"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Bibliotheque projet Vibe_fx"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <header className="soundtrack-library-modal__header">
+                            <div>
+                                <p>Bibliotheque projet</p>
+                                <h2>Vibe_fx Library</h2>
+                            </div>
+                            <button type="button" onClick={() => setLibraryOpen(false)} aria-label="Fermer la bibliotheque">
+                                <X size={16} />
+                            </button>
+                        </header>
+                        <ProjectLibraryPanel
+                            variant="modal"
+                            projectLibrary={projectLibrary}
+                            localLibrary={library}
+                            starterTracks={starterTracks}
+                            selectedTrack={selectedTrack}
+                            player={player}
+                            onSelectTrack={(track) => setSelectedTrackId(track.id)}
+                            onPlayTrack={playTrack}
+                            onUseInVideo={handleUseInVideo}
+                        />
+                    </section>
+                </div>
+            )}
 
             <SoundtrackPlayer
                 track={selectedTrack}

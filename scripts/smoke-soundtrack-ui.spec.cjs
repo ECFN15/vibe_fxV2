@@ -15,7 +15,36 @@ async function openSoundtrack(page) {
 async function mockMusicSearch(page) {
   const requestUrls = [];
   await page.route("**/api/music/free-search?**", async (route) => {
-    requestUrls.push(route.request().url());
+    const url = route.request().url();
+    requestUrls.push(url);
+    const params = new URL(url).searchParams;
+    const provider = params.get("provider") || "openverse";
+    if (provider === "pixabay") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          provider: "pixabay",
+          configured: true,
+          status: "provider-unavailable",
+          providers: [
+            { id: "pixabay", label: "Pixabay Music", mediaType: "music", status: "provider-unavailable", configured: true, count: 0, importable: 0, error: "Pixabay page scan blocked (403)." },
+          ],
+          scan: { pages: 1, limit: 20, urls: [`https://pixabay.com/music/search/${params.get("q") || "music"}/`] },
+          sourceUrl: "https://pixabay.com/music/",
+          stats: {
+            found: 0,
+            importable: 0,
+            ignored: 1,
+            ignoredReasons: [{ reason: "provider-unavailable", count: 1 }],
+          },
+          cache: { status: "live", ttlSeconds: 86400 },
+          warnings: ["No fake results."],
+          tracks: [],
+        }),
+      });
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -25,7 +54,7 @@ async function mockMusicSearch(page) {
         providers: [
           { id: "openverse", label: "Openverse Audio", mediaType: "audio", status: "active", configured: true, count: 2, importable: 1, error: "" },
         ],
-        scan: { pages: 1, limit: 8 },
+        scan: { pages: 1, limit: 20 },
         sourceUrl: "https://docs.openverse.org/api/",
         stats: {
           found: 2,
@@ -90,6 +119,57 @@ async function mockMusicSearch(page) {
   return requestUrls;
 }
 
+async function installMockAudio(page) {
+  await page.addInitScript(() => {
+    window.__vibefxAudioEvents = [];
+    window.__vibefxAudioInstances = [];
+    class MockAudio {
+      constructor(src) {
+        this.src = src;
+        this.currentSrc = src;
+        this.volume = 1;
+        this.paused = true;
+        this.duration = 269;
+        this.playCalls = 0;
+        this.pauseCalls = 0;
+        this._currentTime = 0;
+        window.__vibefxAudioInstances.push(this);
+        setTimeout(() => {
+          this.onloadedmetadata?.();
+          this.oncanplay?.();
+        }, 0);
+      }
+
+      get currentTime() {
+        return this._currentTime;
+      }
+
+      set currentTime(value) {
+        this._currentTime = Math.max(0, Number(value) || 0);
+        window.__vibefxAudioEvents.push({ type: "seek", currentTime: this._currentTime });
+        this.ontimeupdate?.();
+        this.oncanplay?.();
+      }
+
+      play() {
+        this.paused = false;
+        this.playCalls += 1;
+        window.__vibefxAudioEvents.push({ type: "play", currentTime: this._currentTime, playCalls: this.playCalls });
+        this.onplaying?.();
+        return Promise.resolve();
+      }
+
+      pause() {
+        this.paused = true;
+        this.pauseCalls += 1;
+        window.__vibefxAudioEvents.push({ type: "pause", currentTime: this._currentTime, pauseCalls: this.pauseCalls });
+        this.onpause?.();
+      }
+    }
+    window.Audio = MockAudio;
+  });
+}
+
 async function expectNoGenericPixabayFilters(page) {
   const panel = page.locator(".soundtrack-pixabay-panel");
   await expect(panel.getByText(/^Licence$/i)).toHaveCount(0);
@@ -104,6 +184,65 @@ async function expectNoGenericPixabayFilters(page) {
   await expect(panel.getByText(/^Duree$/i)).toHaveCount(0);
   await expect(panel.getByText(/^Pages$/i)).toHaveCount(0);
 }
+
+test("library scrubber seek keeps preview playback alive", async ({ page }) => {
+  await installMockAudio(page);
+  await mockMusicSearch(page);
+  await openSoundtrack(page);
+  await page.getByRole("button", { name: "Bibliotheque projet", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Bibliotheque projet Vibe_fx" })).toBeVisible();
+  const akiraRow = page.getByTestId("project-starter-track-starter-akira");
+  await expect(akiraRow).toBeVisible();
+  await akiraRow.getByRole("button", { name: "Ecouter" }).click();
+  const akiraSlider = page.getByRole("slider", { name: /Avancer la piste Akira/i });
+  await expect(akiraSlider).toBeVisible();
+  await akiraSlider.fill("95");
+  const playback = await page.evaluate(() => {
+    const audio = window.__vibefxAudioInstances.at(-1);
+    return {
+      paused: audio?.paused,
+      currentTime: audio?.currentTime,
+      playCalls: audio?.playCalls,
+      events: window.__vibefxAudioEvents,
+    };
+  });
+  expect(playback.paused).toBe(false);
+  expect(playback.currentTime).toBeGreaterThanOrEqual(95);
+  expect(playback.playCalls).toBeGreaterThanOrEqual(1);
+  expect(playback.events.some((event) => event.type === "seek" && event.currentTime >= 95)).toBe(true);
+});
+
+test("local imports remain playable after reload", async ({ page }) => {
+  await installMockAudio(page);
+  await mockMusicSearch(page);
+  const audioPath = path.join(process.cwd(), "public", "music", "Karl Casey - Akira.mp3");
+
+  await openSoundtrack(page);
+  await page.getByRole("button", { name: "Bibliotheque projet", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Bibliotheque projet Vibe_fx" })).toBeVisible();
+  await page.locator('.soundtrack-library-modal input[type="file"][accept="audio/*"]').setInputFiles(audioPath);
+  await expect(page.locator('[data-testid^="local-track-"]', { hasText: "Karl Casey - Akira" }).first()).toBeVisible({ timeout: 20000 });
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+  await expect(page.getByTestId("soundtrack-page")).toBeVisible({ timeout: 15000 });
+  await page.getByRole("button", { name: "Bibliotheque projet", exact: true }).click();
+  const restoredRow = page.locator('[data-testid^="local-track-"]', { hasText: "Karl Casey - Akira" }).first();
+  await expect(restoredRow).toBeVisible({ timeout: 20000 });
+  await restoredRow.getByRole("button", { name: "Ecouter" }).click();
+  await expect(page.getByRole("button", { name: /Pause preview Karl Casey - Akira/i })).toBeVisible();
+  const playback = await page.evaluate(() => {
+    const audio = window.__vibefxAudioInstances.at(-1);
+    return {
+      src: audio?.src || "",
+      paused: audio?.paused,
+      playCalls: audio?.playCalls,
+    };
+  });
+  expect(playback.src.startsWith("blob:")).toBe(true);
+  expect(playback.paused).toBe(false);
+  expect(playback.playCalls).toBeGreaterThanOrEqual(1);
+});
 
 test("Soundtrack opens full screen and keeps favorites/playlists local", async ({ page }) => {
   await page.addInitScript(() => {
@@ -120,39 +259,79 @@ test("Soundtrack opens full screen and keeps favorites/playlists local", async (
   });
 
   await openSoundtrack(page);
-  await expect(page.getByText("Playlists projet")).toBeVisible();
-  await expect(page.getByPlaceholder("Nouvelle playlist projet")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Agregateur" })).toHaveAttribute("data-active", "true");
+  await expect(page.getByRole("button", { name: "Imports recents" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "A verifier" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Openverse audio actif" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Pixabay Music music scan bloque" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Pixabay Music music scan bloque" })).toBeDisabled();
-  await expect(page.getByRole("button", { name: /Scanner la categorie Openverse piano/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pixabay Music music scan controle" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pixabay Music music scan controle" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: /Scanner le filtre Openverse piano/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Scanner le filtre Openverse spring/i })).toHaveCount(0);
   await expect(page.getByText(/Categorie active/i)).toHaveCount(0);
   await expectNoGenericPixabayFilters(page);
-  await page.getByRole("button", { name: /Scanner la categorie Openverse piano/i }).click();
+  await page.getByRole("button", { name: /Scanner le filtre Openverse piano/i }).click();
   await expect(page.getByTestId("soundtrack-track-openverse-smoke-track")).toBeVisible();
-  expect(requestUrls.some((url) => url.includes("provider=openverse") && url.includes("q=piano") && url.includes("category=piano"))).toBe(true);
+  expect(requestUrls.some((url) => url.includes("provider=openverse") && url.includes("q=piano+music") && url.includes("category=piano"))).toBe(true);
   await expect(page.getByTestId("soundtrack-track-openverse-metadata-only-track")).toBeVisible();
   await expect(page.getByText(/importables 1/i)).toBeVisible();
   await expect(page.getByText(/Fallback local/i)).toHaveCount(0);
   await expect(page.getByText(/Pistes Vibe_CUT pour/i)).toHaveCount(0);
-  const importProjectButton = page.locator('[data-testid="soundtrack-track-openverse-smoke-track"]').getByRole("button", { name: /Importer Smoke Openverse Track/i });
+  const importProjectButton = page.locator('[data-testid="soundtrack-track-openverse-smoke-track"]').getByRole("button", { name: /bibliotheque projet/i });
   await expect(importProjectButton).toBeVisible();
   if (await importProjectButton.isDisabled()) {
     await expect(importProjectButton).toContainText(/Projet indispo/i);
   }
+  await expect(page.locator('[data-testid="soundtrack-track-openverse-smoke-track"]').getByRole("button", { name: /bibliotheque Vibe_fx locale/i })).toBeVisible();
   await expect(page.locator('[data-testid="soundtrack-track-openverse-metadata-only-track"]').getByRole("button", { name: /Importer Metadata Only Openverse/i })).toHaveCount(0);
   await expect(page.locator('[data-testid="soundtrack-track-openverse-metadata-only-track"]').getByText(/Source seule/i)).toBeVisible();
+
+  const audioPath = path.join(process.cwd(), "public", "music", "Karl Casey - Akira.mp3");
+  await page.getByRole("button", { name: "Pixabay Music music scan controle" }).click();
+  await expect(page.getByText(/Filtres Pixabay Music/i)).toBeVisible();
+  await expect(page.getByTestId("pixabay-import-assistant")).toBeVisible();
+  await expect(page.getByTestId("pixabay-import-assistant").getByRole("link", { name: /Ouvrir Pixabay/i })).toHaveAttribute("href", /pixabay\.com\/music\/search\/free\+music\//);
+  await expect(page.getByRole("button", { name: /Scanner le filtre Pixabay Music spring/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Scanner le filtre Pixabay Music podcast/i })).toHaveCount(0);
+  await page.getByRole("button", { name: /Scanner le filtre Pixabay Music piano/i }).click();
+  expect(requestUrls.some((url) => url.includes("provider=pixabay") && url.includes("q=piano") && url.includes("category=piano"))).toBe(true);
+  await expect(page.getByText(/Pixabay bloque le scan serveur/i)).toBeVisible();
+  await expect(page.getByTestId("pixabay-import-assistant").getByRole("link", { name: /Ouvrir Pixabay/i })).toHaveAttribute("href", /pixabay\.com\/music\//);
+  const assistedPath = path.join(os.tmpdir(), `pixabay-assisted-${Date.now()}.mp3`);
+  fs.copyFileSync(audioPath, assistedPath);
+  await page.getByLabel("Page source Pixabay").fill("https://pixabay.com/music/smoke-pixabay-assisted-12345/");
+  await page.getByTestId("pixabay-assisted-file-input").setInputFiles(assistedPath);
+  await expect(page.getByRole("dialog", { name: "Bibliotheque projet Vibe_fx" })).toBeVisible({ timeout: 20000 });
+  const assistedLocalRow = page.locator('[data-testid^="local-track-"]', { hasText: "pixabay-assisted" }).first();
+  await expect(assistedLocalRow).toBeVisible({ timeout: 20000 });
+  await expect(assistedLocalRow).toContainText("piano");
+  await expect(page.locator('[data-testid^="project-scrub-"]', { hasText: "Preview piste" }).first()).toBeVisible();
+  await expect(page.getByRole("slider", { name: /Avancer la piste pixabay-assisted/i })).toBeVisible();
+  await expect(page.getByRole("dialog").getByText(/Import Pixabay termine: piano/i)).toBeVisible();
+  await page.getByRole("button", { name: "Fermer la bibliotheque" }).click();
+  await page.getByRole("button", { name: "Openverse audio actif" }).click();
+  await page.getByRole("button", { name: /Scanner le filtre Openverse piano/i }).click();
 
   await page.getByRole("button", { name: /Ajouter Smoke Openverse Track aux favoris/i }).click();
   await page.getByRole("button", { name: /^favoris locaux$/i }).click();
   await expect(page.getByTestId("soundtrack-track-openverse-smoke-track")).toBeVisible();
 
-  await page.getByPlaceholder("Nouvelle playlist", { exact: true }).fill("Launch picks");
-  await page.getByRole("button", { name: "Creer playlist", exact: true }).click();
-  await page.getByRole("button", { name: /Ajouter Smoke Openverse Track a la playlist active/i }).click();
-  await expect(page.locator(".soundtrack-playlist-track", { hasText: "Smoke Openverse Track" })).toBeVisible();
-  await page.getByRole("button", { name: "Retirer piste" }).click();
-  await expect(page.locator(".soundtrack-playlist-track", { hasText: "Smoke Openverse Track" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Bibliotheque projet", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Bibliotheque projet Vibe_fx" })).toBeVisible();
+  await expect(page.getByText("Playlists bibliotheque")).toBeVisible();
+  await expect(page.getByPlaceholder("Nouvelle playlist bibliotheque")).toBeVisible();
+
+  await page.locator('.soundtrack-library-modal input[type="file"][accept="audio/*"]').setInputFiles(audioPath);
+  const importedLocalRow = page.locator('[data-testid^="local-track-"]', { hasText: "Karl Casey - Akira" }).first();
+  await expect(importedLocalRow).toBeVisible({ timeout: 20000 });
+
+  await page.getByPlaceholder("Nouvelle playlist bibliotheque").fill("Launch picks");
+  await page.getByRole("button", { name: "Creer playlist bibliotheque" }).click();
+  await importedLocalRow.getByRole("button", { name: /Ajouter Karl Casey - Akira a la playlist bibliotheque/i }).click();
+  await expect(page.getByRole("button", { name: /Launch picks\s+1/i })).toBeVisible();
+
+  await importedLocalRow.getByRole("button", { name: /Supprimer Karl Casey - Akira/i }).click();
+  await expect(page.locator('[data-testid^="local-track-"]', { hasText: "Karl Casey - Akira" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Launch picks\s+0/i })).toBeVisible();
 
   const manifestPath = path.join(os.tmpdir(), `vibefx-soundtrack-${Date.now()}.json`);
   fs.writeFileSync(manifestPath, JSON.stringify({
@@ -194,7 +373,7 @@ for (const viewport of [
     await page.setViewportSize(viewport);
     await mockMusicSearch(page);
     await openSoundtrack(page);
-    await page.getByRole("button", { name: /Scanner la categorie Openverse chill/i }).click();
+    await page.getByRole("button", { name: /Scanner le filtre Openverse ambient/i }).click();
     await expect(page.getByTestId("soundtrack-track-openverse-smoke-track")).toBeVisible();
     await expect(page.getByText(/Categorie active/i)).toHaveCount(0);
     await expectNoGenericPixabayFilters(page);
@@ -240,7 +419,7 @@ test("provider-unavailable stays empty and never falls back to Vibe_CUT tracks",
   });
 
   await openSoundtrack(page);
-  await page.getByRole("button", { name: /Scanner la categorie Openverse piano/i }).click();
+  await page.getByRole("button", { name: /Scanner le filtre Openverse piano/i }).click();
   await expect(page.getByText(/Openverse indisponible/i)).toBeVisible();
   await expect(page.getByText(/Pistes Vibe_CUT pour piano/i)).toHaveCount(0);
   await expect(page.getByText(/Fallback local/i)).toHaveCount(0);
@@ -260,7 +439,7 @@ test("network error stays empty and does not claim a 403 challenge", async ({ pa
   });
 
   await openSoundtrack(page);
-  await page.getByRole("button", { name: /Scanner la categorie Openverse piano/i }).click();
+  await page.getByRole("button", { name: /Scanner le filtre Openverse piano/i }).click();
   await expect(page.getByText(/Openverse indisponible/i)).toBeVisible();
   await expect(page.getByText(/Pistes Vibe_CUT pour piano/i)).toHaveCount(0);
   await expect(page.getByText(/challenge 403/i)).toHaveCount(0);
@@ -309,5 +488,5 @@ test("music import API rejects unsafe audio sources", async ({ page }) => {
   expect(providers.status()).toBe(200);
   const providersPayload = await providers.json();
   expect(providersPayload.providers.some((provider) => provider.id === "openverse" && provider.status === "active")).toBe(true);
-  expect(providersPayload.providers.some((provider) => provider.id === "pixabay" && provider.status === "page-scan-blocked")).toBe(true);
+  expect(providersPayload.providers.some((provider) => provider.id === "pixabay" && provider.status === "page-scan-controlled")).toBe(true);
 });

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Download, ExternalLink, Film, Heart, Pause, Play, Plus, ShieldCheck, TriangleAlert, UploadCloud } from 'lucide-react';
+import { Download, ExternalLink, Film, Heart, Library, Pause, Play, Plus, ShieldCheck, TriangleAlert, UploadCloud } from 'lucide-react';
 import { getRightsLabel, getSoundtrackRightsAudit } from '../services/soundtrackRights';
 
 const formatDuration = (seconds = 0) => {
@@ -163,17 +163,19 @@ export default function SoundtrackTrackRow({
                         {track.importStatus === 'blocked' ? 'Bloque' : 'Source seule'}
                     </span>
                 )}
-                <button
-                    type="button"
-                    className="soundtrack-action-button"
-                    onClick={() => onDownload(track)}
-                    disabled={isBusy || audit.blocked || !playableUrl}
-                    aria-label={`Telecharger localement ${track.title}`}
-                    title={playableUrl ? 'Telecharger localement' : 'URL audio indisponible'}
-                >
-                    <Download size={14} />
-                    {isBusy ? 'Local...' : 'Local'}
-                </button>
+                {playableUrl && (
+                    <button
+                        type="button"
+                        className="soundtrack-action-button"
+                        onClick={() => onDownload(track)}
+                        disabled={isBusy || audit.blocked}
+                        aria-label={`Importer ${track.title} dans la bibliotheque Vibe_fx locale`}
+                        title="Importer dans la bibliotheque Vibe_fx locale"
+                    >
+                        {isBusy ? <Download size={14} /> : <Library size={14} />}
+                        {isBusy ? 'Import...' : 'Bibliotheque'}
+                    </button>
+                )}
                 <button
                     type="button"
                     className="soundtrack-action-button"

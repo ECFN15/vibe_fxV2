@@ -1,4 +1,5 @@
 import React from 'react';
+import PixabayImportAssistant from './PixabayImportAssistant';
 import SoundtrackResults from './SoundtrackResults';
 import SoundtrackSearch from './SoundtrackSearch';
 
@@ -10,6 +11,7 @@ export default function AggregatorPanel({
     onPlayTrack,
     onUseInVideo,
     onSelectTrack,
+    onImportComplete,
 }) {
     const activeProvider = search.providerStatus?.find((provider) => provider.id === search.provider);
     const providerTitle = activeProvider?.label
@@ -18,6 +20,13 @@ export default function AggregatorPanel({
     return (
         <section className="soundtrack-aggregator-panel" aria-label="Agregateur sources gratuites">
             <SoundtrackSearch search={search} />
+            <PixabayImportAssistant
+                search={search}
+                localLibrary={localLibrary}
+                projectLibrary={projectLibrary}
+                onSelectTrack={onSelectTrack}
+                onImportComplete={onImportComplete}
+            />
             <SoundtrackResults
                 results={search.results}
                 libraryTracks={localLibrary.tracks}

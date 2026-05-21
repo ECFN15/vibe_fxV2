@@ -6,6 +6,7 @@ import {
 const STORE = 'soundtrack';
 const LIBRARY_KEY = 'library';
 const HANDLE_KEY = 'directoryHandle';
+const AUDIO_PREFIX = 'audio:';
 
 const canUseIndexedDb = () => typeof indexedDB !== 'undefined';
 
@@ -53,6 +54,52 @@ export async function saveIndexedSoundtrackLibrary(library) {
     try {
         await withStore('readwrite', (store, resolve, reject) => {
             const request = store.put(library, LIBRARY_KEY);
+            request.onsuccess = () => resolve(true);
+            request.onerror = () => reject(request.error);
+        });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+export async function loadIndexedSoundtrackAudio(trackId) {
+    if (!trackId) return null;
+    try {
+        return await withStore('readonly', (store, resolve, reject) => {
+            const request = store.get(`${AUDIO_PREFIX}${trackId}`);
+            request.onsuccess = () => resolve(request.result || null);
+            request.onerror = () => reject(request.error);
+        });
+    } catch {
+        return null;
+    }
+}
+
+export async function saveIndexedSoundtrackAudio(trackId, audioBlob, metadata = {}) {
+    if (!trackId || !audioBlob) return false;
+    try {
+        await withStore('readwrite', (store, resolve, reject) => {
+            const request = store.put({
+                blob: audioBlob,
+                fileName: metadata.fileName || '',
+                type: audioBlob.type || metadata.type || '',
+                updatedAt: new Date().toISOString(),
+            }, `${AUDIO_PREFIX}${trackId}`);
+            request.onsuccess = () => resolve(true);
+            request.onerror = () => reject(request.error);
+        });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+export async function deleteIndexedSoundtrackAudio(trackId) {
+    if (!trackId) return false;
+    try {
+        await withStore('readwrite', (store, resolve, reject) => {
+            const request = store.delete(`${AUDIO_PREFIX}${trackId}`);
             request.onsuccess = () => resolve(true);
             request.onerror = () => reject(request.error);
         });

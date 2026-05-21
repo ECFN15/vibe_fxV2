@@ -1,8 +1,8 @@
 import React from 'react';
-import { AlertTriangle, CheckCircle2, Clock3, Radio } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock3, ExternalLink, Radio } from 'lucide-react';
 import {
-    SOUNDTRACK_CATEGORY_TAGS,
     SOUNDTRACK_PROVIDERS,
+    getSoundtrackProviderQuickTags,
 } from '../data/soundtrackDefaults';
 
 const statusLabel = {
@@ -11,6 +11,7 @@ const statusLabel = {
     'provider-missing-key': 'cle manquante',
     'configured-coming-soon': 'a brancher',
     'page-scan-blocked': 'scan bloque',
+    'page-scan-controlled': 'scan controle',
     disabled: 'desactive',
 };
 
@@ -30,7 +31,7 @@ const ProviderButton = ({ provider, selected, onSelect }) => {
             <span className="soundtrack-provider-choice__meta">{provider.mediaType}</span>
             <span className="soundtrack-provider-choice__status">
                 {selected ? <CheckCircle2 size={12} /> : <Clock3 size={12} />}
-                {selected ? 'actif' : statusLabel[provider.status] || provider.status}
+                {selected ? (statusLabel[provider.status] || 'actif') : statusLabel[provider.status] || provider.status}
             </span>
         </button>
     );
@@ -40,9 +41,10 @@ export default function SoundtrackSearch({ search }) {
     const ignoredReasons = search.scanStats?.ignoredReasons || [];
     const activeProviderDefinition = SOUNDTRACK_PROVIDERS.find((provider) => provider.id === search.provider)
         || SOUNDTRACK_PROVIDERS[0];
+    const quickTags = getSoundtrackProviderQuickTags(search.provider);
     const activeProvider = search.providerStatus?.find((provider) => provider.id === search.provider);
-    const selectedTag = SOUNDTRACK_CATEGORY_TAGS.find((tag) => tag.id === search.category)
-        || SOUNDTRACK_CATEGORY_TAGS.find((tag) => tag.query === search.query);
+    const selectedTag = quickTags.find((tag) => tag.id === search.category)
+        || quickTags.find((tag) => tag.query === search.query);
     const providerError = activeProvider?.error || search.error || '';
     const blockedByProvider = search.status === 'provider-unavailable' || /403|blocked|challenge/i.test(providerError);
     const scanUnavailable = blockedByProvider || search.status === 'error' || Boolean(providerError);
@@ -67,16 +69,24 @@ export default function SoundtrackSearch({ search }) {
                 </div>
             </div>
 
-            <div className="soundtrack-pixabay-panel" aria-label={`Categories ${activeProviderDefinition.label}`}>
+            <div className="soundtrack-pixabay-panel" aria-label={`Filtres ${activeProviderDefinition.label}`}>
+                <div className="soundtrack-provider-mode-note">
+                    <strong>{search.provider === 'pixabay' ? 'Filtres Pixabay Music' : 'Requetes Openverse Audio'}</strong>
+                    <span>
+                        {search.provider === 'pixabay'
+                            ? 'Tags publics Pixabay Music, scan serveur borne, aucune API audio officielle.'
+                            : 'Recherche texte Openverse sur titre, description et tags; pas de tags Pixabay forces.'}
+                    </span>
+                </div>
                 <div className="soundtrack-pixabay-tags" aria-label={`Suggestions ${activeProviderDefinition.label}`}>
-                    {SOUNDTRACK_CATEGORY_TAGS.map((tag) => (
+                    {quickTags.map((tag) => (
                         <button
                             type="button"
                             key={tag.id}
                             data-active={search.category === tag.id ? 'true' : 'false'}
                             disabled={search.status === 'loading'}
                             onClick={() => search.scanCategory(tag)}
-                            aria-label={`Scanner la categorie ${activeProviderDefinition.label} ${tag.label}`}
+                            aria-label={`Scanner le filtre ${activeProviderDefinition.label} ${tag.label}`}
                         >
                             {tag.label}
                         </button>
@@ -90,6 +100,22 @@ export default function SoundtrackSearch({ search }) {
                             <strong>{isPixabayBlocked ? 'Pixabay bloque le scan serveur' : `${activeProviderDefinition.label} indisponible`}</strong>
                             <p>{selectedTag?.label || search.query}: aucun resultat invente ni catalogue local affiche.</p>
                         </div>
+                        {isPixabayBlocked && (
+                            <a
+                                href={search.sourceUrl || 'https://pixabay.com/music/'}
+                                target="_blank"
+                                rel="noreferrer"
+                                title="Ouvrir Pixabay Music dans le navigateur"
+                            >
+                                Ouvrir Pixabay
+                                <ExternalLink size={12} />
+                            </a>
+                        )}
+                        {isPixabayBlocked && (
+                            <span>
+                                Methode fiable: telecharger le morceau depuis Pixabay puis Importer fichier, ou coller une URL directe cdn.pixabay.com/download/audio/... dans le panneau URL audio directe.
+                            </span>
+                        )}
                     </div>
                 )}
 
@@ -98,6 +124,16 @@ export default function SoundtrackSearch({ search }) {
                     <span data-state="ready">importables {search.scanStats?.importable || 0}</span>
                     <span data-state={search.scanStats?.ignored ? 'warning' : 'neutral'}>ignores {search.scanStats?.ignored || 0}</span>
                     <span data-state={search.cache?.status === 'cached' ? 'ready' : 'neutral'}>cache {search.cache?.status || 'idle'}</span>
+                    {search.status === 'ready' && (
+                        <button
+                            type="button"
+                            onClick={search.loadMore}
+                            disabled={search.pages >= 5}
+                            title={search.pages >= 5 ? 'Limite de scan atteinte' : 'Charger la page suivante'}
+                        >
+                            + resultats
+                        </button>
+                    )}
                     {activeProvider?.status && <span data-state={activeProvider.error ? 'warning' : 'ready'}>{activeProvider.status}</span>}
                     {ignoredReasons.map((item) => (
                         <span key={item.reason} data-state="warning">{item.reason} x{item.count}</span>

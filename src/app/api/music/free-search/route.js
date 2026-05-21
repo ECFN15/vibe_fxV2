@@ -4,7 +4,7 @@ import { pixabayAudioAdapter } from '../_providers/pixabayAudioAdapter';
 export const runtime = 'nodejs';
 
 const MAX_QUERY_LENGTH = 80;
-const DEFAULT_RESULTS_PER_PROVIDER = 8;
+const DEFAULT_RESULTS_PER_PROVIDER = 20;
 const MAX_RESULTS_PER_PROVIDER = 20;
 const MAX_SCAN_PAGES = 5;
 const REQUEST_TIMEOUT_MS = 9000;

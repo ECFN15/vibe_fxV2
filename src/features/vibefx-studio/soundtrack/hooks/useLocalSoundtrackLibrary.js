@@ -20,13 +20,20 @@ import {
     writeDiskManifest,
 } from '../services/soundtrackFilesystem';
 import {
+    deleteIndexedSoundtrackAudio,
+    loadIndexedSoundtrackAudio,
     loadIndexedSoundtrackLibrary,
+    saveIndexedSoundtrackAudio,
     saveIndexedSoundtrackLibrary,
 } from '../services/soundtrackIndexedDb';
 import { downloadBlob, downloadJson, fetchAudioBlobForTrack } from '../services/soundtrackDownloads';
 
 const MAX_AUDIO_BYTES = 150 * 1024 * 1024;
 const MAX_AUDIO_SECONDS = 30 * 60;
+const normalizeFileMatchKey = (value = '') => String(value || '')
+    .replace(/\.[a-z0-9]+$/i, '')
+    .trim()
+    .toLowerCase();
 
 async function readAudioDuration(blob) {
     const url = URL.createObjectURL(blob);
@@ -109,11 +116,27 @@ export function useLocalSoundtrackLibrary() {
             });
         }
         const stored = normalizeSoundtrackManifest(await loadIndexedSoundtrackLibrary() || {});
-        setTracks(stored.tracks.map((track) => ({
-            ...track,
-            fileAvailable: false,
-            missingReason: track.fileName ? 'dossier local non reconnecte' : 'telechargement local non verifie',
-        })));
+        const restoredIndexedTracks = await Promise.all(stored.tracks.map(async (track) => {
+            const storedAudio = await loadIndexedSoundtrackAudio(track.id);
+            const blob = storedAudio?.blob instanceof Blob ? storedAudio.blob : null;
+            if (!blob) {
+                return {
+                    ...track,
+                    fileAvailable: false,
+                    missingReason: track.fileName ? 'fichier audio a reimporter' : 'telechargement local non verifie',
+                };
+            }
+            const objectUrl = URL.createObjectURL(blob);
+            objectUrlsRef.current.add(objectUrl);
+            return {
+                ...track,
+                localObjectUrl: objectUrl,
+                file: blob,
+                fileAvailable: true,
+                missingReason: '',
+            };
+        }));
+        setTracks(restoredIndexedTracks);
         setPlaylists(stored.playlists);
 
         if (!supportsDirectory) {
@@ -305,6 +328,7 @@ export function useLocalSoundtrackLibrary() {
             }
             const nextTrack = normalizeSoundtrackTrack({
                 ...track,
+                category: track.category || track.genre || track.mood || track.provider || 'Bibliotheque',
                 fileName,
                 localPathHint: fileName ? `./${fileName}` : '',
                 localObjectUrl: objectUrl,
@@ -317,8 +341,9 @@ export function useLocalSoundtrackLibrary() {
             const nextTracks = tracks.some((item) => item.id === nextTrack.id)
                 ? tracks.map((item) => item.id === nextTrack.id ? { ...item, ...nextTrack } : item)
                 : [nextTrack, ...tracks];
+            await saveIndexedSoundtrackAudio(nextTrack.id, fetched.blob, { fileName });
             await commitLibrary(nextTracks, playlists);
-            setLastEvent(directoryHandleRef.current ? 'Fichier ecrit dans le dossier local.' : 'Fichier remis au telechargement navigateur.');
+            setLastEvent(directoryHandleRef.current ? 'Ajoute a la bibliotheque Vibe_fx et ecrit dans le dossier local.' : 'Ajoute a la bibliotheque Vibe_fx locale.');
             return nextTrack;
         } catch (error) {
             setLastEvent(error.message || 'Telechargement local impossible.');
@@ -332,8 +357,9 @@ export function useLocalSoundtrackLibrary() {
         if (!audioUrl?.trim()) return null;
         const draftTrack = normalizeSoundtrackTrack({
             id: safeSoundtrackId('track'),
-            title: metadata.title || 'Piste distante',
-            provider: metadata.provider || 'manual-url',
+                title: metadata.title || 'Piste distante',
+                provider: metadata.provider || 'manual-url',
+                category: metadata.category || 'Import URL',
             sourceName: metadata.sourceName || 'URL audio directe',
             sourceUrl: metadata.sourceUrl || audioUrl,
             license: metadata.license || 'Licence a verifier',
@@ -351,11 +377,12 @@ export function useLocalSoundtrackLibrary() {
         return downloadTrackLocally(draftTrack);
     }, [downloadTrackLocally]);
 
-    const importFiles = useCallback(async (fileList) => {
+    const importFiles = useCallback(async (fileList, metadata = {}) => {
         const files = Array.from(fileList || []);
         if (!files.length) return;
         let nextTracks = [...tracks];
         let nextPlaylists = [...playlists];
+        const importedTracks = [];
 
         for (const file of files) {
             if (file.type === 'application/json' || file.name.endsWith('.json')) {
@@ -378,17 +405,29 @@ export function useLocalSoundtrackLibrary() {
             } catch (error) {
                 waveform = buildUnavailableWaveform(error.message);
             }
-            nextTracks.unshift(normalizeSoundtrackTrack({
-                id: safeSoundtrackId('track'),
-                title: file.name.replace(/\.[a-z0-9]+$/i, ''),
-                provider: 'local-file',
-                sourceName: 'Fichier local',
-                sourceUrl: 'local-file',
-                license: 'Droits declares par utilisateur',
-                licenseUrl: 'user-declared',
-                rightsStatus: 'user-declared',
-                socialUse: false,
-                commercialUse: false,
+            const importedTitle = metadata.title || file.name.replace(/\.[a-z0-9]+$/i, '');
+            const existingTrack = nextTracks.find((track) => (
+                (track.fileName && track.fileName === file.name)
+                || normalizeFileMatchKey(track.title) === normalizeFileMatchKey(importedTitle)
+            ));
+            const importedTrack = normalizeSoundtrackTrack({
+                ...existingTrack,
+                id: existingTrack?.id || safeSoundtrackId('track'),
+                title: metadata.title || existingTrack?.title || importedTitle,
+                provider: metadata.provider || existingTrack?.provider || 'local-file',
+                category: metadata.category || existingTrack?.category || 'Import fichier',
+                sourceName: metadata.sourceName || existingTrack?.sourceName || 'Fichier local',
+                sourceUrl: metadata.sourceUrl || existingTrack?.sourceUrl || 'local-file',
+                sourcePageUrl: metadata.sourcePageUrl || existingTrack?.sourcePageUrl || metadata.sourceUrl || 'local-file',
+                license: metadata.license || existingTrack?.license || 'Droits declares par utilisateur',
+                licenseUrl: metadata.licenseUrl || existingTrack?.licenseUrl || 'user-declared',
+                attribution: metadata.attribution || existingTrack?.attribution || '',
+                contentIdWarning: metadata.contentIdWarning || existingTrack?.contentIdWarning || '',
+                rightsStatus: metadata.rightsStatus || existingTrack?.rightsStatus || 'user-declared',
+                socialUse: metadata.socialUse === true,
+                commercialUse: metadata.commercialUse === true,
+                licenseSnapshotVersion: metadata.licenseSnapshotVersion || existingTrack?.licenseSnapshotVersion || 'user-declared-current',
+                tags: metadata.tags || existingTrack?.tags || ['local-upload'],
                 fileName: file.name,
                 localPathHint: file.name,
                 localObjectUrl: objectUrl,
@@ -396,10 +435,39 @@ export function useLocalSoundtrackLibrary() {
                 duration,
                 file,
                 waveform,
-            }));
+            });
+            await saveIndexedSoundtrackAudio(importedTrack.id, file, { fileName: file.name });
+            importedTracks.push(importedTrack);
+            nextTracks = existingTrack
+                ? nextTracks.map((track) => track.id === existingTrack.id ? importedTrack : track)
+                : [importedTrack, ...nextTracks];
         }
         await commitLibrary(nextTracks, nextPlaylists);
-        setLastEvent('Import local termine.');
+        setLastEvent(metadata.importEvent || 'Import local termine.');
+        return importedTracks;
+    }, [commitLibrary, playlists, tracks]);
+
+    const updateTrackMetadata = useCallback((track, patch) => {
+        if (!track?.id) return;
+        commitLibrary(tracks.map((item) => item.id === track.id ? {
+            ...item,
+            ...patch,
+            updatedAt: new Date().toISOString(),
+        } : item), playlists);
+    }, [commitLibrary, playlists, tracks]);
+
+    const removeTrack = useCallback((trackOrId) => {
+        const trackId = typeof trackOrId === 'string' ? trackOrId : trackOrId?.id;
+        if (!trackId) return;
+        deleteIndexedSoundtrackAudio(trackId);
+        commitLibrary(
+            tracks.filter((track) => track.id !== trackId),
+            playlists.map((playlist) => ({
+                ...playlist,
+                trackIds: playlist.trackIds.filter((id) => id !== trackId),
+                updatedAt: new Date().toISOString(),
+            }))
+        );
     }, [commitLibrary, playlists, tracks]);
 
     const exportManifest = useCallback(() => {
@@ -408,10 +476,18 @@ export function useLocalSoundtrackLibrary() {
 
     const checkMissingFiles = useCallback(async () => {
         if (!directoryHandleRef.current) {
-            const nextTracks = tracks.map((track) => ({
-                ...track,
-                fileAvailable: Boolean(track.localObjectUrl),
-                missingReason: track.localObjectUrl ? '' : 'dossier non connecte',
+            const nextTracks = await Promise.all(tracks.map(async (track) => {
+                if (track.localObjectUrl) {
+                    return { ...track, fileAvailable: true, missingReason: '' };
+                }
+                const storedAudio = await loadIndexedSoundtrackAudio(track.id);
+                const blob = storedAudio?.blob instanceof Blob ? storedAudio.blob : null;
+                if (!blob) {
+                    return { ...track, fileAvailable: false, missingReason: 'fichier audio a reimporter' };
+                }
+                const objectUrl = URL.createObjectURL(blob);
+                objectUrlsRef.current.add(objectUrl);
+                return { ...track, localObjectUrl: objectUrl, file: blob, fileAvailable: true, missingReason: '' };
             }));
             await commitLibrary(nextTracks, playlists, { writeDisk: false });
             return;
@@ -430,6 +506,8 @@ export function useLocalSoundtrackLibrary() {
             const response = await fetch(track.localObjectUrl);
             return response.blob();
         }
+        const storedAudio = await loadIndexedSoundtrackAudio(track.id);
+        if (storedAudio?.blob instanceof Blob) return storedAudio.blob;
         if (directoryHandleRef.current && track.fileName) {
             const verified = await verifyManifestFiles(directoryHandleRef.current, { tracks: [track], playlists: [] });
             return verified.tracks[0]?.file || null;
@@ -457,6 +535,8 @@ export function useLocalSoundtrackLibrary() {
         downloadTrackLocally,
         importRemoteTrack,
         importFiles,
+        updateTrackMetadata,
+        removeTrack,
         exportManifest,
         checkMissingFiles,
         getTrackFile,

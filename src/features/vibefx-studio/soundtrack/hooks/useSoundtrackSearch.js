@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { SOUNDTRACK_CATEGORY_TAGS } from '../data/soundtrackDefaults';
+import { getSoundtrackProviderQuickTags } from '../data/soundtrackDefaults';
 import { buildProviderSearchUrl, normalizeProviderScanFilters } from '../services/providerSearchClient';
 import { normalizeSoundtrackTrack } from '../services/soundtrackManifest';
 import { normalizeSearchTrackRights } from '../services/soundtrackRights';
@@ -18,7 +18,7 @@ const normalizeProviderTrack = (track = {}) => normalizeSoundtrackTrack(normaliz
 }));
 
 export function useSoundtrackSearch() {
-    const defaultTag = SOUNDTRACK_CATEGORY_TAGS.find((tag) => tag.id === 'instrumental') || SOUNDTRACK_CATEGORY_TAGS[0];
+    const defaultTag = getSoundtrackProviderQuickTags('openverse').find((tag) => tag.id === 'instrumental') || getSoundtrackProviderQuickTags('openverse')[0];
     const [provider, setProviderState] = useState('openverse');
     const [query, setQuery] = useState(defaultTag?.query || 'instrumental');
     const [category, setCategory] = useState(defaultTag?.id || 'instrumental');
@@ -68,6 +68,7 @@ export function useSoundtrackSearch() {
             setProviderStatus(payload.providers || []);
             setScanStats(stats);
             setCache(payload.cache || { status: 'live' });
+            setPages(activeFilters.pages);
             setSourceUrl(payload.sourceUrl || payload.scan?.urls?.[0] || '');
             setWarnings(Array.isArray(payload.warnings) ? payload.warnings : []);
             if (payload.status === 'provider-unavailable') {
@@ -97,8 +98,9 @@ export function useSoundtrackSearch() {
     }, [filters]);
 
     const scanCategory = useCallback((tag) => {
+        const providerTags = getSoundtrackProviderQuickTags(provider);
         const nextTag = typeof tag === 'string'
-            ? SOUNDTRACK_CATEGORY_TAGS.find((item) => item.id === tag || item.query === tag || item.label === tag)
+            ? providerTags.find((item) => item.id === tag || item.query === tag || item.label === tag)
             : tag;
         if (!nextTag) return;
         setCategory(nextTag.id);
@@ -106,8 +108,17 @@ export function useSoundtrackSearch() {
         search({ provider, query: nextTag.query, category: nextTag.id, pages: 1 });
     }, [provider, search]);
 
+    const loadMore = useCallback(() => {
+        if (status === 'loading' || status === 'provider-unavailable' || status === 'error' || pages >= 5) return;
+        search({ provider, query, category, pages: pages + 1 });
+    }, [category, pages, provider, query, search, status]);
+
     const setProvider = useCallback((nextProvider) => {
+        const [providerDefaultTag] = getSoundtrackProviderQuickTags(nextProvider);
         setProviderState(nextProvider);
+        setQuery(providerDefaultTag?.query || 'music');
+        setCategory(providerDefaultTag?.id || 'music');
+        setPages(1);
         setResults([]);
         setProviderStatus([]);
         setScanStats({ found: 0, importable: 0, ignored: 0, ignoredReasons: [] });
@@ -138,5 +149,6 @@ export function useSoundtrackSearch() {
         filters,
         search,
         scanCategory,
+        loadMore,
     };
 }

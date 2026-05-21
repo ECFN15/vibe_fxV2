@@ -1,4 +1,4 @@
-const DEFAULT_SCAN_LIMIT = 8;
+const DEFAULT_SCAN_LIMIT = 20;
 const MAX_SCAN_LIMIT = 20;
 const MAX_SCAN_PAGES = 5;
 
