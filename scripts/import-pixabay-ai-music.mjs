@@ -34,6 +34,9 @@ Options:
   --headed             Show the browser window.
   --delay-ms <number>  Delay between track pages. Default: ${DEFAULT_DELAY_MS}
   --timeout-ms <num>   Navigation/download timeout. Default: ${DEFAULT_TIMEOUT_MS}
+  --scan-limit <num>   Result links to inspect before exclusions. Default: limit + 8
+  --exclude-ids <csv>   Pixabay track IDs to skip, e.g. pixabay-123,pixabay-456
+  --exclude-urls <csv>  Pixabay source page URLs to skip
   --help               Show this help.
 
 The script stops when Pixabay returns a challenge/captcha page. It does not bypass
@@ -52,6 +55,9 @@ function parseArgs(argv) {
         headed: false,
         delayMs: DEFAULT_DELAY_MS,
         timeoutMs: DEFAULT_TIMEOUT_MS,
+        scanLimit: 16,
+        excludeIds: new Set(),
+        excludeUrls: new Set(),
         help: false,
     };
 
@@ -71,13 +77,42 @@ function parseArgs(argv) {
         else if (arg === '--out') options.outDir = path.resolve(ROOT_DIR, String(next() || DEFAULT_OUT_DIR));
         else if (arg === '--delay-ms') options.delayMs = clampNumber(next(), DEFAULT_DELAY_MS, 250, 30000);
         else if (arg === '--timeout-ms') options.timeoutMs = clampNumber(next(), DEFAULT_TIMEOUT_MS, 5000, 120000);
+        else if (arg === '--scan-limit') options.scanLimit = clampNumber(next(), options.limit + 8, 1, MAX_LIMIT);
+        else if (arg === '--exclude-ids') options.excludeIds = parseCsvSet(next()).map(normalizePixabayId).reduce((set, value) => value ? set.add(value) : set, new Set());
+        else if (arg === '--exclude-urls') options.excludeUrls = parseCsvSet(next()).map(normalizeUrl).reduce((set, value) => value ? set.add(value) : set, new Set());
         else throw new Error(`Option inconnue: ${arg}`);
     }
 
+    options.scanLimit = Math.max(options.limit, Math.min(MAX_LIMIT, options.scanLimit || options.limit + 8));
     if (!/^https:\/\/pixabay\.com\/music\//i.test(options.url)) {
         throw new Error('URL refusee: utilisez une URL https://pixabay.com/music/...');
     }
     return options;
+}
+
+function parseCsvSet(value = '') {
+    return String(value || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+}
+
+function normalizePixabayId(value = '') {
+    const text = String(value || '').trim().toLowerCase();
+    const match = text.match(/(?:pixabay-ai-)?pixabay-(\d+)/);
+    if (match?.[1]) return `pixabay-${match[1]}`;
+    const numeric = text.match(/^\d+$/);
+    return numeric ? `pixabay-${numeric[0]}` : text;
+}
+
+function normalizeUrl(value = '') {
+    try {
+        const url = new URL(String(value || '').trim());
+        url.hash = '';
+        return url.toString().replace(/\/$/, '');
+    } catch {
+        return '';
+    }
 }
 
 function clampNumber(value, fallback, min, max) {
@@ -199,7 +234,7 @@ async function collectTrackLinks(page) {
         }));
 }
 
-async function collectTrackPageMetadata(page, fallback) {
+async function collectTrackPageMetadata(page, fallback, options) {
     const domMetadata = await page.evaluate(() => {
         const text = (selector) => document.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim() || '';
         const attr = (selector, name) => document.querySelector(selector)?.getAttribute(name) || '';
@@ -234,7 +269,7 @@ async function collectTrackPageMetadata(page, fallback) {
         socialUse: true,
         commercialUse: true,
         image: domMetadata.image || '',
-        tags: ['pixabay', 'ai-generated'],
+        tags: Array.from(new Set(['pixabay', options?.query].filter(Boolean))),
         contentIdWarning: 'Pixabay signale des droits tiers possibles et des risques Content ID. Conserver la page source et verifier avant publication.',
         licenseSnapshotVersion: 'pixabay-content-license-current',
         audioUrls: [...domMetadata.audioUrls, ...jsonAudioUrls].filter(isPixabayAudioUrl),
@@ -339,7 +374,7 @@ async function inspectAndImportTrack(context, candidate, options) {
         await page.goto(candidate.url, { waitUntil: 'domcontentloaded', timeout: options.timeoutMs });
         await page.waitForLoadState('networkidle', { timeout: 7000 }).catch(() => {});
         await ensureNoChallenge(page, candidate.url);
-        const metadata = await collectTrackPageMetadata(page, candidate);
+        const metadata = await collectTrackPageMetadata(page, candidate, options);
         metadata.audioUrls.forEach((url) => observedAudioUrls.add(url));
 
         const audioUrl = Array.from(observedAudioUrls).find(isPixabayAudioUrl);
@@ -407,7 +442,7 @@ async function runImport(options) {
     try {
         const page = await context.newPage();
         const trackMap = new Map();
-        for (let pageOffset = 0; pageOffset < options.pages && trackMap.size < options.limit; pageOffset += 1) {
+        for (let pageOffset = 0; pageOffset < options.pages && trackMap.size < options.scanLimit; pageOffset += 1) {
             const pageIndex = options.startPage + pageOffset;
             const searchUrl = pageUrlForIndex(options.url, options.query, pageIndex);
             console.log(`Scan Pixabay: ${searchUrl}`);
@@ -416,13 +451,16 @@ async function runImport(options) {
             await ensureNoChallenge(page, searchUrl);
             const links = await collectTrackLinks(page);
             for (const link of links) {
-                if (trackMap.size >= options.limit) break;
+                if (trackMap.size >= options.scanLimit) break;
                 trackMap.set(link.url, link);
             }
         }
         await page.close();
 
-        const candidates = Array.from(trackMap.values()).slice(0, options.limit);
+        const candidates = Array.from(trackMap.values())
+            .filter((candidate) => !options.excludeIds.has(normalizePixabayId(trackIdFromUrl(candidate.url))))
+            .filter((candidate) => !options.excludeUrls.has(normalizeUrl(candidate.url)))
+            .slice(0, options.limit);
         console.log(`Pistes trouvees: ${candidates.length}`);
         const tracks = [];
         const errors = [];

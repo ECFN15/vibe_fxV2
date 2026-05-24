@@ -30,10 +30,60 @@ import { downloadJson, fetchAudioBlobForTrack } from '../services/soundtrackDown
 
 const MAX_AUDIO_BYTES = 150 * 1024 * 1024;
 const MAX_AUDIO_SECONDS = 30 * 60;
+const IGNORED_PIXABAY_TRACKS_KEY = 'vibefx-soundtrack-ignored-pixabay-tracks';
 const normalizeFileMatchKey = (value = '') => String(value || '')
     .replace(/\.[a-z0-9]+$/i, '')
     .trim()
     .toLowerCase();
+
+const normalizePixabayTrackId = (value = '') => {
+    const match = String(value || '').toLowerCase().match(/(?:pixabay-ai-)?pixabay-(\d+)/);
+    return match?.[1] ? `pixabay-${match[1]}` : '';
+};
+
+const normalizePixabayUrl = (value = '') => {
+    const raw = String(value || '').trim();
+    if (!raw.includes('pixabay.com/music/')) return '';
+    try {
+        const url = new URL(raw);
+        return url.protocol === 'https:' ? url.toString().replace(/\/$/, '') : '';
+    } catch {
+        return '';
+    }
+};
+
+const loadIgnoredPixabayTracks = () => {
+    if (typeof window === 'undefined') return { ids: [], urls: [] };
+    try {
+        const parsed = JSON.parse(window.localStorage.getItem(IGNORED_PIXABAY_TRACKS_KEY) || '{}');
+        return {
+            ids: Array.isArray(parsed.ids) ? parsed.ids.map(normalizePixabayTrackId).filter(Boolean) : [],
+            urls: Array.isArray(parsed.urls) ? parsed.urls.map(normalizePixabayUrl).filter(Boolean) : [],
+        };
+    } catch {
+        return { ids: [], urls: [] };
+    }
+};
+
+const saveIgnoredPixabayTracks = (value) => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(IGNORED_PIXABAY_TRACKS_KEY, JSON.stringify({
+        ids: Array.from(new Set(value.ids || [])).slice(0, 250),
+        urls: Array.from(new Set(value.urls || [])).slice(0, 250),
+    }));
+};
+
+const getPixabayFingerprint = (track = {}) => {
+    const provider = String(track.provider || track.sourceProvider || '').toLowerCase();
+    const looksPixabay = provider.includes('pixabay')
+        || String(track.id || '').includes('pixabay')
+        || String(track.sourceUrl || track.sourcePageUrl || '').includes('pixabay.com/music/');
+    if (!looksPixabay) return { ids: [], urls: [] };
+    return {
+        ids: [track.providerTrackId, track.id, track.sourceTrackId].map(normalizePixabayTrackId).filter(Boolean),
+        urls: [track.sourcePageUrl, track.sourceUrl].map(normalizePixabayUrl).filter(Boolean),
+    };
+};
 
 async function readAudioDuration(blob) {
     const url = URL.createObjectURL(blob);
@@ -70,6 +120,7 @@ async function validateAudioBlob(blob, fallbackDuration = 0) {
 export function useLocalSoundtrackLibrary() {
     const [tracks, setTracks] = useState([]);
     const [playlists, setPlaylists] = useState([]);
+    const [ignoredPixabayTracks, setIgnoredPixabayTracks] = useState(loadIgnoredPixabayTracks);
     const [folderState, setFolderState] = useState({
         capability: 'detecting',
         status: 'loading',
@@ -82,6 +133,21 @@ export function useLocalSoundtrackLibrary() {
     const objectUrlsRef = useRef(new Set());
 
     const library = useMemo(() => ({ tracks, playlists }), [playlists, tracks]);
+
+    const ignorePixabayTrack = useCallback((trackOrId) => {
+        const fingerprint = typeof trackOrId === 'string'
+            ? { ids: [normalizePixabayTrackId(trackOrId)].filter(Boolean), urls: [] }
+            : getPixabayFingerprint(trackOrId);
+        if (!fingerprint.ids.length && !fingerprint.urls.length) return;
+        setIgnoredPixabayTracks((current) => {
+            const next = {
+                ids: Array.from(new Set([...(current.ids || []), ...fingerprint.ids])),
+                urls: Array.from(new Set([...(current.urls || []), ...fingerprint.urls])),
+            };
+            saveIgnoredPixabayTracks(next);
+            return next;
+        });
+    }, []);
 
     const revokeTrackedUrls = useCallback(() => {
         objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
@@ -470,6 +536,7 @@ export function useLocalSoundtrackLibrary() {
     const removeTrack = useCallback((trackOrId) => {
         const trackId = typeof trackOrId === 'string' ? trackOrId : trackOrId?.id;
         if (!trackId) return;
+        ignorePixabayTrack(trackOrId);
         deleteIndexedSoundtrackAudio(trackId);
         commitLibrary(
             tracks.filter((track) => track.id !== trackId),
@@ -479,15 +546,16 @@ export function useLocalSoundtrackLibrary() {
                 updatedAt: new Date().toISOString(),
             }))
         );
-    }, [commitLibrary, playlists, tracks]);
+    }, [commitLibrary, ignorePixabayTrack, playlists, tracks]);
 
     const clearLibrary = useCallback(async () => {
+        tracks.forEach(ignorePixabayTrack);
         await Promise.all(tracks.map((track) => deleteIndexedSoundtrackAudio(track.id)));
         revokeTrackedUrls();
         setSelectedPlaylistId('');
         await commitLibrary([], []);
         setLastEvent('Bibliotheque locale videe.');
-    }, [commitLibrary, revokeTrackedUrls, tracks]);
+    }, [commitLibrary, ignorePixabayTrack, revokeTrackedUrls, tracks]);
 
     const exportManifest = useCallback(() => {
         downloadJson(buildSoundtrackManifest(library));
@@ -542,6 +610,8 @@ export function useLocalSoundtrackLibrary() {
         setSelectedPlaylistId,
         busyTrackId,
         lastEvent,
+        ignoredPixabayTracks,
+        ignorePixabayTrack,
         connectFolder,
         disconnectFolder,
         toggleFavorite,

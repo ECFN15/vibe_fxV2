@@ -10,9 +10,10 @@ const formatDuration = (seconds = 0) => {
     return `${mins}:${String(secs).padStart(2, '0')}`;
 };
 
-const getTrackCategory = (track = {}) => (
-    String(track.category || track.genre || track.mood || track.tags?.[0] || 'Sans categorie').trim()
-);
+const getTrackCategory = (track = {}) => {
+    const source = track || {};
+    return String(source.category || source.genre || source.mood || source.tags?.[0] || 'Sans categorie').trim();
+};
 
 const normalizeCategoryKey = (value = '') => (
     String(value || '').trim().toLowerCase()
@@ -110,7 +111,7 @@ const TrackScrubPanel = ({ track, isSelected, player, onPlay, playableUrl, onRec
     );
 };
 
-const ProjectTrackRow = ({ track, projectLibrary, activePlaylist, isSelected, player, onSelect, onPlay, onUseInVideo, onReconnect }) => {
+const ProjectTrackRow = ({ track, projectLibrary, activePlaylist, isSelected, player, onSelect, onPlay, onUseInVideo, onReconnect, onForgetTrack }) => {
     const audit = getSoundtrackRightsAudit(track);
     const usable = track.downloadUrl && !audit.blocked && track.rightsStatus !== 'blocked';
     const inActivePlaylist = activePlaylist?.trackIds?.includes(track.id);
@@ -165,7 +166,15 @@ const ProjectTrackRow = ({ track, projectLibrary, activePlaylist, isSelected, pl
                     <button type="button" onClick={() => projectLibrary.archiveTrack(track)} title="Archiver" aria-label={`Archiver ${track.title}`}>
                         <Archive size={13} />
                     </button>
-                    <button type="button" onClick={() => projectLibrary.removeTrack(track)} title="Supprimer metadata" aria-label={`Supprimer ${track.title}`}>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            onForgetTrack?.(track);
+                            projectLibrary.removeTrack(track);
+                        }}
+                        title="Supprimer metadata"
+                        aria-label={`Supprimer ${track.title}`}
+                    >
                         <Trash2 size={13} />
                     </button>
                 </div>
@@ -285,17 +294,27 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
     const activeProjectPlaylist = playlistMode === 'project' ? activePlaylist : null;
     const activeLocalPlaylist = playlistMode === 'local' ? activePlaylist : null;
     const playlistScopeLabel = playlistMode === 'project' ? 'Playlists projet' : 'Playlists bibliotheque';
+    const projectTrackIds = useMemo(() => new Set(projectLibrary.tracks.map((track) => track.sourceTrackId || track.id)), [projectLibrary.tracks]);
     const categoryOptions = useMemo(() => {
         const categories = new Map();
-        [...projectLibrary.tracks, ...(localLibrary?.tracks || []), ...starterTracks].forEach((track) => {
+        const visibleCategoryTracks = [
+            ...projectLibrary.tracks.filter((track) => showArchived || !track.archived),
+            ...(localLibrary?.tracks || []),
+            ...starterTracks.filter((track) => !projectTrackIds.has(track.id)),
+        ];
+        visibleCategoryTracks.forEach((track) => {
             const category = getTrackCategory(track);
             const key = normalizeCategoryKey(category);
-            if (key && !categories.has(key)) categories.set(key, category);
+            if (!key) return;
+            if (!categories.has(key)) categories.set(key, { key, label: category, count: 0 });
+            categories.get(key).count += 1;
         });
-        return Array.from(categories.entries())
-            .sort(([, labelA], [, labelB]) => labelA.localeCompare(labelB))
-            .map(([key, label]) => ({ key, label }));
-    }, [localLibrary?.tracks, projectLibrary.tracks, starterTracks]);
+        return Array.from(categories.values())
+            .sort((categoryA, categoryB) => categoryA.label.localeCompare(categoryB.label));
+    }, [localLibrary?.tracks, projectLibrary.tracks, projectTrackIds, showArchived, starterTracks]);
+    const categoryTotalTracks = useMemo(() => (
+        categoryOptions.reduce((total, category) => total + category.count, 0)
+    ), [categoryOptions]);
     const categoryMatches = useCallback((track) => (
         !categoryFilter || normalizeCategoryKey(getTrackCategory(track)) === categoryFilter
     ), [categoryFilter]);
@@ -308,7 +327,6 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
     const filteredProjectTracks = useMemo(() => (
         activeProjectPlaylist ? visibleTracks : visibleTracks.filter(categoryMatches)
     ), [activeProjectPlaylist, categoryMatches, visibleTracks]);
-    const projectTrackIds = useMemo(() => new Set(projectLibrary.tracks.map((track) => track.sourceTrackId || track.id)), [projectLibrary.tracks]);
     const visibleStarterTracks = useMemo(() => (
         activePlaylist ? [] : starterTracks.filter((track) => !projectTrackIds.has(track.id)).filter(categoryMatches)
     ), [activePlaylist, categoryMatches, projectTrackIds, starterTracks]);
@@ -486,9 +504,9 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
                             onChange={(event) => setCategoryFilter(event.target.value)}
                             aria-label="Filtrer la bibliotheque par categorie"
                         >
-                            <option value="">Toutes categories</option>
+                            <option value="">Toutes categories ({categoryTotalTracks})</option>
                             {categoryOptions.map((category) => (
-                                <option key={category.key} value={category.key}>{category.label}</option>
+                                <option key={category.key} value={category.key}>{category.label} ({category.count})</option>
                             ))}
                         </select>
                     </label>
@@ -577,6 +595,7 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
                                 onPlay={onPlayTrack}
                                 onUseInVideo={onUseInVideo}
                                 onReconnect={reconnectLocalAudio}
+                                onForgetTrack={localLibrary?.ignorePixabayTrack}
                             />
                         );
                     })}

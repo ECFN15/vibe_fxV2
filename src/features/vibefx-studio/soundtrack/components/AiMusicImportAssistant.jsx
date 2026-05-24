@@ -5,6 +5,7 @@ import {
     AITRA_FREE_TRACKS_URL,
     PIXABAY_CONTENT_LICENSE_URL,
     SOUNDTRACK_PROVIDERS,
+    getSoundtrackProviderQuickTagGroups,
     getSoundtrackProviderQuickTags,
 } from '../data/soundtrackDefaults';
 
@@ -24,9 +25,9 @@ const FREE_AI_SOURCE_LINKS = [
     {
         id: 'pixabay',
         label: 'Pixabay Music',
-        href: 'https://pixabay.com/music/search/ai-generated/',
+        href: 'https://pixabay.com/music/',
         badge: 'gratuit manuel',
-        note: 'Telechargement officiel conseille, pas de scraping massif.',
+        note: 'Catalogue musical complet adapte aux videos Vibe_fx.',
     },
 ];
 
@@ -78,7 +79,9 @@ const buildMetadata = ({ file, provider, selectedTag, proofUrl, licenseUrl, comm
     category: selectedTag?.label || selectedTag?.id || 'AI music',
     genre: selectedTag?.label || '',
     mood: selectedTag?.label || '',
-    tags: ['ai-generated', provider.id, selectedTag?.id].filter(Boolean),
+    tags: provider.id === 'pixabay'
+        ? ['pixabay', selectedTag?.group, selectedTag?.id].filter(Boolean)
+        : ['ai-generated', provider.id, selectedTag?.id].filter(Boolean),
     licenseSnapshotVersion: `${provider.id}-manual-current`,
     contentIdWarning: provider.id === 'pixabay'
         ? 'Pixabay signale des droits tiers possibles et des risques Content ID. Conserver la page source et verifier avant publication.'
@@ -92,6 +95,47 @@ const pixabayClientTimeoutMs = (count) => Math.min(
     PIXABAY_CLIENT_TIMEOUT_MAX_MS,
     PIXABAY_CLIENT_TIMEOUT_BASE_MS + Math.max(0, count - 1) * PIXABAY_CLIENT_TIMEOUT_PER_EXTRA_TRACK_MS,
 );
+
+const normalizePixabayTrackId = (value = '') => {
+    const match = String(value || '').toLowerCase().match(/(?:pixabay-ai-)?pixabay-(\d+)/);
+    return match?.[1] ? `pixabay-${match[1]}` : '';
+};
+
+const collectPixabayExclusions = (...trackGroups) => {
+    const excludeIds = new Set();
+    const excludeUrls = new Set();
+    trackGroups.flat().filter(Boolean).forEach((track) => {
+        const provider = String(track.provider || track.sourceProvider || '').toLowerCase();
+        const looksPixabay = provider.includes('pixabay')
+            || String(track.id || '').includes('pixabay')
+            || String(track.sourceUrl || track.sourcePageUrl || '').includes('pixabay.com/music/');
+        if (!looksPixabay) return;
+        [
+            track.providerTrackId,
+            track.id,
+            track.sourceTrackId,
+        ].forEach((value) => {
+            const id = normalizePixabayTrackId(value);
+            if (id) excludeIds.add(id);
+        });
+        [
+            track.sourcePageUrl,
+            track.sourceUrl,
+        ].forEach((value) => {
+            const url = cleanHttpsUrl(value);
+            if (url && url.includes('pixabay.com/music/')) excludeUrls.add(url.replace(/\/$/, ''));
+        });
+    });
+    return {
+        excludeIds: Array.from(excludeIds),
+        excludeUrls: Array.from(excludeUrls),
+    };
+};
+
+const mergePixabayExclusions = (current = {}, ignored = {}) => ({
+    excludeIds: Array.from(new Set([...(current.excludeIds || []), ...(ignored.ids || [])].map(normalizePixabayTrackId).filter(Boolean))),
+    excludeUrls: Array.from(new Set([...(current.excludeUrls || []), ...(ignored.urls || [])].map((url) => String(url || '').replace(/\/$/, '')).filter(Boolean))),
+});
 
 export default function AiMusicImportAssistant({
     search = null,
@@ -123,6 +167,7 @@ export default function AiMusicImportAssistant({
     const [proofUrlDraft, setProofUrlDraft] = useState('');
     const [licenseUrlDraft, setLicenseUrlDraft] = useState('');
     const [selectedTagId, setSelectedTagId] = useState(search?.category || '');
+    const [selectedGroupId, setSelectedGroupId] = useState('');
     const [batchCount, setBatchCount] = useState(1);
     const [status, setStatus] = useState('idle');
     const [message, setMessage] = useState('');
@@ -133,10 +178,17 @@ export default function AiMusicImportAssistant({
         availableProviders.find((item) => item.id === activeProviderId)
     ), [activeProviderId, availableProviders]);
     const quickTags = getSoundtrackProviderQuickTags(activeProviderId);
+    const quickTagGroups = getSoundtrackProviderQuickTagGroups(activeProviderId);
     const selectedTag = quickTags.find((tag) => tag.id === selectedTagId)
         || quickTags.find((tag) => tag.id === search?.category)
         || quickTags.find((tag) => tag.query === search?.query)
         || quickTags[0];
+    const activeGroupId = activeProviderId === 'pixabay'
+        ? selectedGroupId || selectedTag?.group || quickTagGroups[0]?.id || ''
+        : '';
+    const visibleQuickTags = activeProviderId === 'pixabay' && activeGroupId
+        ? quickTags.filter((tag) => tag.group === activeGroupId)
+        : quickTags.slice(0, 12);
     const proofUrl = cleanHttpsUrl(proofUrlDraft) || provider?.officialDocsUrl || '';
     const licenseUrl = cleanHttpsUrl(licenseUrlDraft) || provider?.licenseUrl || provider?.officialDocsUrl || '';
     const audioUrl = normalizeImportUrlDraft(provider?.id, audioUrlDraft);
@@ -152,6 +204,11 @@ export default function AiMusicImportAssistant({
             const controller = new AbortController();
             const timeoutId = window.setTimeout(() => controller.abort(), pixabayClientTimeoutMs(count));
             try {
+                const pixabayExclusions = collectPixabayExclusions(
+                    localLibrary?.tracks || [],
+                    projectLibrary?.tracks || [],
+                );
+                const mergedExclusions = mergePixabayExclusions(pixabayExclusions, localLibrary?.ignoredPixabayTracks);
                 const response = await fetch('/api/music/pixabay-local-import', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -161,6 +218,9 @@ export default function AiMusicImportAssistant({
                         category: selectedTag?.id || 'ai-generated',
                         limit: count,
                         pages: count > 4 ? 2 : 1,
+                        scanLimit: Math.min(30, count + Math.max(10, mergedExclusions.excludeIds.length + 4)),
+                        excludeIds: mergedExclusions.excludeIds,
+                        excludeUrls: mergedExclusions.excludeUrls,
                     }),
                 });
                 const payload = await response.json().catch(() => ({}));
@@ -193,7 +253,7 @@ export default function AiMusicImportAssistant({
                         rightsStatus: 'needs-review',
                         socialUse: true,
                         commercialUse: true,
-                        tags: Array.from(new Set([...(track.tags || []), 'pixabay', 'ai-generated'])),
+                        tags: Array.from(new Set([...(track.tags || []), 'pixabay', selectedTag?.group, selectedTag?.id].filter(Boolean))),
                     };
                     const importedTrack = projectLibrary.capability?.ready
                         ? await projectLibrary.importTrackToProject(metadata)
@@ -312,12 +372,12 @@ export default function AiMusicImportAssistant({
         >
             <div className="soundtrack-pixabay-assistant__head">
                 <div>
-                    <p>Import banque IA gratuite</p>
+                    <p>{provider.id === 'pixabay' ? 'Import musique gratuite' : 'Import banque IA gratuite'}</p>
                     <strong>{provider.label}</strong>
                 </div>
                 <span>{targetLabel}</span>
             </div>
-            <div className="soundtrack-ai-source-grid" aria-label="Sources IA gratuites">
+            <div className="soundtrack-ai-source-grid" aria-label="Sources musicales gratuites">
                 {FREE_AI_SOURCE_LINKS.map((source) => (
                     <article
                         key={source.id}
@@ -327,7 +387,8 @@ export default function AiMusicImportAssistant({
                         aria-pressed={provider.id === source.id}
                         onClick={() => {
                             setManualProviderId(source.id);
-                            setSelectedTagId(source.id === 'pixabay' ? 'ai-generated' : selectedTagId);
+                            setSelectedTagId(source.id === 'pixabay' ? 'background-music' : selectedTagId);
+                            setSelectedGroupId(source.id === 'pixabay' ? 'video' : '');
                             setStatus('idle');
                             setMessage('');
                         }}
@@ -335,7 +396,8 @@ export default function AiMusicImportAssistant({
                             if (event.key !== 'Enter' && event.key !== ' ') return;
                             event.preventDefault();
                             setManualProviderId(source.id);
-                            setSelectedTagId(source.id === 'pixabay' ? 'ai-generated' : selectedTagId);
+                            setSelectedTagId(source.id === 'pixabay' ? 'background-music' : selectedTagId);
+                            setSelectedGroupId(source.id === 'pixabay' ? 'video' : '');
                             setStatus('idle');
                             setMessage('');
                         }}
@@ -360,13 +422,41 @@ export default function AiMusicImportAssistant({
                     </article>
                 ))}
             </div>
-            <div className="soundtrack-ai-theme-picker" aria-label="Themes musique IA">
-                {quickTags.slice(0, 12).map((tag) => (
+            {quickTagGroups.length > 0 && (
+                <div className="soundtrack-ai-theme-groups" aria-label="Familles Pixabay Music">
+                    {quickTagGroups.map((group) => {
+                        const active = group.id === activeGroupId;
+                        return (
+                            <button
+                                key={group.id}
+                                type="button"
+                                data-active={active ? 'true' : 'false'}
+                                onClick={() => {
+                                    const [firstTag] = quickTags.filter((tag) => tag.group === group.id);
+                                    setSelectedGroupId(group.id);
+                                    setSelectedTagId(firstTag?.id || selectedTagId);
+                                    setStatus('idle');
+                                    setMessage('');
+                                }}
+                            >
+                                {group.label}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+            <div className="soundtrack-ai-theme-picker" aria-label={provider.id === 'pixabay' ? 'Themes Pixabay Music' : 'Themes musique IA'}>
+                {visibleQuickTags.map((tag) => (
                     <button
                         key={tag.id}
                         type="button"
                         data-active={selectedTag?.id === tag.id ? 'true' : 'false'}
-                        onClick={() => setSelectedTagId(tag.id)}
+                        onClick={() => {
+                            setSelectedTagId(tag.id);
+                            setSelectedGroupId(tag.group || activeGroupId);
+                            setStatus('idle');
+                            setMessage('');
+                        }}
                     >
                         {tag.label}
                     </button>
@@ -378,7 +468,15 @@ export default function AiMusicImportAssistant({
                         <span>Provider</span>
                         <select
                             value={manualProviderId}
-                            onChange={(event) => setManualProviderId(event.target.value)}
+                            onChange={(event) => {
+                                const nextProvider = event.target.value;
+                                const [nextTag] = getSoundtrackProviderQuickTags(nextProvider);
+                                setManualProviderId(nextProvider);
+                                setSelectedTagId(nextTag?.id || '');
+                                setSelectedGroupId(nextTag?.group || '');
+                                setStatus('idle');
+                                setMessage('');
+                            }}
                             aria-label="Provider musique IA"
                         >
                             {availableProviders.map((item) => (
@@ -444,7 +542,7 @@ export default function AiMusicImportAssistant({
                 </div>
             </details>
             <div className="soundtrack-pixabay-assistant__meta">
-                <span>{provider.id === 'aitra-free' ? 'Aitra Free' : 'Provider IA'}</span>
+                <span>{provider.id === 'aitra-free' ? 'Aitra Free' : provider.id === 'pixabay' ? 'Pixabay Music' : 'Provider IA'}</span>
                 <span>Import auto bibliotheque</span>
                 <span>{selectedTag?.label || 'prompt libre'}</span>
                 {status === 'ready' && <span data-state="ready"><CheckCircle2 size={12} /> importe</span>}

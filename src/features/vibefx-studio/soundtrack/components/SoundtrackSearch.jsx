@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AlertTriangle, CheckCircle2, Clock3, ExternalLink, Radio, Shuffle, UploadCloud } from 'lucide-react';
 import {
     SOUNDTRACK_PROVIDERS,
+    getSoundtrackProviderQuickTagGroups,
     getSoundtrackProviderQuickTags,
 } from '../data/soundtrackDefaults';
 
@@ -42,6 +43,7 @@ const ProviderButton = ({ provider, selected, onSelect }) => {
 };
 
 export default function SoundtrackSearch({ search, onOpenAiImport }) {
+    const [selectedTagGroupId, setSelectedTagGroupId] = useState('');
     const ignoredReasons = search.scanStats?.ignoredReasons || [];
     const providerDefinitions = search.providerDefinitions?.length
         ? search.providerDefinitions
@@ -49,12 +51,20 @@ export default function SoundtrackSearch({ search, onOpenAiImport }) {
     const activeProviderDefinition = providerDefinitions.find((provider) => provider.id === search.provider)
         || SOUNDTRACK_PROVIDERS[0];
     const quickTags = getSoundtrackProviderQuickTags(search.provider);
+    const quickTagGroups = getSoundtrackProviderQuickTagGroups(search.provider);
     const activeProvider = search.providerStatus?.find((provider) => provider.id === search.provider);
     const isAiProvider = search.isAiProvider || activeProviderDefinition?.generationEnabled === true;
+    const isPixabay = search.provider === 'pixabay';
     const nativeFilters = activeProviderDefinition.filters || [];
     const providerControls = activeProviderDefinition.controls || {};
     const selectedTag = quickTags.find((tag) => tag.id === search.category)
         || quickTags.find((tag) => tag.query === search.query);
+    const activeTagGroupId = isPixabay
+        ? selectedTagGroupId || selectedTag?.group || quickTagGroups[0]?.id || ''
+        : '';
+    const visibleQuickTags = isPixabay && activeTagGroupId
+        ? quickTags.filter((tag) => tag.group === activeTagGroupId)
+        : quickTags;
     const providerError = activeProvider?.error || search.error || '';
     const missingKey = activeProvider?.status === 'provider-missing-key'
         || activeProviderDefinition.status === 'provider-missing-key'
@@ -64,7 +74,6 @@ export default function SoundtrackSearch({ search, onOpenAiImport }) {
         : 'Tags fournisseur';
     const blockedByProvider = search.status === 'provider-unavailable' || missingKey || /403|blocked|challenge|missing|manquant/i.test(providerError);
     const scanUnavailable = blockedByProvider || search.status === 'error' || Boolean(providerError);
-    const isPixabay = search.provider === 'pixabay';
 
     return (
         <section className="soundtrack-search soundtrack-search--provider-first" aria-label="Agregateur provider-first">
@@ -102,13 +111,31 @@ export default function SoundtrackSearch({ search, onOpenAiImport }) {
                 )}
                 <div className="soundtrack-provider-tags" aria-label={`Suggestions ${activeProviderDefinition.label}`}>
                     <span className="soundtrack-provider-tags__legend">{presetMode}</span>
-                    {quickTags.map((tag) => (
+                    {quickTagGroups.length > 0 && (
+                        <div className="soundtrack-provider-tag-groups" aria-label="Familles Pixabay">
+                            {quickTagGroups.map((group) => (
+                                <button
+                                    type="button"
+                                    key={group.id}
+                                    data-active={group.id === activeTagGroupId ? 'true' : 'false'}
+                                    disabled={search.status === 'loading'}
+                                    onClick={() => setSelectedTagGroupId(group.id)}
+                                >
+                                    {group.label}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                    {visibleQuickTags.map((tag) => (
                         <button
                             type="button"
                             key={tag.id}
                             data-active={search.category === tag.id ? 'true' : 'false'}
                             disabled={search.status === 'loading'}
-                            onClick={() => search.scanCategory(tag)}
+                            onClick={() => {
+                                setSelectedTagGroupId(tag.group || activeTagGroupId);
+                                search.scanCategory(tag);
+                            }}
                             aria-label={`Scanner le filtre ${activeProviderDefinition.label} ${tag.label}`}
                         >
                             {tag.label}

@@ -29,6 +29,15 @@ const normalizeNumber = (value, fallback, min, max) => {
     return Math.max(min, Math.min(max, Math.round(number)));
 };
 
+const normalizeCsvValue = (value = '', maxItems = 80) => {
+    const values = Array.isArray(value) ? value : String(value || '').split(',');
+    return values
+        .map((item) => String(item || '').trim())
+        .filter(Boolean)
+        .slice(0, maxItems)
+        .join(',');
+};
+
 export async function POST(request) {
     let body;
     try {
@@ -49,9 +58,13 @@ export async function POST(request) {
     const pages = normalizeNumber(body.pages, limit > 4 ? 2 : 1, 1, MAX_PAGES);
     const startPageInput = body.startPage || body.pageStart;
     const startPage = startPageInput ? normalizeNumber(startPageInput, 1, 1, MAX_START_PAGE) : 1;
+    const excludeIds = normalizeCsvValue(body.excludeIds || body.excludeTrackIds);
+    const excludeUrls = normalizeCsvValue(body.excludeUrls || body.excludeSourceUrls);
+    const excludedCount = excludeIds ? excludeIds.split(',').length : 0;
+    const scanLimit = normalizeNumber(body.scanLimit, Math.min(30, limit + Math.max(10, excludedCount + 4)), limit, 30);
     const execTimeout = Math.min(
         EXEC_TIMEOUT_MAX_MS,
-        EXEC_TIMEOUT_BASE_MS + limit * EXEC_TIMEOUT_PER_TRACK_MS + pages * EXEC_TIMEOUT_PER_PAGE_MS,
+        EXEC_TIMEOUT_BASE_MS + scanLimit * EXEC_TIMEOUT_PER_TRACK_MS + pages * EXEC_TIMEOUT_PER_PAGE_MS,
     );
 
     const args = [
@@ -64,11 +77,15 @@ export async function POST(request) {
         String(pages),
         '--start-page',
         String(startPage),
+        '--scan-limit',
+        String(scanLimit),
         '--timeout-ms',
         String(SCRIPT_TIMEOUT_MS),
         '--delay-ms',
         String(SCRIPT_DELAY_MS),
     ];
+    if (excludeIds) args.push('--exclude-ids', excludeIds);
+    if (excludeUrls) args.push('--exclude-urls', excludeUrls);
 
     try {
         const { stdout, stderr } = await execFileAsync(process.execPath, args, {
@@ -96,6 +113,8 @@ export async function POST(request) {
             limit,
             pages,
             startPage,
+            scanLimit,
+            excludedCount,
             status: tracks.length ? 'ready' : 'empty',
             stats: manifest.stats || {
                 found: tracks.length,

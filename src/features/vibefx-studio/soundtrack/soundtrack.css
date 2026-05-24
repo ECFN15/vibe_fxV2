@@ -573,11 +573,20 @@
 
 .soundtrack-provider-tags {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+    overflow-x: visible;
+    padding-bottom: 2px;
+}
+
+.soundtrack-provider-tag-groups {
+    display: flex;
+    flex: 1 0 100%;
     gap: 6px;
     min-width: 0;
     overflow-x: auto;
-    padding-bottom: 2px;
 }
 
 .soundtrack-provider-tags__legend {
@@ -604,6 +613,15 @@
     color: var(--st-muted);
     padding: 0 8px;
     font-size: 12px;
+}
+
+.soundtrack-provider-tag-groups button {
+    min-height: 26px;
+    background: #050508;
+    color: var(--st-subtle);
+    font: 800 10px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    letter-spacing: .08em;
+    text-transform: uppercase;
 }
 
 .soundtrack-provider-tags button[data-active="true"] {
@@ -967,6 +985,7 @@
     text-decoration: none;
 }
 
+.soundtrack-ai-theme-groups,
 .soundtrack-ai-theme-picker {
     display: flex;
     gap: 6px;
@@ -974,6 +993,11 @@
     overflow-x: auto;
 }
 
+.soundtrack-ai-theme-groups {
+    padding-bottom: 2px;
+}
+
+.soundtrack-ai-theme-groups button,
 .soundtrack-ai-theme-picker button {
     flex: 0 0 auto;
     min-height: 32px;
@@ -985,6 +1009,17 @@
     font-size: 12px;
 }
 
+.soundtrack-ai-theme-groups button {
+    min-height: 30px;
+    border-color: #252535;
+    background: #050508;
+    color: var(--st-subtle);
+    font: 800 10px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.soundtrack-ai-theme-groups button[data-active="true"],
 .soundtrack-ai-theme-picker button[data-active="true"] {
     border-color: var(--st-action);
     background: #101025;
