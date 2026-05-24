@@ -133,6 +133,9 @@ export function buildAudioResponse({ buffer, contentType, finalUrl, fileName, me
         headers['x-vibefx-track-license'] = encodeHeaderValue(metadata.license);
         headers['x-vibefx-track-license-url'] = encodeHeaderValue(metadata.licenseUrl);
         headers['x-vibefx-track-content-warning'] = encodeHeaderValue(metadata.contentIdWarning);
+        headers['x-vibefx-track-source-url'] = encodeHeaderValue(metadata.sourceUrl);
+        headers['x-vibefx-track-source-name'] = encodeHeaderValue(metadata.sourceName);
+        headers['x-vibefx-track-provider'] = encodeHeaderValue(metadata.provider);
     }
 
     return new Response(buffer, {

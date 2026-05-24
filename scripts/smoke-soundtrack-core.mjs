@@ -170,7 +170,9 @@ try {
     licenseUrl: "user-declared",
     rightsStatus: "user-declared",
     socialUse: false,
+    localObjectUrl: "blob:local-preview",
   });
+  assert.equal(localTrack.localObjectUrl, "blob:local-preview", "local playback object URL must survive in-memory normalization");
   const audit = getSoundtrackRightsAudit(localTrack);
   assert.equal(audit.blocked, true);
   assert.ok(audit.issues.includes("Usage social non confirme"));

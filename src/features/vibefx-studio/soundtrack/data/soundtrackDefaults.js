@@ -167,6 +167,7 @@ export const FREESOUND_QUICK_TAGS = [
 ];
 
 export const PIXABAY_QUICK_TAGS = [
+    { id: 'ai-generated', label: 'AI generated', query: 'ai-generated' },
     { id: 'free-music', label: 'musique gratuite', query: 'free music' },
     { id: 'instrumental', label: 'instrumental', query: 'instrumental' },
     { id: 'spring', label: 'spring', query: 'spring' },

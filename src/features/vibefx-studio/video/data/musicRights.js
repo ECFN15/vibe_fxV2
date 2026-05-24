@@ -34,7 +34,7 @@ export const RIGHTS_IMPORT_PRESETS = [
         rightsStatus: 'review',
         commercialUse: true,
         socialUse: true,
-        contentIdWarning: 'Aucun scraping/API musique publique. Telecharger depuis Pixabay puis renseigner l URL de la piste.',
+        contentIdWarning: 'Import manuel ou script local controle: conserver la page source Pixabay, la licence et le manifest avant publication sociale.',
     },
     {
         id: 'jamendo-licensed',

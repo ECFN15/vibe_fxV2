@@ -1,0 +1,56 @@
+{
+  "provider": "pixabay",
+  "sourceUrl": "https://pixabay.com/music/search/motivation/",
+  "query": "motivation",
+  "startPage": 1,
+  "dryRun": false,
+  "generatedAt": "2026-05-24T19:13:21.865Z",
+  "licenseUrl": "https://pixabay.com/service/license-summary/",
+  "stats": {
+    "found": 1,
+    "imported": 1,
+    "metadataOnly": 0,
+    "errors": 0
+  },
+  "warnings": [
+    "Pixabay Content License can still involve third-party rights or Content ID disputes.",
+    "Keep each sourceUrl and license snapshot with the exported video/project.",
+    "This local importer stops on captcha/challenge pages and does not bypass provider restrictions."
+  ],
+  "tracks": [
+    {
+      "id": "pixabay-478796",
+      "title": "Motivation Sport Rock Trailer | Royalty-free Music",
+      "sourceUrl": "https://pixabay.com/music/rock-motivation-sport-rock-trailer-478796/",
+      "sourcePageUrl": "https://pixabay.com/music/rock-motivation-sport-rock-trailer-478796/",
+      "sourceName": "Pixabay Music",
+      "provider": "pixabay",
+      "license": "Pixabay Content License",
+      "licenseUrl": "https://pixabay.com/service/license-summary/",
+      "attribution": "Motivation Sport Rock Trailer | Royalty-free Music",
+      "rightsStatus": "needs-review",
+      "socialUse": true,
+      "commercialUse": true,
+      "image": "https://cdn.pixabay.com/audio/2026/02/03/16-50-58-565_200x200.png",
+      "tags": [
+        "pixabay",
+        "ai-generated"
+      ],
+      "contentIdWarning": "Pixabay signale des droits tiers possibles et des risques Content ID. Conserver la page source et verifier avant publication.",
+      "licenseSnapshotVersion": "pixabay-content-license-current",
+      "audioUrls": [
+        "https://cdn.pixabay.com/download/audio/2026/02/03/audio_438da929a7.mp3?filename=alexgrohl-motivation-sport-rock-trailer-478796.mp3"
+      ],
+      "importStatus": "importable",
+      "downloadUrl": "/music/pixabay-ai/Motivation-Sport-Rock-Trailer-Royalty-free-Music-3.mp3",
+      "previewUrl": "/music/pixabay-ai/Motivation-Sport-Rock-Trailer-Royalty-free-Music-3.mp3",
+      "originalDownloadUrl": "https://cdn.pixabay.com/download/audio/2026/02/03/audio_438da929a7.mp3?filename=alexgrohl-motivation-sport-rock-trailer-478796.mp3",
+      "fileName": "Motivation-Sport-Rock-Trailer-Royalty-free-Music-3.mp3",
+      "filePath": "public/music/pixabay-ai/Motivation-Sport-Rock-Trailer-Royalty-free-Music-3.mp3",
+      "bytes": 4104359,
+      "contentType": "audio/mpeg",
+      "downloadedAt": "2026-05-24T19:13:21.861Z"
+    }
+  ],
+  "errors": []
+}

@@ -481,6 +481,14 @@ export function useLocalSoundtrackLibrary() {
         );
     }, [commitLibrary, playlists, tracks]);
 
+    const clearLibrary = useCallback(async () => {
+        await Promise.all(tracks.map((track) => deleteIndexedSoundtrackAudio(track.id)));
+        revokeTrackedUrls();
+        setSelectedPlaylistId('');
+        await commitLibrary([], []);
+        setLastEvent('Bibliotheque locale videe.');
+    }, [commitLibrary, revokeTrackedUrls, tracks]);
+
     const exportManifest = useCallback(() => {
         downloadJson(buildSoundtrackManifest(library));
     }, [library]);
@@ -548,6 +556,7 @@ export function useLocalSoundtrackLibrary() {
         importFiles,
         updateTrackMetadata,
         removeTrack,
+        clearLibrary,
         exportManifest,
         checkMissingFiles,
         getTrackFile,

@@ -9,6 +9,7 @@ const MAX_PAGES = 5;
 const responseCache = new Map();
 
 export const PIXABAY_MUSIC_CATEGORIES = [
+    'ai-generated',
     'free-music',
     'instrumental',
     'spring',

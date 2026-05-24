@@ -2,18 +2,22 @@ import React, { useMemo, useRef, useState } from 'react';
 import { CheckCircle2, ExternalLink, Loader2, UploadCloud } from 'lucide-react';
 import { AI_AUDIO_PROVIDERS } from '../services/soundtrackDownloads';
 import {
-    AITRA_FREE_TERMS_URL,
     AITRA_FREE_TRACKS_URL,
+    PIXABAY_CONTENT_LICENSE_URL,
     SOUNDTRACK_PROVIDERS,
     getSoundtrackProviderQuickTags,
 } from '../data/soundtrackDefaults';
+
+const PIXABAY_AI_MANIFEST_URL = '/music/pixabay-ai/vibefx-pixabay-ai-manifest.json';
+const PIXABAY_CLIENT_TIMEOUT_BASE_MS = 70000;
+const PIXABAY_CLIENT_TIMEOUT_PER_EXTRA_TRACK_MS = 12000;
+const PIXABAY_CLIENT_TIMEOUT_MAX_MS = 125000;
 
 const FREE_AI_SOURCE_LINKS = [
     {
         id: 'aitra-free',
         label: 'Aitra Free',
         href: AITRA_FREE_TRACKS_URL,
-        terms: AITRA_FREE_TERMS_URL,
         badge: 'full gratuit',
         note: 'Selection automatique depuis le catalogue gratuit.',
     },
@@ -21,7 +25,6 @@ const FREE_AI_SOURCE_LINKS = [
         id: 'pixabay',
         label: 'Pixabay Music',
         href: 'https://pixabay.com/music/search/ai-generated/',
-        terms: 'https://pixabay.com/service/license-summary/',
         badge: 'gratuit manuel',
         note: 'Telechargement officiel conseille, pas de scraping massif.',
     },
@@ -66,10 +69,10 @@ const buildMetadata = ({ file, provider, selectedTag, proofUrl, licenseUrl, comm
     sourceName: provider.label,
     sourceUrl: proofUrl || provider.officialDocsUrl || '',
     sourcePageUrl: proofUrl || provider.officialDocsUrl || '',
-    license: provider.licenseLabel || `${provider.label} generated audio license`,
-    licenseUrl: licenseUrl || provider.licenseUrl || provider.officialDocsUrl || '',
+    license: provider.id === 'pixabay' ? 'Pixabay Content License' : provider.licenseLabel || `${provider.label} generated audio license`,
+    licenseUrl: provider.id === 'pixabay' ? PIXABAY_CONTENT_LICENSE_URL : licenseUrl || provider.licenseUrl || provider.officialDocsUrl || '',
     attribution: '',
-    rightsStatus: 'ai-generated',
+    rightsStatus: provider.id === 'pixabay' ? 'needs-review' : 'ai-generated',
     socialUse: true,
     commercialUse,
     category: selectedTag?.label || selectedTag?.id || 'AI music',
@@ -77,11 +80,18 @@ const buildMetadata = ({ file, provider, selectedTag, proofUrl, licenseUrl, comm
     mood: selectedTag?.label || '',
     tags: ['ai-generated', provider.id, selectedTag?.id].filter(Boolean),
     licenseSnapshotVersion: `${provider.id}-manual-current`,
-    contentIdWarning: provider.id === 'aitra-free'
+    contentIdWarning: provider.id === 'pixabay'
+        ? 'Pixabay signale des droits tiers possibles et des risques Content ID. Conserver la page source et verifier avant publication.'
+        : provider.id === 'aitra-free'
         ? 'Aitra Free interdit la revente du son brut, la fausse attribution, la distribution streaming comme morceau et Content ID.'
         : `Musique IA ${provider.label}: verifier les conditions du provider avant publication si necessaire.`,
     importEvent: `Import IA termine: ${provider.label}.`,
 });
+
+const pixabayClientTimeoutMs = (count) => Math.min(
+    PIXABAY_CLIENT_TIMEOUT_MAX_MS,
+    PIXABAY_CLIENT_TIMEOUT_BASE_MS + Math.max(0, count - 1) * PIXABAY_CLIENT_TIMEOUT_PER_EXTRA_TRACK_MS,
+);
 
 export default function AiMusicImportAssistant({
     search = null,
@@ -93,16 +103,15 @@ export default function AiMusicImportAssistant({
     defaultProviderId = 'aitra-free',
     compact = false,
 }) {
-    const inputRef = useRef(null);
     const importCounterRef = useRef(0);
     const availableProviders = useMemo(() => {
         const definitions = providerDefinitions || search?.providerDefinitions || SOUNDTRACK_PROVIDERS;
         const providerMap = new Map();
         definitions.forEach((item) => {
-            if (AI_AUDIO_PROVIDERS.includes(item.id)) providerMap.set(item.id, item);
+            if (AI_AUDIO_PROVIDERS.includes(item.id) || item.id === 'pixabay') providerMap.set(item.id, item);
         });
         SOUNDTRACK_PROVIDERS.forEach((item) => {
-            if (AI_AUDIO_PROVIDERS.includes(item.id) && !providerMap.has(item.id)) providerMap.set(item.id, item);
+            if ((AI_AUDIO_PROVIDERS.includes(item.id) || item.id === 'pixabay') && !providerMap.has(item.id)) providerMap.set(item.id, item);
         });
         return Array.from(providerMap.values());
     }, [providerDefinitions, search?.providerDefinitions]);
@@ -133,50 +142,79 @@ export default function AiMusicImportAssistant({
     const audioUrl = normalizeImportUrlDraft(provider?.id, audioUrlDraft);
     const targetLabel = projectLibrary.capability?.ready ? 'Projet Firebase' : 'Bibliotheque locale';
 
-    if (!provider || !AI_AUDIO_PROVIDERS.includes(provider.id)) return null;
-
-    const importFiles = async (event) => {
-        const files = Array.from(event.target.files || []).filter((file) => file.type.startsWith('audio/'));
-        event.target.value = '';
-        if (!files.length) return;
-        setStatus('loading');
-        setMessage('');
-        try {
-            const imported = [];
-            if (projectLibrary.capability?.ready) {
-                for (const file of files) {
-                    const track = await projectLibrary.importFileToProject(file, buildMetadata({
-                        file,
-                        provider,
-                        selectedTag,
-                        proofUrl,
-                        licenseUrl,
-                        commercialUse: true,
-                    }));
-                    if (track) imported.push(track);
-                }
-            } else {
-                imported.push(...(await localLibrary.importFiles(files, buildMetadata({
-                    file: files[0],
-                    provider,
-                    selectedTag,
-                    proofUrl,
-                    licenseUrl,
-                    commercialUse: true,
-                })) || []));
-            }
-            if (!imported.length) throw new Error('Aucun fichier audio IA importe.');
-            onSelectTrack?.(imported[0]);
-            onImportComplete?.(imported[0]);
-            setStatus('ready');
-            setMessage(`${imported.length} generation${imported.length > 1 ? 's' : ''} IA ajoutee${imported.length > 1 ? 's' : ''}.`);
-        } catch (error) {
-            setStatus('error');
-            setMessage(error.message || 'Import IA impossible.');
-        }
-    };
+    if (!provider || (!AI_AUDIO_PROVIDERS.includes(provider.id) && provider.id !== 'pixabay')) return null;
 
     const generateAndImport = async () => {
+        if (provider.id === 'pixabay') {
+            const count = Math.max(1, Math.min(5, Number(batchCount) || 1));
+            setStatus('loading');
+            setMessage(`Recherche Pixabay ${selectedTag?.label || 'AI generated'}...`);
+            const controller = new AbortController();
+            const timeoutId = window.setTimeout(() => controller.abort(), pixabayClientTimeoutMs(count));
+            try {
+                const response = await fetch('/api/music/pixabay-local-import', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: controller.signal,
+                    body: JSON.stringify({
+                        query: selectedTag?.query || 'ai-generated',
+                        category: selectedTag?.id || 'ai-generated',
+                        limit: count,
+                        pages: count > 4 ? 2 : 1,
+                    }),
+                });
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(payload.error || 'Import local Pixabay impossible.');
+                }
+                const manifestTracks = Array.isArray(payload?.tracks)
+                    ? payload.tracks.filter((track) => track.importStatus === 'importable' && (track.downloadUrl || track.previewUrl))
+                    : [];
+                if (!manifestTracks.length) throw new Error('Aucune piste Pixabay importable trouvee pour ce theme.');
+                const imported = [];
+                for (const track of manifestTracks.slice(0, count)) {
+                    const metadata = {
+                        ...buildMetadata({
+                            provider,
+                            selectedTag,
+                            proofUrl: track.sourceUrl || proofUrl,
+                            licenseUrl: track.licenseUrl || PIXABAY_CONTENT_LICENSE_URL,
+                            commercialUse: true,
+                        }),
+                        ...track,
+                        id: `pixabay-ai-${track.id}`,
+                        provider: 'pixabay',
+                        sourceProvider: 'pixabay',
+                        sourceName: 'Pixabay Music',
+                        sourceUrl: track.sourceUrl || track.sourcePageUrl || provider.officialDocsUrl,
+                        sourcePageUrl: track.sourcePageUrl || track.sourceUrl || provider.officialDocsUrl,
+                        license: 'Pixabay Content License',
+                        licenseUrl: track.licenseUrl || PIXABAY_CONTENT_LICENSE_URL,
+                        rightsStatus: 'needs-review',
+                        socialUse: true,
+                        commercialUse: true,
+                        tags: Array.from(new Set([...(track.tags || []), 'pixabay', 'ai-generated'])),
+                    };
+                    const importedTrack = projectLibrary.capability?.ready
+                        ? await projectLibrary.importTrackToProject(metadata)
+                        : await localLibrary.importRemoteTrack({ audioUrl: track.downloadUrl || track.previewUrl, metadata });
+                    if (importedTrack) imported.push(importedTrack);
+                }
+                if (!imported.length) throw new Error('Import Pixabay refuse par la bibliotheque.');
+                onSelectTrack?.(imported[0]);
+                onImportComplete?.(imported[0]);
+                setStatus('ready');
+                setMessage(`${imported.length} piste${imported.length > 1 ? 's' : ''} Pixabay ajoutee${imported.length > 1 ? 's' : ''}.`);
+            } catch (error) {
+                setStatus('error');
+                setMessage(error?.name === 'AbortError'
+                    ? 'Pixabay met trop longtemps a repondre. Relance le theme ou choisis un autre tag.'
+                    : error.message || 'Import Pixabay impossible.');
+            } finally {
+                window.clearTimeout(timeoutId);
+            }
+            return;
+        }
         if (provider.id !== 'aitra-free') {
             setStatus('error');
             setMessage('Generation gratuite automatique disponible sur Aitra Free.');
@@ -281,19 +319,42 @@ export default function AiMusicImportAssistant({
             </div>
             <div className="soundtrack-ai-source-grid" aria-label="Sources IA gratuites">
                 {FREE_AI_SOURCE_LINKS.map((source) => (
-                    <article key={source.id} data-active={provider.id === source.id ? 'true' : 'false'}>
+                    <article
+                        key={source.id}
+                        data-active={provider.id === source.id ? 'true' : 'false'}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={provider.id === source.id}
+                        onClick={() => {
+                            setManualProviderId(source.id);
+                            setSelectedTagId(source.id === 'pixabay' ? 'ai-generated' : selectedTagId);
+                            setStatus('idle');
+                            setMessage('');
+                        }}
+                        onKeyDown={(event) => {
+                            if (event.key !== 'Enter' && event.key !== ' ') return;
+                            event.preventDefault();
+                            setManualProviderId(source.id);
+                            setSelectedTagId(source.id === 'pixabay' ? 'ai-generated' : selectedTagId);
+                            setStatus('idle');
+                            setMessage('');
+                        }}
+                    >
                         <div>
                             <strong>{source.label}</strong>
                             <span>{source.badge}</span>
                         </div>
                         <p>{source.note}</p>
                         <nav aria-label={`Liens ${source.label}`}>
-                            <a href={source.href} target="_blank" rel="noreferrer">
+                            <a
+                                href={source.href}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(event) => event.stopPropagation()}
+                                onKeyDown={(event) => event.stopPropagation()}
+                            >
                                 Ouvrir
                                 <ExternalLink size={11} />
-                            </a>
-                            <a href={source.terms} target="_blank" rel="noreferrer">
-                                Termes
                             </a>
                         </nav>
                     </article>
@@ -339,11 +400,7 @@ export default function AiMusicImportAssistant({
                 </label>
                 <button type="button" onClick={generateAndImport} disabled={status === 'loading'}>
                     {status === 'loading' ? <Loader2 size={13} className="soundtrack-spin" /> : <UploadCloud size={13} />}
-                    Generer / importer
-                </button>
-                <button type="button" onClick={() => inputRef.current?.click()} disabled={status === 'loading'}>
-                    {status === 'loading' ? <Loader2 size={13} className="soundtrack-spin" /> : <UploadCloud size={13} />}
-                    Importer fichier
+                    {provider.id === 'pixabay' ? 'Chercher / importer' : 'Generer / importer'}
                 </button>
             </div>
             <details className="soundtrack-ai-manual-import">
@@ -386,15 +443,6 @@ export default function AiMusicImportAssistant({
                     </label>
                 </div>
             </details>
-            <input
-                ref={inputRef}
-                type="file"
-                accept="audio/*"
-                multiple
-                className="soundtrack-hidden-input"
-                data-testid="ai-music-assisted-file-input"
-                onChange={importFiles}
-            />
             <div className="soundtrack-pixabay-assistant__meta">
                 <span>{provider.id === 'aitra-free' ? 'Aitra Free' : 'Provider IA'}</span>
                 <span>Import auto bibliotheque</span>

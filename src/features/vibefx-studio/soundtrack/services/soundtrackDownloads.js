@@ -100,6 +100,10 @@ export async function fetchAudioBlobForTrack(track, options = {}) {
             license: decodeHeaderValue(response.headers.get('x-vibefx-track-license')),
             licenseUrl: decodeHeaderValue(response.headers.get('x-vibefx-track-license-url')),
             contentIdWarning: decodeHeaderValue(response.headers.get('x-vibefx-track-content-warning')),
+            sourceUrl: decodeHeaderValue(response.headers.get('x-vibefx-track-source-url')),
+            sourcePageUrl: decodeHeaderValue(response.headers.get('x-vibefx-track-source-url')),
+            sourceName: decodeHeaderValue(response.headers.get('x-vibefx-track-source-name')),
+            provider: decodeHeaderValue(response.headers.get('x-vibefx-track-provider')),
         },
     };
 }

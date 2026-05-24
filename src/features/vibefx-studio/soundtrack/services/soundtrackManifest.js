@@ -69,7 +69,7 @@ export function normalizeSoundtrackTrack(track = {}) {
         genre: track.genre || track.mood || tags[0] || '',
         fileName: track.fileName || '',
         localPathHint: track.localPathHint || '',
-        localObjectUrl: '',
+        localObjectUrl: track.localObjectUrl || '',
         downloadUrl: track.downloadUrl || track.url || '',
         previewUrl: track.previewUrl || track.url || track.downloadUrl || '',
         audioUrl: track.audioUrl || track.downloadUrl || track.previewUrl || track.url || '',

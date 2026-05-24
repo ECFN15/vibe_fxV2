@@ -81,8 +81,10 @@ const normalizeAitraSong = (song = {}) => {
     return {
         id: String(song.id || ''),
         title,
+        provider: 'aitra-free',
         category: song.category_name_en || song.category_name || 'Aitra Free',
         tags,
+        sourceName: 'Aitra Free',
         sourceUrl: `https://aitrafree.com/en/tracks/${song.id}`,
         license: 'Aitra Free Terms of Service',
         licenseUrl: 'https://aitrafree.com/en/terms',
@@ -166,7 +168,7 @@ async function fetchAitraTrackAudio({ audioUrl = '', category = '', query = '', 
     const audio = await fetchVerifiedAudio(downloadUrl);
     return {
         ...audio,
-        finalUrl: metadata.sourceUrl,
+        finalUrl: audio.finalUrl || downloadUrl,
         fileName: `${title}.mp3`,
         metadata,
     };

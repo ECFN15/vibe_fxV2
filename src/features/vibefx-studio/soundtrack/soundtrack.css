@@ -31,11 +31,11 @@
 
 .soundtrack-command-strip {
     display: grid;
-    grid-template-columns: 220px minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr);
     align-items: center;
     gap: 10px;
     min-height: 54px;
-    border-bottom: 1px solid var(--st-line);
+    border-bottom: 0;
     background: var(--st-surface);
     padding: 8px 14px;
 }
@@ -119,12 +119,11 @@
 }
 
 .soundtrack-workspace--aggregator {
-    grid-template-columns: minmax(0, 1fr) minmax(300px, 24vw);
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .soundtrack-main-column,
-.soundtrack-left-column,
-.soundtrack-side-column {
+.soundtrack-left-column {
     min-width: 0;
     min-height: 0;
 }
@@ -145,11 +144,145 @@
     overflow: hidden;
 }
 
-.soundtrack-side-column {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
+.soundtrack-ai-import-workspace {
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: 14px;
+    min-width: 0;
+    min-height: 0;
     overflow: auto;
+    padding: 18px;
+    background:
+        linear-gradient(180deg, rgba(99, 102, 241, .06), transparent 240px),
+        var(--st-bg);
+}
+
+.soundtrack-ai-import-workspace__hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 18px;
+    align-items: end;
+    min-width: 0;
+    border: 1px solid var(--st-line-strong);
+    border-radius: var(--st-radius);
+    background: #08080d;
+    padding: 18px;
+}
+
+.soundtrack-ai-import-workspace__hero p,
+.soundtrack-ai-import-workspace__hero h2,
+.soundtrack-ai-import-workspace__hero span {
+    margin: 0;
+}
+
+.soundtrack-ai-import-workspace__hero p {
+    color: var(--st-signal);
+    font: 800 10px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.soundtrack-ai-import-workspace__hero h2 {
+    margin-top: 6px;
+    color: var(--st-text);
+    font-size: 24px;
+    line-height: 1.1;
+}
+
+.soundtrack-ai-import-workspace__hero span {
+    display: block;
+    max-width: 780px;
+    margin-top: 8px;
+    color: var(--st-muted);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.soundtrack-ai-import-workspace__metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(92px, 1fr));
+    gap: 8px;
+    min-width: 260px;
+}
+
+.soundtrack-ai-import-workspace__metrics span,
+.soundtrack-ai-import-workspace__metrics button,
+.soundtrack-ai-import-workspace__steps span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 38px;
+    border: 1px solid var(--st-line);
+    border-radius: var(--st-radius);
+    background: #050505;
+    color: var(--st-muted);
+    padding: 0 10px;
+    font: 800 10px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.soundtrack-ai-import-workspace__metrics strong {
+    color: var(--st-text);
+    font-size: 13px;
+}
+
+.soundtrack-ai-import-workspace__metrics button {
+    grid-column: 1 / -1;
+    border-color: color-mix(in srgb, var(--st-signal), var(--st-line-strong) 45%);
+    background: #101025;
+    color: var(--st-text);
+    cursor: pointer;
+}
+
+.soundtrack-ai-import-workspace__steps {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.soundtrack-ai-import-workspace__steps span {
+    justify-content: flex-start;
+    background: #080808;
+}
+
+.soundtrack-ai-import-workspace > .soundtrack-ai-import-assistant {
+    align-self: start;
+    border-color: color-mix(in srgb, var(--st-signal), var(--st-line-strong) 42%);
+    border-radius: var(--st-radius);
+    background: #07070c;
+    padding: 16px;
+}
+
+.soundtrack-ai-import-workspace .soundtrack-ai-source-grid {
+    grid-template-columns: repeat(2, minmax(280px, 1fr));
+}
+
+.soundtrack-ai-import-workspace .soundtrack-ai-source-grid article {
+    min-height: 118px;
+    padding: 14px;
+}
+
+.soundtrack-ai-import-workspace .soundtrack-ai-source-grid strong {
+    font-size: 12px;
+}
+
+.soundtrack-ai-import-workspace .soundtrack-ai-source-grid p {
+    font-size: 13px;
+}
+
+.soundtrack-ai-import-workspace .soundtrack-ai-theme-picker {
+    flex-wrap: wrap;
+    overflow: visible;
+}
+
+.soundtrack-ai-import-workspace .soundtrack-ai-generate-panel {
+    grid-template-columns: minmax(220px, 1fr) minmax(92px, 120px) auto;
+    border: 1px solid var(--st-line);
+    border-radius: var(--st-radius);
+    background: #050505;
+    padding: 12px;
 }
 
 .soundtrack-aggregator-panel {
@@ -773,6 +906,8 @@
     border-radius: var(--st-radius);
     background: #050508;
     padding: 9px;
+    cursor: pointer;
+    transition: border-color 160ms var(--st-ease), background 160ms var(--st-ease), transform 160ms var(--st-ease);
 }
 
 .soundtrack-ai-source-grid article[data-active="true"] {
@@ -780,11 +915,22 @@
     background: color-mix(in srgb, var(--st-success), #050508 92%);
 }
 
+.soundtrack-ai-source-grid article:hover,
+.soundtrack-ai-source-grid article:focus-visible {
+    border-color: color-mix(in srgb, var(--st-signal), #262626 26%);
+    background: #080812;
+}
+
+.soundtrack-ai-source-grid article:focus-visible {
+    outline: 2px solid rgba(139, 141, 255, .78);
+    outline-offset: 2px;
+}
+
 .soundtrack-ai-source-grid article > div,
 .soundtrack-ai-source-grid nav {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: 8px;
     min-width: 0;
 }
@@ -1342,11 +1488,6 @@
     overflow: hidden;
     flex: 0 0 auto;
     border-width: 0 0 1px;
-}
-
-.soundtrack-side-column .soundtrack-panel {
-    display: grid;
-    grid-template-rows: auto minmax(0, auto);
 }
 
 .soundtrack-project-panel {
@@ -2249,7 +2390,7 @@ select:focus-visible {
     }
 
     .soundtrack-workspace--aggregator {
-        grid-template-columns: minmax(0, 1fr) 300px;
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .soundtrack-project-panel--modal .soundtrack-project-row {
@@ -2291,6 +2432,14 @@ select:focus-visible {
 
     .soundtrack-ai-generate-panel {
         grid-template-columns: minmax(0, 1fr) minmax(90px, 120px);
+    }
+
+    .soundtrack-ai-import-workspace__hero {
+        grid-template-columns: 1fr;
+    }
+
+    .soundtrack-ai-import-workspace__metrics {
+        min-width: 0;
     }
 
     .soundtrack-ai-source-grid {
@@ -2374,14 +2523,12 @@ select:focus-visible {
     }
 
     .soundtrack-left-column,
-    .soundtrack-main-column,
-    .soundtrack-side-column > div {
+    .soundtrack-main-column {
         display: none;
     }
 
     .soundtrack-left-column[data-mobile-active="true"],
-    .soundtrack-main-column[data-mobile-active="true"],
-    .soundtrack-side-column > div[data-mobile-active="true"] {
+    .soundtrack-main-column[data-mobile-active="true"] {
         display: grid;
         gap: 8px;
     }
@@ -2389,10 +2536,6 @@ select:focus-visible {
     .soundtrack-left-column[data-mobile-active="true"],
     .soundtrack-main-column[data-mobile-active="true"] {
         border: 0;
-    }
-
-    .soundtrack-side-column {
-        display: block;
     }
 
     .soundtrack-search__filters,
@@ -2405,6 +2548,30 @@ select:focus-visible {
     }
 
     .soundtrack-ai-generate-panel {
+        grid-template-columns: 1fr;
+    }
+
+    .soundtrack-ai-import-workspace {
+        padding: 10px;
+    }
+
+    .soundtrack-ai-import-workspace__hero {
+        padding: 14px;
+    }
+
+    .soundtrack-ai-import-workspace__hero h2 {
+        font-size: 20px;
+    }
+
+    .soundtrack-ai-import-workspace__steps {
+        grid-template-columns: 1fr;
+    }
+
+    .soundtrack-ai-import-workspace .soundtrack-ai-source-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .soundtrack-ai-import-workspace .soundtrack-ai-generate-panel {
         grid-template-columns: 1fr;
     }
 

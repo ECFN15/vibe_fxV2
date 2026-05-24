@@ -312,10 +312,28 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
     const visibleStarterTracks = useMemo(() => (
         activePlaylist ? [] : starterTracks.filter((track) => !projectTrackIds.has(track.id)).filter(categoryMatches)
     ), [activePlaylist, categoryMatches, projectTrackIds, starterTracks]);
-    const visibleLocalTracks = useMemo(() => (
-        activeProjectPlaylist ? [] : (localLibrary?.tracks || []).filter(categoryMatches)
-    ), [activeProjectPlaylist, categoryMatches, localLibrary?.tracks]);
+    const visibleLocalTracks = useMemo(() => {
+        if (activeProjectPlaylist) return [];
+        const baseTracks = (localLibrary?.tracks || []).filter(categoryMatches);
+        if (!activeLocalPlaylist) return baseTracks;
+        const trackMap = new Map(baseTracks.map((track) => [track.id, track]));
+        return activeLocalPlaylist.trackIds.map((trackId) => trackMap.get(trackId)).filter(Boolean);
+    }, [activeLocalPlaylist, activeProjectPlaylist, categoryMatches, localLibrary?.tracks]);
     const localTrackIds = useMemo(() => new Set((localLibrary?.tracks || []).map((track) => track.id)), [localLibrary?.tracks]);
+    const totalVisibleTracks = filteredProjectTracks.length + visibleLocalTracks.length + visibleStarterTracks.length;
+    const unifiedLibraryRows = useMemo(() => {
+        const rows = [
+            ...visibleStarterTracks.map((track) => ({ type: 'starter', track })),
+            ...visibleLocalTracks.map((track) => ({ type: 'local', track })),
+            ...filteredProjectTracks.map((track) => ({ type: 'project', track })),
+        ];
+        if (activePlaylist) return rows;
+        return rows.sort((rowA, rowB) => {
+            const categoryCompare = getTrackCategory(rowA.track).localeCompare(getTrackCategory(rowB.track), undefined, { sensitivity: 'base' });
+            if (categoryCompare !== 0) return categoryCompare;
+            return String(rowA.track.title || '').localeCompare(String(rowB.track.title || ''), undefined, { sensitivity: 'base' });
+        });
+    }, [activePlaylist, filteredProjectTracks, visibleLocalTracks, visibleStarterTracks]);
 
     useEffect(() => {
         setDraft({
@@ -349,7 +367,7 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
                     <h2>Bibliotheque Vibe_fx</h2>
                 </div>
                 <span data-state={projectLibrary.status === 'error' ? 'warning' : 'ready'}>
-                    {filteredProjectTracks.length + visibleLocalTracks.length + visibleStarterTracks.length} piste{filteredProjectTracks.length + visibleLocalTracks.length + visibleStarterTracks.length > 1 ? 's' : ''}
+                    {totalVisibleTracks} piste{totalVisibleTracks > 1 ? 's' : ''}
                 </span>
             </header>
 
@@ -370,6 +388,16 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
                 <button type="button" onClick={() => setShowArchived((value) => !value)} data-active={showArchived}>
                     <Archive size={14} />
                     Archives
+                </button>
+                <button
+                    type="button"
+                    onClick={() => {
+                        localLibrary?.clearLibrary?.();
+                    }}
+                    disabled={!localLibrary?.tracks?.length}
+                >
+                    <Trash2 size={14} />
+                    Vider locale
                 </button>
             </div>
             {showAiImport && (
@@ -425,7 +453,7 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
                     <button type="button" data-active={!activePlaylist} onClick={() => playlistLibrary?.setSelectedPlaylistId?.('')}>
                         <ListMusic size={13} />
                         <span>Toutes</span>
-                        <small>{visibleLocalTracks.length + filteredProjectTracks.length + visibleStarterTracks.length}</small>
+                        <small>{totalVisibleTracks}</small>
                     </button>
                     {playlists.map((playlist) => (
                         <button
@@ -489,81 +517,69 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
                 </form>
             )}
 
-            {filteredProjectTracks.length === 0 && visibleLocalTracks.length === 0 && visibleStarterTracks.length === 0 ? (
+            {unifiedLibraryRows.length === 0 ? (
                 <div className="soundtrack-empty-state soundtrack-empty-state--compact">
                     <Music2 size={18} />
                     <p>{categoryFilter ? 'Aucune piste dans cette categorie.' : 'Bibliotheque projet vide.'}</p>
                 </div>
             ) : (
                 <div className="soundtrack-project-list">
-                    {visibleStarterTracks.length > 0 && (
-                        <div className="soundtrack-project-list__group">
-                            <div className="soundtrack-project-playlists__head">
-                                <span>Pistes Vibe_CUT incluses</span>
-                                <small>{visibleStarterTracks.length}</small>
-                            </div>
+                    <div className="soundtrack-project-list__group">
+                        <div className="soundtrack-project-playlists__head">
+                            <span>{activePlaylist ? activePlaylist.name : 'Bibliotheque organisee'}</span>
+                            <small>{unifiedLibraryRows.length}</small>
                         </div>
-                    )}
-                    {visibleStarterTracks.map((track) => (
-                        <StarterTrackRow
-                            key={track.id}
-                            track={track}
-                            isSelected={selectedTrack?.id === track.id}
-                            player={player}
-                            onSelect={onSelectTrack}
-                            onPlay={onPlayTrack}
-                            onImportProject={projectLibrary.importTrackToProject}
-                            onUseInVideo={onUseInVideo}
-                            onRemove={onRemoveStarterTrack}
-                            busy={projectLibrary.busyTrackId === track.id}
-                            onReconnect={reconnectLocalAudio}
-                        />
-                    ))}
-                    {visibleLocalTracks.length > 0 && (
-                        <div className="soundtrack-project-list__group">
-                            <div className="soundtrack-project-playlists__head">
-                                <span>Imports locaux</span>
-                                <small>{visibleLocalTracks.length}</small>
-                            </div>
-                        </div>
-                    )}
-                    {visibleLocalTracks.map((track) => (
-                        <LocalTrackRow
-                            key={track.id}
-                            track={track}
-                            localLibrary={localLibrary}
-                            activePlaylist={activeLocalPlaylist}
-                            inActivePlaylist={Boolean(activeLocalPlaylist?.trackIds?.includes(track.id))}
-                            isSelected={selectedTrack?.id === track.id}
-                            player={player}
-                            onSelect={onSelectTrack}
-                            onPlay={onPlayTrack}
-                            onUseInVideo={onUseInVideo}
-                            onReconnect={reconnectLocalAudio}
-                        />
-                    ))}
-                    {filteredProjectTracks.length > 0 && (visibleStarterTracks.length > 0 || visibleLocalTracks.length > 0) && (
-                        <div className="soundtrack-project-list__group">
-                            <div className="soundtrack-project-playlists__head">
-                                <span>Imports projet</span>
-                                <small>{filteredProjectTracks.length}</small>
-                            </div>
-                        </div>
-                    )}
-                    {filteredProjectTracks.map((track) => (
-                        <ProjectTrackRow
-                            key={track.id}
-                            track={track}
-                            projectLibrary={projectLibrary}
-                            activePlaylist={activeProjectPlaylist}
-                            isSelected={selectedTrack?.id === track.id}
-                            player={player}
-                            onSelect={onSelectTrack}
-                            onPlay={onPlayTrack}
-                            onUseInVideo={onUseInVideo}
-                            onReconnect={reconnectLocalAudio}
-                        />
-                    ))}
+                    </div>
+                    {unifiedLibraryRows.map(({ type, track }) => {
+                        if (type === 'starter') {
+                            return (
+                                <StarterTrackRow
+                                    key={`starter-${track.id}`}
+                                    track={track}
+                                    isSelected={selectedTrack?.id === track.id}
+                                    player={player}
+                                    onSelect={onSelectTrack}
+                                    onPlay={onPlayTrack}
+                                    onImportProject={projectLibrary.importTrackToProject}
+                                    onUseInVideo={onUseInVideo}
+                                    onRemove={onRemoveStarterTrack}
+                                    busy={projectLibrary.busyTrackId === track.id}
+                                    onReconnect={reconnectLocalAudio}
+                                />
+                            );
+                        }
+                        if (type === 'local') {
+                            return (
+                                <LocalTrackRow
+                                    key={`local-${track.id}`}
+                                    track={track}
+                                    localLibrary={localLibrary}
+                                    activePlaylist={activeLocalPlaylist}
+                                    inActivePlaylist={Boolean(activeLocalPlaylist?.trackIds?.includes(track.id))}
+                                    isSelected={selectedTrack?.id === track.id}
+                                    player={player}
+                                    onSelect={onSelectTrack}
+                                    onPlay={onPlayTrack}
+                                    onUseInVideo={onUseInVideo}
+                                    onReconnect={reconnectLocalAudio}
+                                />
+                            );
+                        }
+                        return (
+                            <ProjectTrackRow
+                                key={`project-${track.id}`}
+                                track={track}
+                                projectLibrary={projectLibrary}
+                                activePlaylist={activeProjectPlaylist}
+                                isSelected={selectedTrack?.id === track.id}
+                                player={player}
+                                onSelect={onSelectTrack}
+                                onPlay={onPlayTrack}
+                                onUseInVideo={onUseInVideo}
+                                onReconnect={reconnectLocalAudio}
+                            />
+                        );
+                    })}
                 </div>
             )}
         </section>

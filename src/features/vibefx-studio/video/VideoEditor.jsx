@@ -151,7 +151,7 @@ const VideoEditor = ({ onAiOpen }) => {
                             className="flex-1 flex items-start justify-center px-4 sm:px-6 lg:px-8"
                             style={{ paddingTop: 'clamp(5rem, 12vh, 8rem)' }}
                         >
-                            <div className="w-full max-w-none">
+                            <div className="w-full" style={{ maxWidth: '26rem' }}>
                                 <button
                                     onClick={handleImportClick}
                                     className="group w-full min-h-44 flex flex-col items-center justify-center gap-5 p-10 border border-dashed border-neutral-800 hover:border-indigo-500/40 transition-all hover:bg-indigo-500/5"
