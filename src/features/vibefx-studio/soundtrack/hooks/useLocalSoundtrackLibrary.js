@@ -334,9 +334,11 @@ export function useLocalSoundtrackLibrary() {
             } catch (error) {
                 waveform = buildUnavailableWaveform(error.message);
             }
+            const remoteMetadata = Object.fromEntries(Object.entries(fetched.trackMetadata || {}).filter(([, value]) => value));
             const nextTrack = normalizeSoundtrackTrack({
                 ...track,
-                category: track.category || track.genre || track.mood || track.provider || 'Bibliotheque',
+                ...remoteMetadata,
+                category: remoteMetadata.category || track.category || track.genre || track.mood || track.provider || 'Bibliotheque',
                 fileName,
                 localPathHint: fileName ? `./${fileName}` : '',
                 localObjectUrl: objectUrl,
@@ -364,7 +366,8 @@ export function useLocalSoundtrackLibrary() {
     const importRemoteTrack = useCallback(async ({ audioUrl, metadata = {} }) => {
         if (!audioUrl?.trim()) return null;
         const draftTrack = normalizeSoundtrackTrack({
-            id: safeSoundtrackId('track'),
+            id: metadata.id || safeSoundtrackId('track'),
+            providerTrackId: metadata.providerTrackId || '',
                 title: metadata.title || 'Piste distante',
                 provider: metadata.provider || 'manual-url',
                 category: metadata.category || 'Import URL',

@@ -115,14 +115,28 @@ export async function fetchVerifiedAudio(audioUrl) {
     };
 }
 
-export function buildAudioResponse({ buffer, contentType, finalUrl, fileName }) {
+const encodeHeaderValue = (value = '') => encodeURIComponent(String(value || '').slice(0, 500));
+
+export function buildAudioResponse({ buffer, contentType, finalUrl, fileName, metadata = null }) {
+    const headers = {
+        'content-type': contentType,
+        'content-length': String(buffer.byteLength),
+        'content-disposition': `attachment; filename="${String(fileName || 'imported-audio').replace(/"/g, '')}"`,
+        'x-vibefx-audio-source-url': finalUrl,
+    };
+
+    if (metadata) {
+        headers['x-vibefx-track-id'] = encodeHeaderValue(metadata.id);
+        headers['x-vibefx-track-title'] = encodeHeaderValue(metadata.title);
+        headers['x-vibefx-track-category'] = encodeHeaderValue(metadata.category);
+        headers['x-vibefx-track-tags'] = encodeHeaderValue(Array.isArray(metadata.tags) ? metadata.tags.join(',') : metadata.tags);
+        headers['x-vibefx-track-license'] = encodeHeaderValue(metadata.license);
+        headers['x-vibefx-track-license-url'] = encodeHeaderValue(metadata.licenseUrl);
+        headers['x-vibefx-track-content-warning'] = encodeHeaderValue(metadata.contentIdWarning);
+    }
+
     return new Response(buffer, {
         status: 200,
-        headers: {
-            'content-type': contentType,
-            'content-length': String(buffer.byteLength),
-            'content-disposition': `attachment; filename="${String(fileName || 'imported-audio').replace(/"/g, '')}"`,
-            'x-vibefx-audio-source-url': finalUrl,
-        },
+        headers,
     });
 }

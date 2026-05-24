@@ -132,7 +132,7 @@ export default function LayoutSidebar({
 }) {
     const isCustomTemplate = activeTemplate.id === 'custom';
     const customPresetId = activeTemplate.customLayout?.presetId;
-    const customZonesCount = activeTemplate.customLayout?.zones?.length || 0;
+    const customZonesCount = (activeTemplate.customLayout?.zones || []).filter(zone => !zone.hidden).length;
     const selectedCustomZone = isCustomTemplate && selectedSlotIndex !== null
         ? activeTemplate.customLayout?.zones?.find(zone => zone.id === selectedSlotIndex)
         : null;

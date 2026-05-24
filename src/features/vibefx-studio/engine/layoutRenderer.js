@@ -140,7 +140,7 @@ export function renderTemplateSlots(ctx, w, h, opts) {
 
     if (activeTemplate.id === 'custom') {
         const zones = activeTemplate.customLayout?.zones || [];
-        zones.forEach((zone, index) => {
+        zones.filter(zone => !zone.hidden).forEach((zone, index) => {
             const slotX = startX + (zone.x * safeW);
             const slotY = startY + (zone.y * safeH);
             const slotW = zone.w * safeW;

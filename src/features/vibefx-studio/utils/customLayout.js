@@ -18,6 +18,26 @@ export const clampCustomZone = (zone) => {
     };
 };
 
+const getHomeZone = (zone) => {
+    const homeW = clamp(Number(zone.homeW ?? zone.w) || MIN_ZONE_SIZE, MIN_ZONE_SIZE, 1);
+    const homeH = clamp(Number(zone.homeH ?? zone.h) || MIN_ZONE_SIZE, MIN_ZONE_SIZE, 1);
+    return {
+        ...zone,
+        x: clamp(Number(zone.homeX ?? zone.x) || 0, 0, 1 - homeW),
+        y: clamp(Number(zone.homeY ?? zone.y) || 0, 0, 1 - homeH),
+        w: homeW,
+        h: homeH,
+    };
+};
+
+const preserveHome = (zone, placedZone) => ({
+    ...placedZone,
+    homeX: zone.homeX ?? zone.x,
+    homeY: zone.homeY ?? zone.y,
+    homeW: zone.homeW ?? zone.w,
+    homeH: zone.homeH ?? zone.h,
+});
+
 const zonesOverlap = (a, b, gap = DEFAULT_GAP / 2) => (
     a.x < b.x + b.w + gap
     && a.x + a.w + gap > b.x
@@ -50,7 +70,7 @@ const hasUsefulArea = (candidate, original) => (
 );
 
 const buildPlacementCandidates = (zone, activeZone) => {
-    const baseZone = clampCustomZone(zone);
+    const baseZone = clampCustomZone(getHomeZone(zone));
     const candidates = [baseZone];
     const sameRowNeighbor = isSameRowNeighbor(baseZone, activeZone);
 
@@ -114,7 +134,7 @@ const buildPlacementCandidates = (zone, activeZone) => {
 };
 
 const findBestPlacement = (zone, placedZones, activeZone) => {
-    const original = clampCustomZone(zone);
+    const original = clampCustomZone({ ...getHomeZone(zone), hidden: false });
     const validCandidates = buildPlacementCandidates(zone, activeZone)
         .filter((candidate) => hasUsefulArea(candidate, original))
         .filter((candidate) => !overlapsAnyZone(candidate, placedZones))
@@ -128,17 +148,23 @@ export const normalizeCustomZones = (zones, activeZoneId = null) => {
     const activeZone = normalized.find((zone) => zone.id === activeZoneId);
     if (!activeZone) return normalized;
 
-    const placedZones = [activeZone];
+    const visibleActiveZone = { ...activeZone, hidden: false };
+    const placedZones = [visibleActiveZone];
+    const hiddenZones = new Map();
     normalized
         .filter((zone) => zone.id !== activeZoneId)
         .forEach((zone) => {
             const placedZone = findBestPlacement(zone, placedZones, activeZone);
-            if (placedZone) placedZones.push(placedZone);
+            if (placedZone) {
+                placedZones.push(preserveHome(zone, { ...placedZone, hidden: false }));
+            } else {
+                hiddenZones.set(zone.id, { ...zone, hidden: true });
+            }
         });
 
     const placedById = new Map(placedZones.map((zone) => [zone.id, zone]));
     return normalized
-        .map((zone) => placedById.get(zone.id))
+        .map((zone) => placedById.get(zone.id) || hiddenZones.get(zone.id) || zone)
         .filter(Boolean);
 };
 

@@ -264,7 +264,7 @@ export default function SoundtrackPage({ onUseInVideo }) {
                         <header className="soundtrack-ai-import-modal__header">
                             <div>
                                 <p>Banque IA gratuite</p>
-                                <h2>Aitra Free + import fichier ou URL</h2>
+                                <h2>Choisis un theme, Vibe_fx importe les pistes</h2>
                             </div>
                             <button type="button" onClick={() => setAiImportOpen(false)} aria-label="Fermer import IA">
                                 <X size={16} />
@@ -272,11 +272,11 @@ export default function SoundtrackPage({ onUseInVideo }) {
                         </header>
                         <div className="soundtrack-ai-import-modal__guide" aria-label="Etapes import IA">
                             <span><strong>1</strong> Choisis la plateforme IA</span>
-                            <span><strong>2</strong> Ajoute le fichier ou l'URL audio</span>
+                            <span><strong>2</strong> Clique Generer / importer</span>
                             <span><strong>3</strong> Importe en bibliotheque</span>
                         </div>
                         <p className="soundtrack-ai-import-modal__note">
-                            Ce flux sert a recuperer une musique deja publiee sur une banque IA gratuite. Pour Aitra Free, colle une page piste ou un ID; pour Pixabay, garde l'import manuel depuis le telechargement officiel.
+                            Ce flux recupere automatiquement des pistes deja publiees sur Aitra Free selon le theme choisi. Pixabay reste en import officiel manuel pour eviter le scraping de telechargements.
                         </p>
                         <AiMusicImportAssistant
                             key={aiImportProviderId}

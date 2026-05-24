@@ -15,7 +15,7 @@ const FREE_AI_SOURCE_LINKS = [
         href: AITRA_FREE_TRACKS_URL,
         terms: AITRA_FREE_TERMS_URL,
         badge: 'full gratuit',
-        note: 'Page piste, ID ou MP3 officiel acceptes.',
+        note: 'Selection automatique depuis le catalogue gratuit.',
     },
     {
         id: 'pixabay',
@@ -94,6 +94,7 @@ export default function AiMusicImportAssistant({
     compact = false,
 }) {
     const inputRef = useRef(null);
+    const importCounterRef = useRef(0);
     const availableProviders = useMemo(() => {
         const definitions = providerDefinitions || search?.providerDefinitions || SOUNDTRACK_PROVIDERS;
         const providerMap = new Map();
@@ -113,6 +114,7 @@ export default function AiMusicImportAssistant({
     const [proofUrlDraft, setProofUrlDraft] = useState('');
     const [licenseUrlDraft, setLicenseUrlDraft] = useState('');
     const [selectedTagId, setSelectedTagId] = useState(search?.category || '');
+    const [batchCount, setBatchCount] = useState(1);
     const [status, setStatus] = useState('idle');
     const [message, setMessage] = useState('');
     const activeProviderId = search?.provider && AI_AUDIO_PROVIDERS.includes(search.provider)
@@ -171,6 +173,56 @@ export default function AiMusicImportAssistant({
         } catch (error) {
             setStatus('error');
             setMessage(error.message || 'Import IA impossible.');
+        }
+    };
+
+    const generateAndImport = async () => {
+        if (provider.id !== 'aitra-free') {
+            setStatus('error');
+            setMessage('Generation gratuite automatique disponible sur Aitra Free.');
+            return;
+        }
+        const count = Math.max(1, Math.min(5, Number(batchCount) || 1));
+        setStatus('loading');
+        setMessage(`Recherche Aitra ${selectedTag?.label || 'theme'}...`);
+        try {
+            const imported = [];
+            const excludeTrackIds = [];
+            for (let index = 0; index < count; index += 1) {
+                importCounterRef.current += 1;
+                const draftTrack = {
+                    ...buildMetadata({
+                        provider,
+                        selectedTag,
+                        proofUrl,
+                        licenseUrl,
+                        commercialUse: true,
+                    }),
+                    id: buildManualTrackId(provider.id, `${selectedTag?.id || 'theme'}-${importCounterRef.current}-${index}`),
+                    title: `Aitra Free - ${selectedTag?.label || 'selection'}`,
+                    downloadUrl: AITRA_FREE_TRACKS_URL,
+                    previewUrl: AITRA_FREE_TRACKS_URL,
+                    audioUrl: AITRA_FREE_TRACKS_URL,
+                    themeId: selectedTag?.id || '',
+                    query: selectedTag?.query || selectedTag?.label || '',
+                    excludeTrackIds: [...excludeTrackIds],
+                    importStatus: 'importable',
+                };
+                const track = await localLibrary.importRemoteTrack({ audioUrl: AITRA_FREE_TRACKS_URL, metadata: draftTrack });
+                if (track) {
+                    imported.push(track);
+                    if (track.providerTrackId) excludeTrackIds.push(track.providerTrackId);
+                    await new Promise((resolve) => window.setTimeout(resolve, 650));
+                }
+            }
+            if (!imported.length) throw new Error('Aucune piste Aitra Free importee.');
+            onSelectTrack?.(imported[0]);
+            onImportComplete?.(imported[0]);
+            setStatus('ready');
+            setMessage(`${imported.length} piste${imported.length > 1 ? 's' : ''} Aitra ajoutee${imported.length > 1 ? 's' : ''}.`);
+        } catch (error) {
+            setStatus('error');
+            setMessage(error.message || 'Generation/import Aitra impossible.');
         }
     };
 
@@ -275,30 +327,45 @@ export default function AiMusicImportAssistant({
                     </label>
                 )}
                 <label>
-                    <span>{provider.id === 'aitra-free' ? 'Page Aitra / ID / URL audio' : 'URL audio directe'}</span>
+                    <span>Nombre</span>
                     <input
-                        value={audioUrlDraft}
-                        onChange={(event) => setAudioUrlDraft(event.target.value)}
-                        placeholder={provider.id === 'aitra-free' ? 'https://aitrafree.com/en/tracks/103 ou 103' : 'https://.../audio.mp3'}
-                        aria-label="URL audio directe IA"
+                        type="number"
+                        min={1}
+                        max={5}
+                        value={batchCount}
+                        onChange={(event) => setBatchCount(event.target.value)}
+                        aria-label="Nombre de pistes a importer"
                     />
                 </label>
-                <button type="button" onClick={importUrl} disabled={status === 'loading' || !audioUrl}>
+                <button type="button" onClick={generateAndImport} disabled={status === 'loading'}>
                     {status === 'loading' ? <Loader2 size={13} className="soundtrack-spin" /> : <UploadCloud size={13} />}
-                    {provider.id === 'aitra-free' ? 'Importer Aitra' : 'Importer URL'}
+                    Generer / importer
                 </button>
                 <button type="button" onClick={() => inputRef.current?.click()} disabled={status === 'loading'}>
                     {status === 'loading' ? <Loader2 size={13} className="soundtrack-spin" /> : <UploadCloud size={13} />}
                     Importer fichier
                 </button>
             </div>
-            <details className="soundtrack-ai-manual-import" open>
-                <summary>Infos source et licence</summary>
+            <details className="soundtrack-ai-manual-import">
+                <summary>Import manuel avance</summary>
                 <div className="soundtrack-pixabay-assistant__flow soundtrack-ai-import-assistant__flow">
                     <a href={provider.officialDocsUrl || '#'} target="_blank" rel="noreferrer">
                         <ExternalLink size={13} />
                         Docs provider
                     </a>
+                    <label>
+                        <span>{provider.id === 'aitra-free' ? 'Page Aitra / ID / URL audio' : 'URL audio directe'}</span>
+                        <input
+                            value={audioUrlDraft}
+                            onChange={(event) => setAudioUrlDraft(event.target.value)}
+                            placeholder={provider.id === 'aitra-free' ? 'https://aitrafree.com/en/tracks/103 ou 103' : 'https://.../audio.mp3'}
+                            aria-label="URL audio directe IA"
+                        />
+                    </label>
+                    <button type="button" onClick={importUrl} disabled={status === 'loading' || !audioUrl}>
+                        {status === 'loading' ? <Loader2 size={13} className="soundtrack-spin" /> : <UploadCloud size={13} />}
+                        {provider.id === 'aitra-free' ? 'Importer Aitra' : 'Importer URL'}
+                    </button>
                     <label>
                         <span>Page provider optionnelle</span>
                         <input

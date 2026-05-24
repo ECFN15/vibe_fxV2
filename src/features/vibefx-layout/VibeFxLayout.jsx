@@ -669,8 +669,14 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
     if (!zoneId) return;
     setActiveTemplate((previousTemplate) => {
       if (previousTemplate.id !== 'custom') return previousTemplate;
+      const homePatch = {
+        ...('x' in patch ? { homeX: patch.x } : {}),
+        ...('y' in patch ? { homeY: patch.y } : {}),
+        ...('w' in patch ? { homeW: patch.w } : {}),
+        ...('h' in patch ? { homeH: patch.h } : {}),
+      };
       const zones = (previousTemplate.customLayout?.zones || []).map((zone) => (
-        zone.id === zoneId ? { ...zone, ...patch } : zone
+        zone.id === zoneId ? { ...zone, ...patch, ...homePatch, hidden: false } : zone
       ));
       return updateCustomTemplateZones(
         previousTemplate,
@@ -696,7 +702,14 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
 
   const handleAddCustomZone = useCallback((shape, position = null) => {
     const zoneIndex = activeTemplate.customLayout?.zones?.length || 0;
-    const nextZone = createCustomZone(shape, zoneIndex, position);
+    const createdZone = createCustomZone(shape, zoneIndex, position);
+    const nextZone = {
+      ...createdZone,
+      homeX: createdZone.x,
+      homeY: createdZone.y,
+      homeW: createdZone.w,
+      homeH: createdZone.h,
+    };
     setActiveTemplate((previousTemplate) => {
       if (previousTemplate.id !== 'custom') return previousTemplate;
       const zones = [

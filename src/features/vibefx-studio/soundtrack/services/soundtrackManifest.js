@@ -51,6 +51,7 @@ export function normalizeSoundtrackTrack(track = {}) {
 
     return {
         id,
+        providerTrackId: track.providerTrackId || '',
         title: track.title || track.name || 'Untitled audio',
         artist: track.artist || '',
         provider: track.provider || 'user',

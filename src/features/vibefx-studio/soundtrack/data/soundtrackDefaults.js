@@ -207,16 +207,19 @@ export const AI_VIBECUT_PRESET_TAGS = [
 export const AITRA_FREE_QUICK_TAGS = [
     { id: 'rock', label: 'rock', query: 'rock' },
     { id: 'pop', label: 'pop', query: 'pop' },
-    { id: 'electronic', label: 'electronic', query: 'electronic' },
-    { id: 'lofi', label: 'lofi', query: 'lofi' },
-    { id: 'cinematic', label: 'cinematic', query: 'cinematic' },
+    { id: 'metal-hardcore', label: 'metal / hardcore', query: 'metal hardcore' },
+    { id: 'punk', label: 'punk', query: 'punk' },
+    { id: 'healing-world', label: 'healing / world', query: 'healing world music' },
+    { id: 'dance', label: 'dance', query: 'dance' },
+    { id: 'cinematic', label: 'epic / cinematic', query: 'epic' },
     { id: 'japanese-vocal', label: 'japanese vocal', query: 'japanese vocal' },
     { id: 'english-vocal', label: 'english vocal', query: 'english vocal' },
     { id: 'up-tempo', label: 'up tempo', query: 'up tempo' },
     { id: 'mid-tempo', label: 'mid tempo', query: 'mid tempo' },
+    { id: 'slow-tempo', label: 'slow tempo', query: 'slow tempo' },
     { id: 'energetic', label: 'energetic', query: 'energetic' },
-    { id: 'emotional', label: 'emotional', query: 'emotional' },
-    { id: 'instrumental', label: 'instrumental', query: 'instrumental' },
+    { id: 'stylish', label: 'stylish', query: 'stylish' },
+    { id: 'rap', label: 'rap', query: 'rap' },
 ];
 
 export const SOUNDTRACK_CATEGORY_TAGS = OPENVERSE_QUICK_TAGS;

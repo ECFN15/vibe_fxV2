@@ -13,6 +13,15 @@ export const AI_AUDIO_PROVIDERS = [
     'beatoven',
 ];
 
+const decodeHeaderValue = (value) => {
+    if (!value) return '';
+    try {
+        return decodeURIComponent(value);
+    } catch {
+        return value;
+    }
+};
+
 export function downloadBlob(blob, fileName) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -63,6 +72,10 @@ export async function fetchAudioBlobForTrack(track, options = {}) {
         headers,
         body: JSON.stringify({
             audioUrl: sourceUrl,
+            provider: track.provider || options.provider || undefined,
+            category: track.themeId || track.category || options.category || undefined,
+            query: track.query || options.query || undefined,
+            excludeTrackIds: track.excludeTrackIds || options.excludeTrackIds || undefined,
             trackMetadata: options.trackMetadata || undefined,
         }),
     });
@@ -79,6 +92,15 @@ export async function fetchAudioBlobForTrack(track, options = {}) {
         contentType: response.headers.get('content-type') || blob.type || 'audio/mpeg',
         finalUrl: response.headers.get('x-vibefx-audio-source-url') || sourceUrl,
         fileName: dispositionName || `${track.title || 'vibefx-audio'}.mp3`,
+        trackMetadata: {
+            providerTrackId: decodeHeaderValue(response.headers.get('x-vibefx-track-id')),
+            title: decodeHeaderValue(response.headers.get('x-vibefx-track-title')),
+            category: decodeHeaderValue(response.headers.get('x-vibefx-track-category')),
+            tags: decodeHeaderValue(response.headers.get('x-vibefx-track-tags')).split(',').map((tag) => tag.trim()).filter(Boolean),
+            license: decodeHeaderValue(response.headers.get('x-vibefx-track-license')),
+            licenseUrl: decodeHeaderValue(response.headers.get('x-vibefx-track-license-url')),
+            contentIdWarning: decodeHeaderValue(response.headers.get('x-vibefx-track-content-warning')),
+        },
     };
 }
 
