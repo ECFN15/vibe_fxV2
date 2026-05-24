@@ -9,6 +9,7 @@ const EXACT_AUDIO_HOSTS = new Set([
     'whitebataudio.com',
     'www.whitebataudio.com',
     'freesound.org',
+    'aitrafree.com',
     'api.minimax.io',
     'filecdn.minimax.chat',
     'api.mureka.ai',

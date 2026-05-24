@@ -1,6 +1,7 @@
 import { manifestDownloadName } from './soundtrackManifest';
 
 export const AI_AUDIO_PROVIDERS = [
+    'aitra-free',
     'minimax-music',
     'mureka',
     'replicate-music',

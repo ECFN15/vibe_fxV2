@@ -758,6 +758,69 @@
     width: auto;
 }
 
+.soundtrack-ai-source-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    min-width: 0;
+}
+
+.soundtrack-ai-source-grid article {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+    border: 1px solid var(--st-line);
+    border-radius: var(--st-radius);
+    background: #050508;
+    padding: 9px;
+}
+
+.soundtrack-ai-source-grid article[data-active="true"] {
+    border-color: color-mix(in srgb, var(--st-success), #262626 30%);
+    background: color-mix(in srgb, var(--st-success), #050508 92%);
+}
+
+.soundtrack-ai-source-grid article > div,
+.soundtrack-ai-source-grid nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+}
+
+.soundtrack-ai-source-grid strong,
+.soundtrack-ai-source-grid span,
+.soundtrack-ai-source-grid a {
+    font: 800 10px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.soundtrack-ai-source-grid strong {
+    color: var(--st-text);
+}
+
+.soundtrack-ai-source-grid span {
+    color: var(--st-success);
+    white-space: nowrap;
+}
+
+.soundtrack-ai-source-grid p {
+    margin: 0;
+    color: var(--st-muted);
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.soundtrack-ai-source-grid a {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--st-signal);
+    text-decoration: none;
+}
+
 .soundtrack-ai-theme-picker {
     display: flex;
     gap: 6px;
@@ -2230,6 +2293,10 @@ select:focus-visible {
         grid-template-columns: minmax(0, 1fr) minmax(90px, 120px);
     }
 
+    .soundtrack-ai-source-grid {
+        grid-template-columns: 1fr;
+    }
+
     .soundtrack-ai-generate-panel__toggle,
     .soundtrack-ai-generate-panel > button {
         grid-column: 1 / -1;
@@ -2338,6 +2405,10 @@ select:focus-visible {
     }
 
     .soundtrack-ai-generate-panel {
+        grid-template-columns: 1fr;
+    }
+
+    .soundtrack-ai-source-grid {
         grid-template-columns: 1fr;
     }
 

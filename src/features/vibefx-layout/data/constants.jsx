@@ -76,6 +76,14 @@ export const DEFAULT_CUSTOM_TEMPLATE = {
     },
 };
 
+export const CUSTOM_SHAPE_LIBRARY = [
+    { id: 'wide', label: 'Large', description: 'Bloc image horizontal', w: 0.44, h: 0.2 },
+    { id: 'portrait', label: 'Portrait', description: 'Bloc image vertical', w: 0.26, h: 0.36 },
+    { id: 'square', label: 'Carre', description: 'Bloc image carre', w: 0.24, h: 0.24 },
+    { id: 'banner', label: 'Bandeau', description: 'Bande detail ou prix', w: 0.62, h: 0.14 },
+    { id: 'micro', label: 'Mini', description: 'Vignette compacte', w: 0.18, h: 0.16 },
+];
+
 export const FONT_OPTIONS = [
     { label: 'Inter (Moderne)', value: 'Inter' },
     { label: 'Montserrat (Géométrique)', value: 'Montserrat' },

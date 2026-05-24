@@ -25,6 +25,7 @@ import useCanvasEvents from './hooks/useCanvasEvents';
 import useCanvasRenderer from './hooks/useCanvasRenderer';
 import useImageUpload from './hooks/useImageUpload';
 import useLayoutHelpers from './hooks/useLayoutHelpers';
+import { createCustomZone, normalizeCustomZones, updateCustomTemplateZones } from './utils/customLayout';
 
 const DEFAULT_TEXT = {
   id: 1,
@@ -210,6 +211,7 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
   const [activeAssetId, setActiveAssetId] = useState(null);
   const [selectedSlotIndex, setSelectedSlotIndex] = useState(null);
   const [slotConfigs, setSlotConfigs] = useState({});
+  const [customEditMode, setCustomEditMode] = useState(false);
   const [padding, setPadding] = useState(40);
   const [gap, setGap] = useState(20);
   const [radius, setRadius] = useState(0);
@@ -287,6 +289,7 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
     setActiveAssetId(snapshot.activeAssetId);
     setSelectedSlotIndex(snapshot.selectedSlotIndex);
     setSlotConfigs(snapshot.slotConfigs);
+    setCustomEditMode(snapshot.customEditMode);
     setPadding(snapshot.padding);
     setGap(snapshot.gap);
     setRadius(snapshot.radius);
@@ -312,6 +315,7 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
       activeAssetId,
       selectedSlotIndex,
       slotConfigs: { ...slotConfigs },
+      customEditMode,
       padding,
       gap,
       radius,
@@ -330,6 +334,7 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
     activeAssetId,
     activeFormat,
     activeTemplate,
+    customEditMode,
     activeTextId,
     assets,
     exportName,
@@ -660,6 +665,60 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
     if (canvasRef.current?.requestFullscreen) canvasRef.current.requestFullscreen();
   };
 
+  const handleUpdateCustomZone = useCallback((zoneId, patch) => {
+    if (!zoneId) return;
+    setActiveTemplate((previousTemplate) => {
+      if (previousTemplate.id !== 'custom') return previousTemplate;
+      const zones = (previousTemplate.customLayout?.zones || []).map((zone) => (
+        zone.id === zoneId ? { ...zone, ...patch } : zone
+      ));
+      return updateCustomTemplateZones(
+        previousTemplate,
+        normalizeCustomZones(zones, zoneId)
+      );
+    });
+  }, []);
+
+  const handleDeleteCustomZone = useCallback((zoneId) => {
+    if (!zoneId) return;
+    setActiveTemplate((previousTemplate) => {
+      if (previousTemplate.id !== 'custom') return previousTemplate;
+      const zones = (previousTemplate.customLayout?.zones || []).filter((zone) => zone.id !== zoneId);
+      return updateCustomTemplateZones(previousTemplate, zones);
+    });
+    setSelectedSlotIndex((current) => (current === zoneId ? null : current));
+    setSlotConfigs((previousConfigs) => {
+      const nextConfigs = { ...previousConfigs };
+      delete nextConfigs[zoneId];
+      return nextConfigs;
+    });
+  }, []);
+
+  const handleAddCustomZone = useCallback((shape, position = null) => {
+    const zoneIndex = activeTemplate.customLayout?.zones?.length || 0;
+    const nextZone = createCustomZone(shape, zoneIndex, position);
+    setActiveTemplate((previousTemplate) => {
+      if (previousTemplate.id !== 'custom') return previousTemplate;
+      const zones = [
+        ...(previousTemplate.customLayout?.zones || []),
+        nextZone,
+      ];
+      return updateCustomTemplateZones(
+        {
+          ...previousTemplate,
+          customLayout: {
+            ...previousTemplate.customLayout,
+            presetId: 'manual',
+          },
+        },
+        normalizeCustomZones(zones, nextZone.id)
+      );
+    });
+    setCustomEditMode(true);
+    setSelectedSlotIndex(nextZone.id);
+    setActiveTextId(null);
+  }, [activeTemplate.customLayout?.zones?.length]);
+
   const renderFinalCanvas = useCallback(() => {
     const { width, height } = getCanvasDimensions();
     if (!width || !height) return null;
@@ -856,6 +915,8 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
           setSelectedImgIndex={setSelectedImgIndex}
           activeFormat={activeFormat}
           showGuidelines={showGuidelines}
+          customEditMode={customEditMode}
+          onAddCustomZone={handleAddCustomZone}
         />
 
         <aside className="vibefx-layout-sidebar lg:col-span-4 flex flex-col h-full border-l backdrop-blur-md overflow-hidden transition-colors duration-300 bg-black/80 border-neutral-800">
@@ -921,6 +982,10 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
             setLayoutSmoothBlur={setLayoutSmoothBlur}
             showGuidelines={showGuidelines}
             setShowGuidelines={setShowGuidelines}
+            customEditMode={customEditMode}
+            setCustomEditMode={setCustomEditMode}
+            onUpdateCustomZone={handleUpdateCustomZone}
+            onDeleteCustomZone={handleDeleteCustomZone}
           />
         </aside>
       </div>

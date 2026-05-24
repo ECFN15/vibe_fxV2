@@ -6,8 +6,24 @@ export const SOUNDTRACK_DB_NAME = 'vibefx-soundtrack-local';
 export const SOUNDTRACK_DB_VERSION = 1;
 export const PIXABAY_MUSIC_URL = 'https://pixabay.com/music/';
 export const PIXABAY_CONTENT_LICENSE_URL = 'https://pixabay.com/service/license-summary/';
+export const AITRA_FREE_URL = 'https://aitrafree.com/en';
+export const AITRA_FREE_TRACKS_URL = 'https://aitrafree.com/en/tracks';
+export const AITRA_FREE_TERMS_URL = 'https://aitrafree.com/en/terms';
 
 export const SOUNDTRACK_PROVIDERS = [
+    {
+        id: 'aitra-free',
+        label: 'Aitra Free',
+        mediaType: 'ai-music/free-catalog',
+        status: 'free-catalog',
+        enabled: true,
+        searchEnabled: false,
+        generationEnabled: false,
+        note: 'Banque dense de musiques IA gratuites: importer une page piste Aitra, une URL audio officielle ou un fichier MP3 telecharge.',
+        officialDocsUrl: AITRA_FREE_TRACKS_URL,
+        licenseUrl: AITRA_FREE_TERMS_URL,
+        licenseLabel: 'Aitra Free Terms of Service',
+    },
     {
         id: 'pixabay',
         label: 'Pixabay Music',
@@ -188,9 +204,25 @@ export const AI_VIBECUT_PRESET_TAGS = [
     { id: 'emotional-inspiring', label: 'emotional / inspiring', query: 'emotional inspiring soundtrack, hopeful progression, cinematic but restrained', promptPreset: true },
 ];
 
+export const AITRA_FREE_QUICK_TAGS = [
+    { id: 'rock', label: 'rock', query: 'rock' },
+    { id: 'pop', label: 'pop', query: 'pop' },
+    { id: 'electronic', label: 'electronic', query: 'electronic' },
+    { id: 'lofi', label: 'lofi', query: 'lofi' },
+    { id: 'cinematic', label: 'cinematic', query: 'cinematic' },
+    { id: 'japanese-vocal', label: 'japanese vocal', query: 'japanese vocal' },
+    { id: 'english-vocal', label: 'english vocal', query: 'english vocal' },
+    { id: 'up-tempo', label: 'up tempo', query: 'up tempo' },
+    { id: 'mid-tempo', label: 'mid tempo', query: 'mid tempo' },
+    { id: 'energetic', label: 'energetic', query: 'energetic' },
+    { id: 'emotional', label: 'emotional', query: 'emotional' },
+    { id: 'instrumental', label: 'instrumental', query: 'instrumental' },
+];
+
 export const SOUNDTRACK_CATEGORY_TAGS = OPENVERSE_QUICK_TAGS;
 
 export const SOUNDTRACK_PROVIDER_QUICK_TAGS = {
+    'aitra-free': AITRA_FREE_QUICK_TAGS,
     pixabay: PIXABAY_QUICK_TAGS,
     openverse: OPENVERSE_QUICK_TAGS,
     jamendo: JAMENDO_QUICK_TAGS,

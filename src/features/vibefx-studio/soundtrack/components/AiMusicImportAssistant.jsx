@@ -1,7 +1,31 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { CheckCircle2, ExternalLink, Loader2, Music2, UploadCloud } from 'lucide-react';
+import { CheckCircle2, ExternalLink, Loader2, UploadCloud } from 'lucide-react';
 import { AI_AUDIO_PROVIDERS } from '../services/soundtrackDownloads';
-import { SOUNDTRACK_PROVIDERS, getSoundtrackProviderQuickTags, getStarterSoundtrackTracks } from '../data/soundtrackDefaults';
+import {
+    AITRA_FREE_TERMS_URL,
+    AITRA_FREE_TRACKS_URL,
+    SOUNDTRACK_PROVIDERS,
+    getSoundtrackProviderQuickTags,
+} from '../data/soundtrackDefaults';
+
+const FREE_AI_SOURCE_LINKS = [
+    {
+        id: 'aitra-free',
+        label: 'Aitra Free',
+        href: AITRA_FREE_TRACKS_URL,
+        terms: AITRA_FREE_TERMS_URL,
+        badge: 'full gratuit',
+        note: 'Page piste, ID ou MP3 officiel acceptes.',
+    },
+    {
+        id: 'pixabay',
+        label: 'Pixabay Music',
+        href: 'https://pixabay.com/music/search/ai-generated/',
+        terms: 'https://pixabay.com/service/license-summary/',
+        badge: 'gratuit manuel',
+        note: 'Telechargement officiel conseille, pas de scraping massif.',
+    },
+];
 
 const cleanHttpsUrl = (value = '') => {
     const trimmed = String(value || '').trim();
@@ -21,6 +45,20 @@ const buildManualTrackId = (providerId = 'ai', audioUrl = '') => (
         .slice(0, 72) || 'manual-audio'}`
 );
 
+const extractAitraTrackId = (value = '') => {
+    const trimmed = String(value || '').trim();
+    if (/^\d{1,8}$/.test(trimmed)) return trimmed;
+    const match = trimmed.match(/^https:\/\/aitrafree\.com\/(?:en\/|ja\/)?tracks\/(\d+)/i);
+    return match?.[1] || '';
+};
+
+const normalizeImportUrlDraft = (providerId, value = '') => {
+    const cleaned = cleanHttpsUrl(value);
+    if (cleaned) return cleaned;
+    const aitraTrackId = providerId === 'aitra-free' ? extractAitraTrackId(value) : '';
+    return aitraTrackId ? `https://aitrafree.com/en/tracks/${aitraTrackId}` : '';
+};
+
 const buildMetadata = ({ file, provider, selectedTag, proofUrl, licenseUrl, commercialUse = true }) => ({
     title: file?.name?.replace(/\.[a-z0-9]+$/i, '') || '',
     provider: provider.id,
@@ -28,7 +66,7 @@ const buildMetadata = ({ file, provider, selectedTag, proofUrl, licenseUrl, comm
     sourceName: provider.label,
     sourceUrl: proofUrl || provider.officialDocsUrl || '',
     sourcePageUrl: proofUrl || provider.officialDocsUrl || '',
-    license: `${provider.label} generated audio license`,
+    license: provider.licenseLabel || `${provider.label} generated audio license`,
     licenseUrl: licenseUrl || provider.licenseUrl || provider.officialDocsUrl || '',
     attribution: '',
     rightsStatus: 'ai-generated',
@@ -39,79 +77,10 @@ const buildMetadata = ({ file, provider, selectedTag, proofUrl, licenseUrl, comm
     mood: selectedTag?.label || '',
     tags: ['ai-generated', provider.id, selectedTag?.id].filter(Boolean),
     licenseSnapshotVersion: `${provider.id}-manual-current`,
-    contentIdWarning: `Musique IA ${provider.label}: verifier les conditions du provider avant publication si necessaire.`,
+    contentIdWarning: provider.id === 'aitra-free'
+        ? 'Aitra Free interdit la revente du son brut, la fausse attribution, la distribution streaming comme morceau et Content ID.'
+        : `Musique IA ${provider.label}: verifier les conditions du provider avant publication si necessaire.`,
     importEvent: `Import IA termine: ${provider.label}.`,
-});
-
-const THEME_KEYWORDS = {
-    cinematic: ['cinematic', 'ghost-shell', 'blade-runner', 'system-failure'],
-    'trailer-epic': ['epic', 'exosuit', 'overdrive', 'system-failure'],
-    'action-trailer': ['epic', 'beats', 'overdrive', 'black-tar'],
-    'corporate-brand': ['electronic', 'future-city', 'chrome'],
-    'fashion-club': ['electronic', 'neon-city', 'cyberpunk'],
-    'short-commercial': ['electronic', 'virtual-reality', 'the-grid'],
-    electronic: ['electronic', 'chrome', 'cyberpunk', 'future-city'],
-    house: ['electronic', 'neon-city', 'akira'],
-    'hip-hop': ['beats', 'hackers', 'the-grid'],
-    jazz: ['chill', 'tokyo-rain', 'empty-streets'],
-    funk: ['beats', 'the-grid', 'black-tar'],
-    rock: ['rock', 'overdrive'],
-    lofi: ['chill', 'lofi', 'night-drive', 'tokyo-rain'],
-    'ambient-lounge': ['ambient', 'andromeda', 'replicant', 'dark-matter'],
-    'impact-whoosh': ['cinematic', 'system-failure', 'exosuit'],
-    'riser-transition': ['cinematic', 'system-failure', 'virtual-reality'],
-    'intro-opener': ['epic', 'exosuit', 'future-city'],
-    'podcast-talk-bed': ['chill', 'empty-streets', 'night-drive'],
-    'luxury-premium': ['chill', 'blade-runner', 'andromeda'],
-    'tech-futuristic': ['electronic', 'future-city', 'neuromancer', 'virtual-reality'],
-    'emotional-inspiring': ['ambient', 'andromeda', 'replicant'],
-};
-
-const normalizeToken = (value = '') => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
-
-const pickStarterTrackForTheme = (selectedTag = {}) => {
-    const candidates = getStarterSoundtrackTracks();
-    const keywords = [
-        ...(THEME_KEYWORDS[selectedTag.id] || []),
-        ...String(selectedTag.query || selectedTag.label || selectedTag.id || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean),
-    ];
-    const scored = candidates.map((track, index) => {
-        const haystack = normalizeToken(`${track.id} ${track.title} ${track.genre} ${track.tags}`);
-        const rawScore = keywords.reduce((total, keyword) => total + (haystack.includes(normalizeToken(keyword)) ? 1 : 0), 0);
-        const duration = Number(track.duration) || 0;
-        const durationPenalty = duration > 600 ? 3 : duration > 300 ? 1 : 0;
-        return { track, score: rawScore - durationPenalty, duration, index };
-    }).sort((a, b) => b.score - a.score || a.duration - b.duration || a.index - b.index);
-    return scored[0]?.track || candidates[0] || null;
-};
-
-const buildFallbackTrack = (starterTrack, selectedTag, provider) => ({
-    ...starterTrack,
-    id: `theme-${selectedTag?.id || 'music'}-${starterTrack.id}`,
-    sourceTrackId: starterTrack.id,
-    title: `${starterTrack.title} (${selectedTag?.label || 'theme'})`,
-    provider: starterTrack.provider || 'white-bat-audio',
-    sourceProvider: starterTrack.sourceProvider || starterTrack.provider || 'white-bat-audio',
-    sourceName: starterTrack.sourceName || 'White Bat Audio',
-    sourceUrl: starterTrack.sourceUrl || 'https://whitebataudio.com/',
-    sourcePageUrl: starterTrack.sourcePageUrl || starterTrack.sourceUrl || 'https://whitebataudio.com/',
-    downloadUrl: starterTrack.downloadUrl || starterTrack.url || starterTrack.previewUrl,
-    previewUrl: starterTrack.previewUrl || starterTrack.url || starterTrack.downloadUrl,
-    audioUrl: starterTrack.audioUrl || starterTrack.url || starterTrack.previewUrl,
-    category: selectedTag?.label || starterTrack.genre || 'Theme music',
-    mood: selectedTag?.label || starterTrack.mood || '',
-    tags: Array.from(new Set([
-        ...(Array.isArray(starterTrack.tags) ? starterTrack.tags : String(starterTrack.tags || '').split(/\s+/)),
-        'theme-import',
-        selectedTag?.id,
-        provider?.id ? `${provider.id}-fallback` : '',
-    ].filter(Boolean))),
-    rightsStatus: starterTrack.rightsStatus || 'credit-required',
-    commercialUse: starterTrack.commercialUse === true,
-    socialUse: starterTrack.socialUse !== false,
-    importStatus: 'importable',
-    contentIdWarning: starterTrack.contentIdWarning || 'Piste locale incluse: verifier attribution/licence avant publication sociale.',
-    importEvent: `Theme ${selectedTag?.label || 'music'} importe depuis la bibliotheque locale.`,
 });
 
 export default function AiMusicImportAssistant({
@@ -121,7 +90,7 @@ export default function AiMusicImportAssistant({
     onSelectTrack,
     onImportComplete,
     providerDefinitions,
-    defaultProviderId = 'minimax-music',
+    defaultProviderId = 'aitra-free',
     compact = false,
 }) {
     const inputRef = useRef(null);
@@ -143,8 +112,6 @@ export default function AiMusicImportAssistant({
     const [audioUrlDraft, setAudioUrlDraft] = useState('');
     const [proofUrlDraft, setProofUrlDraft] = useState('');
     const [licenseUrlDraft, setLicenseUrlDraft] = useState('');
-    const [durationSeconds, setDurationSeconds] = useState(20);
-    const [instrumental, setInstrumental] = useState(true);
     const [selectedTagId, setSelectedTagId] = useState(search?.category || '');
     const [status, setStatus] = useState('idle');
     const [message, setMessage] = useState('');
@@ -161,95 +128,10 @@ export default function AiMusicImportAssistant({
         || quickTags[0];
     const proofUrl = cleanHttpsUrl(proofUrlDraft) || provider?.officialDocsUrl || '';
     const licenseUrl = cleanHttpsUrl(licenseUrlDraft) || provider?.licenseUrl || provider?.officialDocsUrl || '';
-    const audioUrl = cleanHttpsUrl(audioUrlDraft);
+    const audioUrl = normalizeImportUrlDraft(provider?.id, audioUrlDraft);
     const targetLabel = projectLibrary.capability?.ready ? 'Projet Firebase' : 'Bibliotheque locale';
 
     if (!provider || !AI_AUDIO_PROVIDERS.includes(provider.id)) return null;
-
-    const importGeneratedTrack = async (track) => {
-        const rightsStatus = track.rightsStatus || 'ai-generated';
-        const generatedByAi = rightsStatus === 'ai-generated' || AI_AUDIO_PROVIDERS.includes(track.provider || provider.id);
-        const normalizedTrack = {
-            ...track,
-            provider: track.provider || provider.id,
-            sourceProvider: track.sourceProvider || provider.id,
-            sourceName: track.sourceName || provider.label,
-            sourceUrl: track.sourceUrl || provider.officialDocsUrl || '',
-            sourcePageUrl: track.sourcePageUrl || track.sourceUrl || provider.officialDocsUrl || '',
-            license: track.license || `${provider.label} generated audio`,
-            licenseUrl: track.licenseUrl || provider.licenseUrl || provider.officialDocsUrl || '',
-            rightsStatus,
-            socialUse: true,
-            commercialUse: true,
-            category: selectedTag?.label || selectedTag?.id || 'AI music',
-            tags: Array.from(new Set([
-                ...(Array.isArray(track.tags) ? track.tags : []),
-                generatedByAi ? 'ai-generated' : '',
-                provider.id,
-                selectedTag?.id,
-            ].filter(Boolean))),
-            importStatus: track.importStatus || 'importable',
-        };
-        return projectLibrary.capability?.ready
-            ? projectLibrary.importTrackToProject(normalizedTrack)
-            : localLibrary.downloadTrackLocally(normalizedTrack);
-    };
-
-    const importThemeFallback = async (reason = '') => {
-        const starterTrack = pickStarterTrackForTheme(selectedTag);
-        if (!starterTrack) throw new Error(reason || 'Aucune piste locale disponible pour ce theme.');
-        const fallbackTrack = buildFallbackTrack(starterTrack, selectedTag, provider);
-        const imported = await importGeneratedTrack(fallbackTrack);
-        if (!imported) throw new Error(reason || 'Import theme impossible.');
-        onSelectTrack?.(imported);
-        onImportComplete?.(imported);
-        setStatus('ready');
-        setMessage(`${selectedTag.label} importe depuis les musiques incluses. ${reason ? 'Provider IA non configure.' : ''}`.trim());
-    };
-
-    const generateAndImport = async () => {
-        if (!selectedTag) {
-            setStatus('error');
-            setMessage('Choisis un theme musical.');
-            return;
-        }
-        setStatus('loading');
-        setMessage(`Generation ${selectedTag.label} en cours...`);
-        try {
-            const response = await fetch('/api/music/ai-generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    provider: provider.id,
-                    prompt: selectedTag.query,
-                    category: selectedTag.id,
-                    durationSeconds: Number(durationSeconds) || 20,
-                    instrumental,
-                }),
-            });
-            const payload = await response.json().catch(() => ({}));
-            if (!response.ok) {
-                throw new Error(payload.error || `${provider.label} n'est pas connecte pour generer.`);
-            }
-            const generatedTrack = (payload.tracks || []).find((track) => (
-                track.importStatus === 'importable' || track.downloadUrl || track.previewUrl || track.audioUrl
-            ));
-            if (!generatedTrack) throw new Error('Aucune musique importable retournee par le provider.');
-            const imported = await importGeneratedTrack(generatedTrack);
-            if (!imported) throw new Error('Generation recue, mais import bibliotheque impossible.');
-            onSelectTrack?.(imported);
-            onImportComplete?.(imported);
-            setStatus('ready');
-            setMessage(`${selectedTag.label} ajoutee a la bibliotheque.`);
-        } catch (error) {
-            try {
-                await importThemeFallback(error.message || 'Provider IA indisponible.');
-            } catch (fallbackError) {
-                setStatus('error');
-                setMessage(fallbackError.message || error.message || 'Generation/import impossible.');
-            }
-        }
-    };
 
     const importFiles = async (event) => {
         const files = Array.from(event.target.files || []).filter((file) => file.type.startsWith('audio/'));
@@ -301,6 +183,7 @@ export default function AiMusicImportAssistant({
         setStatus('loading');
         setMessage('');
         try {
+            const aitraTrackId = provider.id === 'aitra-free' ? extractAitraTrackId(audioUrlDraft || audioUrl) : '';
             const draftTrack = {
                 ...buildMetadata({
                     provider,
@@ -310,7 +193,7 @@ export default function AiMusicImportAssistant({
                     commercialUse: true,
                 }),
                 id: buildManualTrackId(provider.id, audioUrl),
-                title: `${provider.label} import`,
+                title: aitraTrackId ? `Aitra Free track ${aitraTrackId}` : `${provider.label} import`,
                 downloadUrl: audioUrl,
                 previewUrl: audioUrl,
                 audioUrl,
@@ -339,10 +222,30 @@ export default function AiMusicImportAssistant({
         >
             <div className="soundtrack-pixabay-assistant__head">
                 <div>
-                    <p>Generation par theme</p>
+                    <p>Import banque IA gratuite</p>
                     <strong>{provider.label}</strong>
                 </div>
                 <span>{targetLabel}</span>
+            </div>
+            <div className="soundtrack-ai-source-grid" aria-label="Sources IA gratuites">
+                {FREE_AI_SOURCE_LINKS.map((source) => (
+                    <article key={source.id} data-active={provider.id === source.id ? 'true' : 'false'}>
+                        <div>
+                            <strong>{source.label}</strong>
+                            <span>{source.badge}</span>
+                        </div>
+                        <p>{source.note}</p>
+                        <nav aria-label={`Liens ${source.label}`}>
+                            <a href={source.href} target="_blank" rel="noreferrer">
+                                Ouvrir
+                                <ExternalLink size={11} />
+                            </a>
+                            <a href={source.terms} target="_blank" rel="noreferrer">
+                                Termes
+                            </a>
+                        </nav>
+                    </article>
+                ))}
             </div>
             <div className="soundtrack-ai-theme-picker" aria-label="Themes musique IA">
                 {quickTags.slice(0, 12).map((tag) => (
@@ -372,31 +275,25 @@ export default function AiMusicImportAssistant({
                     </label>
                 )}
                 <label>
-                    <span>Duree</span>
+                    <span>{provider.id === 'aitra-free' ? 'Page Aitra / ID / URL audio' : 'URL audio directe'}</span>
                     <input
-                        type="number"
-                        min={3}
-                        max={provider.maxDurationSeconds || 300}
-                        value={durationSeconds}
-                        onChange={(event) => setDurationSeconds(event.target.value)}
-                        aria-label="Duree musique IA"
+                        value={audioUrlDraft}
+                        onChange={(event) => setAudioUrlDraft(event.target.value)}
+                        placeholder={provider.id === 'aitra-free' ? 'https://aitrafree.com/en/tracks/103 ou 103' : 'https://.../audio.mp3'}
+                        aria-label="URL audio directe IA"
                     />
                 </label>
-                <label className="soundtrack-ai-generate-panel__toggle">
-                    <input
-                        type="checkbox"
-                        checked={instrumental}
-                        onChange={(event) => setInstrumental(event.target.checked)}
-                    />
-                    <span>Instrumental</span>
-                </label>
-                <button type="button" onClick={generateAndImport} disabled={status === 'loading'}>
-                    {status === 'loading' ? <Loader2 size={13} className="soundtrack-spin" /> : <Music2 size={13} />}
-                    Generer et importer
+                <button type="button" onClick={importUrl} disabled={status === 'loading' || !audioUrl}>
+                    {status === 'loading' ? <Loader2 size={13} className="soundtrack-spin" /> : <UploadCloud size={13} />}
+                    {provider.id === 'aitra-free' ? 'Importer Aitra' : 'Importer URL'}
+                </button>
+                <button type="button" onClick={() => inputRef.current?.click()} disabled={status === 'loading'}>
+                    {status === 'loading' ? <Loader2 size={13} className="soundtrack-spin" /> : <UploadCloud size={13} />}
+                    Importer fichier
                 </button>
             </div>
-            <details className="soundtrack-ai-manual-import">
-                <summary>Option avancee: fichier ou URL deja recuperee</summary>
+            <details className="soundtrack-ai-manual-import" open>
+                <summary>Infos source et licence</summary>
                 <div className="soundtrack-pixabay-assistant__flow soundtrack-ai-import-assistant__flow">
                     <a href={provider.officialDocsUrl || '#'} target="_blank" rel="noreferrer">
                         <ExternalLink size={13} />
@@ -412,15 +309,6 @@ export default function AiMusicImportAssistant({
                         />
                     </label>
                     <label>
-                        <span>URL audio directe</span>
-                        <input
-                            value={audioUrlDraft}
-                            onChange={(event) => setAudioUrlDraft(event.target.value)}
-                            placeholder="https://.../audio.mp3"
-                            aria-label="URL audio directe IA"
-                        />
-                    </label>
-                    <label>
                         <span>Info provider optionnelle</span>
                         <input
                             value={licenseUrlDraft}
@@ -429,14 +317,6 @@ export default function AiMusicImportAssistant({
                             aria-label="URL information fournisseur IA"
                         />
                     </label>
-                    <button type="button" onClick={importUrl} disabled={status === 'loading' || !audioUrl}>
-                        {status === 'loading' ? <Loader2 size={13} className="soundtrack-spin" /> : <UploadCloud size={13} />}
-                        Importer URL
-                    </button>
-                    <button type="button" onClick={() => inputRef.current?.click()} disabled={status === 'loading'}>
-                        {status === 'loading' ? <Loader2 size={13} className="soundtrack-spin" /> : <UploadCloud size={13} />}
-                        Importer fichier
-                    </button>
                 </div>
             </details>
             <input
@@ -449,7 +329,7 @@ export default function AiMusicImportAssistant({
                 onChange={importFiles}
             />
             <div className="soundtrack-pixabay-assistant__meta">
-                <span>Provider IA</span>
+                <span>{provider.id === 'aitra-free' ? 'Aitra Free' : 'Provider IA'}</span>
                 <span>Import auto bibliotheque</span>
                 <span>{selectedTag?.label || 'prompt libre'}</span>
                 {status === 'ready' && <span data-state="ready"><CheckCircle2 size={12} /> importe</span>}

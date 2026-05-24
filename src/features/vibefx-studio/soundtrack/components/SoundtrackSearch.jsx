@@ -165,10 +165,10 @@ export default function SoundtrackSearch({ search, onOpenAiImport }) {
                             type="button"
                             className="soundtrack-ai-controls__import"
                             onClick={() => onOpenAiImport?.(activeProviderDefinition.id)}
-                            title={`Generer et importer une musique ${activeProviderDefinition.label} par theme`}
+                            title={`Importer une musique ${activeProviderDefinition.label} deja generee`}
                         >
                             <UploadCloud size={13} />
-                            Assistant theme
+                            Import IA
                         </button>
                     </div>
                 )}

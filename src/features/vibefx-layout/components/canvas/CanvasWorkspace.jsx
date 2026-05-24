@@ -1,5 +1,6 @@
 import React from 'react';
-import { Upload, Loader2, Maximize, Columns, Smartphone, Move, X } from 'lucide-react';
+import { Upload, Loader2, Maximize, Columns, Smartphone, Move, X, Plus, RectangleHorizontal, Square } from 'lucide-react';
+import { CUSTOM_SHAPE_LIBRARY } from '../../data/constants';
 
 /**
  * CanvasWorkspace — Zone canvas principale avec overlays, hints et thumbnails.
@@ -37,9 +38,43 @@ export default function CanvasWorkspace({
     setSelectedImgIndex,
     activeFormat,
     showGuidelines,
+    customEditMode,
+    onAddCustomZone,
 }) {
     // Show canvas if there are images OR if we are in Fusion mode (to see background image/gradient)
     const showCanvas = images.length > 0 || view === 'fusion' || (view === 'layout' && activeTemplate?.id === 'custom');
+    const showCustomShapePalette = view === 'layout' && activeTemplate?.id === 'custom' && customEditMode;
+
+    const getShapeDropPosition = (event, shape) => {
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (!rect) return null;
+        const x = Math.min(1 - shape.w, Math.max(0, ((event.clientX - rect.left) / rect.width) - (shape.w / 2)));
+        const y = Math.min(1 - shape.h, Math.max(0, ((event.clientY - rect.top) / rect.height) - (shape.h / 2)));
+        return { x, y };
+    };
+
+    const handleShapeDragStart = (event, shape) => {
+        event.dataTransfer.setData('application/vibefx-shape', shape.id);
+        event.dataTransfer.effectAllowed = 'copy';
+    };
+
+    const handleShapeDragOver = (event) => {
+        if (!showCustomShapePalette) return;
+        const shapeId = Array.from(event.dataTransfer.types).includes('application/vibefx-shape');
+        if (!shapeId) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+    };
+
+    const handleShapeDrop = (event) => {
+        if (!showCustomShapePalette) return;
+        const shapeId = event.dataTransfer.getData('application/vibefx-shape');
+        const shape = CUSTOM_SHAPE_LIBRARY.find((item) => item.id === shapeId);
+        if (!shape) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onAddCustomZone?.(shape, getShapeDropPosition(event, shape));
+    };
 
     // Dynamic canvas style for consistent aspect ratios
     const getCanvasStyle = () => {
@@ -105,7 +140,45 @@ export default function CanvasWorkspace({
                         </div>
                     </div>
                 ) : (
-                    <div className="vibefx-canvas-stage relative w-full h-full flex flex-col items-center justify-center p-8 overflow-y-auto no-scrollbar">
+                    <div
+                        className="vibefx-canvas-stage relative w-full h-full flex flex-col items-center justify-center p-8 overflow-y-auto no-scrollbar"
+                        onDragOver={handleShapeDragOver}
+                        onDrop={handleShapeDrop}
+                    >
+                        {showCustomShapePalette ? (
+                            <div
+                                className="absolute right-5 top-1/2 z-30 w-36 -translate-y-1/2 border border-indigo-400/40 bg-black/85 p-2 shadow-[0_0_28px_rgba(79,70,229,0.24)] backdrop-blur-xl"
+                                onMouseDown={(event) => event.stopPropagation()}
+                                onTouchStart={(event) => event.stopPropagation()}
+                            >
+                                <div className="mb-2 flex items-center gap-2 px-1 font-mono text-[9px] font-bold uppercase tracking-widest text-indigo-200">
+                                    <Plus size={12} />
+                                    Formes
+                                </div>
+                                <div className="grid gap-1.5">
+                                    {CUSTOM_SHAPE_LIBRARY.map((shape) => (
+                                        <button
+                                            key={shape.id}
+                                            type="button"
+                                            draggable
+                                            data-testid={`custom-shape-${shape.id}`}
+                                            onDragStart={(event) => handleShapeDragStart(event, shape)}
+                                            onClick={() => onAddCustomZone?.(shape, null)}
+                                            className="group flex items-center gap-2 border border-neutral-800 bg-neutral-950/80 px-2 py-2 text-left transition hover:border-indigo-400/70 hover:bg-indigo-500/15"
+                                            title={shape.description}
+                                        >
+                                            <span className="flex h-7 w-8 items-center justify-center text-indigo-300">
+                                                {shape.id === 'square' ? <Square size={16} /> : <RectangleHorizontal size={18} />}
+                                            </span>
+                                            <span className="min-w-0">
+                                                <span className="block truncate font-mono text-[9px] font-bold uppercase tracking-widest text-neutral-200">{shape.label}</span>
+                                                <span className="block truncate text-[9px] text-neutral-500">{Math.round(shape.w * 100)} x {Math.round(shape.h * 100)}%</span>
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : null}
                         <div className={`vibefx-canvas-frame vibefx-format-${activeFormat?.id || 'default'}`} style={{ position: 'relative', marginTop: "auto", marginBottom: "auto", ...getCanvasStyle() }}>
                             <canvas ref={canvasRef} style={{ width: '100%', height: '100%' }} className={`block object-contain shadow-2xl rounded-sm ring-1 z-10 relative ${isDarkMode ? 'ring-white/10' : 'ring-black/5'}`} />
 

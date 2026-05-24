@@ -26,7 +26,7 @@ import {
     saveIndexedSoundtrackAudio,
     saveIndexedSoundtrackLibrary,
 } from '../services/soundtrackIndexedDb';
-import { downloadBlob, downloadJson, fetchAudioBlobForTrack } from '../services/soundtrackDownloads';
+import { downloadJson, fetchAudioBlobForTrack } from '../services/soundtrackDownloads';
 
 const MAX_AUDIO_BYTES = 150 * 1024 * 1024;
 const MAX_AUDIO_SECONDS = 30 * 60;
@@ -324,8 +324,7 @@ export function useLocalSoundtrackLibrary() {
             if (directoryHandleRef.current) {
                 fileName = await writeAudioFileToDirectory(directoryHandleRef.current, track, fetched.blob, fetched.contentType);
             } else {
-                const extensionName = fetched.fileName || `${sanitizeFileName(track.title)}.mp3`;
-                downloadBlob(fetched.blob, extensionName);
+                fileName = fetched.fileName || `${sanitizeFileName(track.title)}.mp3`;
             }
             const objectUrl = URL.createObjectURL(fetched.blob);
             objectUrlsRef.current.add(objectUrl);

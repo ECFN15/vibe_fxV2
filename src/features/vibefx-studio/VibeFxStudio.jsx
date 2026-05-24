@@ -33,6 +33,7 @@ import useCanvasEvents from './hooks/useCanvasEvents';
 import useCanvasRenderer from './hooks/useCanvasRenderer';
 import { DEFAULT_FILTERS } from './hooks/useStudioFilters';
 import { compareVisionMetrics, measureVisionImageData } from './utils/visionMetrics';
+import { createCustomZone, normalizeCustomZones, updateCustomTemplateZones } from './utils/customLayout';
 
 const VISION_DIAGNOSTIC_SAMPLE_MAX_SIDE = 420;
 const VISION_DIAGNOSTIC_WARN_MS = 650;
@@ -186,6 +187,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
     const [layoutBgGradient, setLayoutBgGradient] = useState(false); // New Smart Background
     const [selectedSlotIndex, setSelectedSlotIndex] = useState(null);
     const [slotConfigs, setSlotConfigs] = useState({});
+    const [customEditMode, setCustomEditMode] = useState(false);
 
     // Smooth Blur
     const [layoutSmoothBlur, setLayoutSmoothBlur] = useState({
@@ -346,6 +348,60 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
 
 
     const handleFullscreen = () => { if (canvasRef.current?.requestFullscreen) canvasRef.current.requestFullscreen(); };
+
+    const handleUpdateCustomZone = useCallback((zoneId, patch) => {
+        if (!zoneId) return;
+        setActiveTemplate((previousTemplate) => {
+            if (previousTemplate.id !== 'custom') return previousTemplate;
+            const zones = (previousTemplate.customLayout?.zones || []).map((zone) => (
+                zone.id === zoneId ? { ...zone, ...patch } : zone
+            ));
+            return updateCustomTemplateZones(
+                previousTemplate,
+                normalizeCustomZones(zones, zoneId)
+            );
+        });
+    }, []);
+
+    const handleDeleteCustomZone = useCallback((zoneId) => {
+        if (!zoneId) return;
+        setActiveTemplate((previousTemplate) => {
+            if (previousTemplate.id !== 'custom') return previousTemplate;
+            const zones = (previousTemplate.customLayout?.zones || []).filter((zone) => zone.id !== zoneId);
+            return updateCustomTemplateZones(previousTemplate, zones);
+        });
+        setSelectedSlotIndex((current) => (current === zoneId ? null : current));
+        setSlotConfigs((previousConfigs) => {
+            const nextConfigs = { ...previousConfigs };
+            delete nextConfigs[zoneId];
+            return nextConfigs;
+        });
+    }, []);
+
+    const handleAddCustomZone = useCallback((shape, position = null) => {
+        const zoneIndex = activeTemplate.customLayout?.zones?.length || 0;
+        const nextZone = createCustomZone(shape, zoneIndex, position);
+        setActiveTemplate((previousTemplate) => {
+            if (previousTemplate.id !== 'custom') return previousTemplate;
+            const zones = [
+                ...(previousTemplate.customLayout?.zones || []),
+                nextZone,
+            ];
+            return updateCustomTemplateZones(
+                {
+                    ...previousTemplate,
+                    customLayout: {
+                        ...previousTemplate.customLayout,
+                        presetId: 'manual',
+                    },
+                },
+                normalizeCustomZones(zones, nextZone.id)
+            );
+        });
+        setCustomEditMode(true);
+        setSelectedSlotIndex(nextZone.id);
+        setActiveTextId(null);
+    }, [activeTemplate.customLayout?.zones?.length]);
 
     const renderFinalCanvas = useCallback(() => {
         const { width, height } = getCanvasDimensions();
@@ -826,6 +882,8 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                             activeFormat={activeFormat}
                             showGuidelines={showGuidelines}
                             visionCompareSplit={visionCompareSplit}
+                            customEditMode={customEditMode}
+                            onAddCustomZone={handleAddCustomZone}
                         />
 
                         {/* SIDEBAR */}
@@ -915,6 +973,10 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                                     setLayoutSmoothBlur={setLayoutSmoothBlur}
                                     showGuidelines={showGuidelines}
                                     setShowGuidelines={setShowGuidelines}
+                                    customEditMode={customEditMode}
+                                    setCustomEditMode={setCustomEditMode}
+                                    onUpdateCustomZone={handleUpdateCustomZone}
+                                    onDeleteCustomZone={handleDeleteCustomZone}
                                 />
                             )}
 

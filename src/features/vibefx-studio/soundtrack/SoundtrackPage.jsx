@@ -56,7 +56,7 @@ export default function SoundtrackPage({ onUseInVideo }) {
     ), [hiddenStarterTrackIdSet, starterTracks]);
     const [activeMobileTab, setActiveMobileTab] = useState('scan');
     const [libraryOpen, setLibraryOpen] = useState(false);
-    const [aiImportProviderId, setAiImportProviderId] = useState('minimax-music');
+    const [aiImportProviderId, setAiImportProviderId] = useState('aitra-free');
     const [aiImportOpen, setAiImportOpen] = useState(false);
     const [showFavorites, setShowFavorites] = useState(false);
     const [selectedTrackId, setSelectedTrackId] = useState('');
@@ -75,8 +75,8 @@ export default function SoundtrackPage({ onUseInVideo }) {
         player.play(track, explicitUrl || track.localObjectUrl || track.previewUrl || track.downloadUrl, options);
     };
 
-    const openAiImport = (providerId = 'minimax-music') => {
-        setAiImportProviderId(AI_AUDIO_PROVIDERS.includes(providerId) ? providerId : 'minimax-music');
+    const openAiImport = (providerId = 'aitra-free') => {
+        setAiImportProviderId(AI_AUDIO_PROVIDERS.includes(providerId) ? providerId : 'aitra-free');
         setAiImportOpen(true);
     };
 
@@ -152,9 +152,9 @@ export default function SoundtrackPage({ onUseInVideo }) {
                     ))}
                 </nav>
                 <div className="soundtrack-command-strip__actions">
-                    <button type="button" onClick={() => openAiImport(search.provider)} title="Generer ou importer une musique par theme">
+                    <button type="button" onClick={() => openAiImport(search.provider)} title="Importer une musique IA gratuite deja publiee">
                         <Sparkles size={13} />
-                        Musique IA par theme
+                        Import IA gratuit
                     </button>
                 </div>
                 <div className="soundtrack-command-strip__status">
@@ -258,25 +258,25 @@ export default function SoundtrackPage({ onUseInVideo }) {
                         className="soundtrack-ai-import-modal"
                         role="dialog"
                         aria-modal="true"
-                        aria-label="Generer une musique IA par theme"
+                        aria-label="Importer une musique IA gratuite"
                         onClick={(event) => event.stopPropagation()}
                     >
                         <header className="soundtrack-ai-import-modal__header">
                             <div>
-                                <p>Musique IA simple</p>
-                                <h2>Choisis un theme, Vibe_fx importe la piste</h2>
+                                <p>Banque IA gratuite</p>
+                                <h2>Aitra Free + import fichier ou URL</h2>
                             </div>
                             <button type="button" onClick={() => setAiImportOpen(false)} aria-label="Fermer import IA">
                                 <X size={16} />
                             </button>
                         </header>
                         <div className="soundtrack-ai-import-modal__guide" aria-label="Etapes import IA">
-                            <span><strong>1</strong> Choisis un provider IA</span>
-                            <span><strong>2</strong> Clique un theme ou filtre</span>
-                            <span><strong>3</strong> Genere et importe</span>
+                            <span><strong>1</strong> Choisis la plateforme IA</span>
+                            <span><strong>2</strong> Ajoute le fichier ou l'URL audio</span>
+                            <span><strong>3</strong> Importe en bibliotheque</span>
                         </div>
                         <p className="soundtrack-ai-import-modal__note">
-                            Ce flux ne scanne pas Pixabay. Il appelle un provider IA connecte avec le theme choisi, recupere l'audio, puis l'ajoute directement a ta bibliotheque.
+                            Ce flux sert a recuperer une musique deja publiee sur une banque IA gratuite. Pour Aitra Free, colle une page piste ou un ID; pour Pixabay, garde l'import manuel depuis le telechargement officiel.
                         </p>
                         <AiMusicImportAssistant
                             key={aiImportProviderId}

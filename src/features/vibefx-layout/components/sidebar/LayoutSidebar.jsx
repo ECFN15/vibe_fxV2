@@ -1,7 +1,7 @@
 import React from 'react';
 import {
     Smartphone, LayoutTemplate, Square, RectangleHorizontal, Sparkles,
-    ChevronDown, MousePointer2, Scaling, Palette, Type
+    ChevronDown, MousePointer2, Scaling, Palette, Type, Trash2
 } from 'lucide-react';
 import { CUSTOM_LAYOUT_PRESETS, DEFAULT_CUSTOM_TEMPLATE, FORMATS, TEMPLATES } from '../../data/constants';
 import ControlGroup from '../ui/ControlGroup';
@@ -45,10 +45,15 @@ export default function LayoutSidebar({
     layoutBgTexture, setLayoutBgTexture,
     layoutSmoothBlur, setLayoutSmoothBlur,
     showGuidelines, setShowGuidelines,
+    customEditMode, setCustomEditMode,
+    onUpdateCustomZone, onDeleteCustomZone,
 }) {
     const isCustomTemplate = activeTemplate.id === 'custom';
     const customPresetId = activeTemplate.customLayout?.presetId;
     const customZonesCount = activeTemplate.customLayout?.zones?.length || 0;
+    const selectedCustomZone = isCustomTemplate && selectedSlotIndex !== null
+        ? activeTemplate.customLayout?.zones?.find(zone => zone.id === selectedSlotIndex)
+        : null;
 
     const applyCustomPreset = (preset) => {
         if (!isCustomTemplate) {
@@ -108,6 +113,25 @@ export default function LayoutSidebar({
                                 )}
                             </div>
                         ) : null}
+                        {selectedCustomZone ? (
+                            <div className="mb-4 rounded-xl border border-cyan-300/20 bg-cyan-950/10 p-3">
+                                <div className="mb-3 flex items-center justify-between gap-3">
+                                    <p className="font-mono text-[10px] uppercase tracking-widest text-cyan-100">Geometrie du bloc</p>
+                                    <button
+                                        type="button"
+                                        onClick={() => onDeleteCustomZone?.(selectedSlotIndex)}
+                                        className="inline-flex items-center gap-1 border border-red-400/40 bg-red-950/30 px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-red-200 transition hover:bg-red-600 hover:text-white"
+                                    >
+                                        <Trash2 size={11} />
+                                        Supprimer
+                                    </button>
+                                </div>
+                                <ControlGroup label="Largeur bloc" value={Math.round(selectedCustomZone.w * 100)} onChange={(v) => onUpdateCustomZone?.(selectedSlotIndex, { w: v / 100 })} min={8} max={100} unit="%" isDarkMode={isDarkMode} />
+                                <ControlGroup label="Hauteur bloc" value={Math.round(selectedCustomZone.h * 100)} onChange={(v) => onUpdateCustomZone?.(selectedSlotIndex, { h: v / 100 })} min={8} max={100} unit="%" isDarkMode={isDarkMode} />
+                                <ControlGroup label="Bloc X" value={Math.round(selectedCustomZone.x * 100)} onChange={(v) => onUpdateCustomZone?.(selectedSlotIndex, { x: v / 100 })} min={0} max={100} unit="%" isDarkMode={isDarkMode} />
+                                <ControlGroup label="Bloc Y" value={Math.round(selectedCustomZone.y * 100)} onChange={(v) => onUpdateCustomZone?.(selectedSlotIndex, { y: v / 100 })} min={0} max={100} unit="%" isDarkMode={isDarkMode} />
+                            </div>
+                        ) : null}
                         <ControlGroup label="Zoom" value={activeConfig.zoom} onChange={(v) => updateSlotConfig('zoom', v)} min={1} max={4} step={0.1} unit="x" isDarkMode={isDarkMode} />
                         <ControlGroup label="Position X" value={activeConfig.x} onChange={(v) => updateSlotConfig('x', v)} min={-100} max={100} unit="%" isDarkMode={isDarkMode} />
                         <ControlGroup label="Position Y" value={activeConfig.y} onChange={(v) => updateSlotConfig('y', v)} min={-100} max={100} unit="%" isDarkMode={isDarkMode} />
@@ -145,7 +169,7 @@ export default function LayoutSidebar({
                 <h3 className={`text-xs font-bold uppercase tracking-widest mb-4 flex items-center gap-2 ${isDarkMode ? 'text-neutral-500' : 'text-gray-400'}`}><LayoutTemplate size={14} /> Modèles</h3>
                 <div className="grid grid-cols-2 gap-3">
                     {TEMPLATES.map(tpl => (
-                        <button key={tpl.id} onClick={() => { setActiveTemplate(tpl); setSelectedSlotIndex(null); setActiveTextId(null); }} className={`flex items-center gap-3 p-3 border text-left transition-all ${activeTemplate.id === tpl.id ? (isDarkMode ? 'bg-neutral-900 text-white border-white' : 'bg-black text-white border-black') : (isDarkMode ? 'border-neutral-800 bg-transparent text-neutral-500 hover:border-neutral-600' : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-white')}`}>
+                        <button key={tpl.id} onClick={() => { setActiveTemplate(tpl); setSelectedSlotIndex(null); setActiveTextId(null); setCustomEditMode?.(false); }} className={`flex items-center gap-3 p-3 border text-left transition-all ${activeTemplate.id === tpl.id ? (isDarkMode ? 'bg-neutral-900 text-white border-white' : 'bg-black text-white border-black') : (isDarkMode ? 'border-neutral-800 bg-transparent text-neutral-500 hover:border-neutral-600' : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-white')}`}>
                             {tpl.icon}
                             <div><div className="text-xs font-bold">{tpl.label}</div><div className="text-[10px] opacity-60">{tpl.slots} zone(s)</div></div>
                         </button>
@@ -162,6 +186,16 @@ export default function LayoutSidebar({
                         <LayoutTemplate size={18} className={isCustomTemplate ? 'text-indigo-300' : 'opacity-50'} />
                     </div>
                     <div className="grid grid-cols-1 gap-2">
+                        {isCustomTemplate ? (
+                            <button
+                                type="button"
+                                onClick={() => setCustomEditMode?.(!customEditMode)}
+                                className={`border px-3 py-2 text-left transition-all ${customEditMode ? 'border-cyan-300 bg-cyan-400/15 text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.16)]' : (isDarkMode ? 'border-neutral-800 text-neutral-400 hover:border-cyan-400/50 hover:text-white' : 'border-gray-200 text-gray-600 hover:border-cyan-400 hover:bg-white')}`}
+                            >
+                                <span className="block text-[11px] font-bold uppercase tracking-widest">Mode edit personnalise</span>
+                                <span className="mt-1 block text-[10px] opacity-60">{customEditMode ? 'Palette active + blocs modifiables.' : 'Active la palette et les controles de blocs.'}</span>
+                            </button>
+                        ) : null}
                         {CUSTOM_LAYOUT_PRESETS.map(preset => (
                             <button
                                 key={preset.id}
