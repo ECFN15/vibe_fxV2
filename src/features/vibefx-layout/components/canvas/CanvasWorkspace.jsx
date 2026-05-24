@@ -39,7 +39,7 @@ export default function CanvasWorkspace({
     showGuidelines,
 }) {
     // Show canvas if there are images OR if we are in Fusion mode (to see background image/gradient)
-    const showCanvas = images.length > 0 || view === 'fusion';
+    const showCanvas = images.length > 0 || view === 'fusion' || (view === 'layout' && activeTemplate?.id === 'custom');
 
     // Dynamic canvas style for consistent aspect ratios
     const getCanvasStyle = () => {

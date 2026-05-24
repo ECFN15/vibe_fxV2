@@ -30,18 +30,19 @@ import {
   where,
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
+import { useAiLaunchSettings } from "@/hooks/useAiLaunchSettings";
 import { auth, db, firebaseReady, functions } from "../../lib/firebase";
 
 const viewLabels = {
-  overview: "Vue compte",
-  billing: "Facturation",
-  usage: "Usage",
+  overview: "Compte",
+  billing: "Acces lifetime",
+  usage: "Activite",
 };
 
 const billingProducts = [
-  { key: "premium_lifetime", label: "Premium lifetime", detail: "Acces complet hors credits IA" },
-  { key: "credits_500", label: "500 credits", detail: "Pack demarrage IA" },
-  { key: "credits_1200", label: "1 200 credits", detail: "Pack createur leger" },
+  { key: "premium_lifetime", label: "Vibe_fx Lifetime - 9,99 EUR", detail: "Acces a toute l'interface visible du lancement." },
+  { key: "credits_500", label: "500 credits", detail: "Pack demarrage" },
+  { key: "credits_1200", label: "1 200 credits", detail: "Pack createur" },
   { key: "credits_3200", label: "3 200 credits", detail: "Pack production" },
   { key: "credits_7000", label: "7 000 credits", detail: "Pack studio" },
 ];
@@ -116,16 +117,34 @@ function safeDate(value) {
   return new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
+function formatProductLabel(value) {
+  if (value === "premium_lifetime") return "Vibe_fx Lifetime";
+  if (value === "credits") return "Pack";
+  return value || "Achat";
+}
+
+function formatPaymentStatus(value) {
+  const labels = {
+    fulfilled: "Valide",
+    open: "En attente",
+    creating: "En preparation",
+    expired: "Expire",
+    failed: "Echoue",
+    canceled: "Annule",
+  };
+  return labels[value] || value || "En attente";
+}
+
 export default function AccountClient({ initialView = "overview" }) {
+  const { aiInterfacesEnabled } = useAiLaunchSettings();
   const [view, setView] = useState(initialView);
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [payments, setPayments] = useState([]);
-  const [checkouts, setCheckouts] = useState([]);
   const [loading, setLoading] = useState(Boolean(auth));
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState(auth ? "" : "Firebase Auth n'est pas configure.");
+  const [message, setMessage] = useState(auth ? "" : "Connexion compte indisponible.");
   const [authMode, setAuthMode] = useState("link");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -138,38 +157,32 @@ export default function AccountClient({ initialView = "overview" }) {
       setProfile(null);
       setJobs([]);
       setPayments([]);
-      setCheckouts([]);
       return;
     }
 
     const nextProfile = await upsertUserProfile(currentUser);
     setProfile(nextProfile || {});
 
-    const [jobSnapshot, paymentSnapshot, checkoutSnapshot] = await Promise.all([
-      getDocs(query(
-        collection(db, "aiJobs"),
-        where("uid", "==", currentUser.uid),
-        orderBy("createdAt", "desc"),
-        limit(8)
-      )).catch(() => ({ docs: [] })),
+    const [jobSnapshot, paymentSnapshot] = await Promise.all([
+      aiInterfacesEnabled
+        ? getDocs(query(
+          collection(db, "aiJobs"),
+          where("uid", "==", currentUser.uid),
+          orderBy("createdAt", "desc"),
+          limit(8)
+        )).catch(() => ({ docs: [] }))
+        : Promise.resolve({ docs: [] }),
       getDocs(query(
         collection(db, "payments"),
         where("uid", "==", currentUser.uid),
         orderBy("createdAt", "desc"),
         limit(8)
       )).catch(() => ({ docs: [] })),
-      getDocs(query(
-        collection(db, "checkoutSessions"),
-        where("uid", "==", currentUser.uid),
-        orderBy("updatedAt", "desc"),
-        limit(5)
-      )).catch(() => ({ docs: [] })),
     ]);
 
     setJobs(jobSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
     setPayments(paymentSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
-    setCheckouts(checkoutSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
-  }, []);
+  }, [aiInterfacesEnabled]);
 
   useEffect(() => {
     if (!auth) {
@@ -201,12 +214,17 @@ export default function AccountClient({ initialView = "overview" }) {
     return {
       plan,
       premium: plan === "premium",
-      credits: profile?.creditBalance || 0,
-      bonusCredits: profile?.bonusCreditBalance || 0,
-      reservedCredits: profile?.reservedCreditBalance || 0,
       paid: profile?.lifetimePaidCents || 0,
     };
   }, [profile]);
+
+  const visibleBillingProducts = useMemo(() => (
+    aiInterfacesEnabled
+      ? billingProducts
+      : billingProducts
+        .filter((product) => product.key === "premium_lifetime")
+        .map((product) => ({ ...product, detail: "Acces a toute l'interface visible du lancement." }))
+  ), [aiInterfacesEnabled]);
 
   const handleGoogle = async () => {
     if (!auth) return;
@@ -291,7 +309,7 @@ export default function AccountClient({ initialView = "overview" }) {
 
   const handleAccountDeletion = async () => {
     if (!functions || !auth?.currentUser) {
-      setMessage("Firebase Functions n'est pas configure.");
+      setMessage("La suppression de compte est indisponible pour le moment.");
       return;
     }
     if (!window.confirm("Supprimer ce compte et purger les donnees utilisateur ? Cette action est irreversible.")) {
@@ -308,8 +326,7 @@ export default function AccountClient({ initialView = "overview" }) {
       setProfile(null);
       setJobs([]);
       setPayments([]);
-      setCheckouts([]);
-      setMessage("Compte supprime. Les donnees utilisateur ont ete purgees cote serveur.");
+      setMessage("Compte supprime.");
     } catch (error) {
       setMessage(error.message || "Suppression compte impossible.");
     } finally {
@@ -318,8 +335,12 @@ export default function AccountClient({ initialView = "overview" }) {
   };
 
   const handleCheckout = async (productKey) => {
+    if (!aiInterfacesEnabled && String(productKey || "").startsWith("credits_")) {
+      setMessage("Ce produit n'est pas disponible sur le premier lancement.");
+      return;
+    }
     if (!functions || !auth?.currentUser) {
-      setMessage("Firebase Functions n'est pas configure.");
+      setMessage("Le paiement est indisponible pour le moment.");
       return;
     }
     if (auth.currentUser.isAnonymous) {
@@ -335,18 +356,22 @@ export default function AccountClient({ initialView = "overview" }) {
       const clientRequestId = `${Date.now()}_${randomId}`;
       const result = await createCheckout({ productKey, clientRequestId });
       const url = result.data?.url;
-      if (!url) throw new Error("URL Checkout Stripe manquante.");
+      if (!url) throw new Error("Lien de paiement indisponible.");
       window.location.assign(url);
     } catch (error) {
-      setMessage(error.message || "Creation Checkout impossible.");
+      setMessage(error.message || "Ouverture du paiement impossible.");
       setBusy(false);
     }
   };
 
   const handleCreateAiJob = async (event) => {
     event.preventDefault();
+    if (!aiInterfacesEnabled) {
+      setMessage("Ce module n'est pas disponible sur le premier lancement.");
+      return;
+    }
     if (!functions || !auth?.currentUser) {
-      setMessage("Firebase Functions n'est pas configure.");
+      setMessage("Ce module est indisponible pour le moment.");
       return;
     }
     if (auth.currentUser.isAnonymous) {
@@ -401,30 +426,31 @@ export default function AccountClient({ initialView = "overview" }) {
       <section className="vf-account-hero" aria-labelledby="account-title">
         <div>
           <p className="vf-account-kicker">Compte prive</p>
-          <h1 id="account-title">Profil, credits et securite d&apos;usage.</h1>
+          <h1 id="account-title">Compte et acces Vibe_fx.</h1>
           <p>
-            Le dashboard lit les droits et credits depuis Firestore. Les achats, credits IA et jobs restent
-            controles par Functions et webhooks serveur.
+            Connectez votre compte, activez l&apos;acces lifetime et retrouvez les informations
+            utiles pour utiliser le studio.
           </p>
         </div>
         <div className="vf-account-status" data-state={isAnonymous ? "warning" : "success"}>
           <span>{isAnonymous ? "Session anonyme" : "Compte permanent"}</span>
           <strong>{user?.email || user?.uid || "Connexion en cours"}</strong>
-          <small>{providers.length ? providers.join(", ") : "anonymous"}</small>
+          <small>{providers.length ? "Connexion active" : "Session invite"}</small>
         </div>
       </section>
 
       {message ? <p className="vf-account-message">{message}</p> : null}
-      {!firebaseReady ? <p className="vf-account-message danger">Firebase public config manquante.</p> : null}
+      {!firebaseReady && !message ? <p className="vf-account-message danger">Connexion compte indisponible.</p> : null}
 
       <section className="vf-account-grid" aria-busy={loading}>
         <article className="vf-account-panel vf-account-auth">
           <div className="vf-account-panel-head">
-            <span>Identity</span>
+            <span>Connexion</span>
             <strong>{isAnonymous ? "Lier un compte" : "Compte lie"}</strong>
           </div>
           <p>
-            Les credits IA et achats exigent un compte permanent. La session anonyme reste utile pour tester le studio.
+            Un compte permanent permet d&apos;associer l&apos;achat lifetime a votre profil.
+            Vous pouvez continuer a tester le studio avant de lier votre compte.
           </p>
           <button type="button" className="vf-account-primary" disabled={busy || loading} onClick={handleGoogle}>
             {busy ? "Traitement..." : "Continuer avec Google"}
@@ -454,29 +480,29 @@ export default function AccountClient({ initialView = "overview" }) {
 
         <article className="vf-account-panel">
           <div className="vf-account-panel-head">
-            <span>Plan</span>
-            <strong>{status.premium ? "Premium" : "Free"}</strong>
+            <span>Acces</span>
+            <strong>{status.premium ? "Lifetime actif" : "Gratuit"}</strong>
           </div>
           <div className="vf-account-metric">
-            <span>Credits disponibles</span>
-            <strong>{formatNumber(status.credits)}</strong>
+            <span>{status.premium ? "Interface debloquee" : "Acces actuel"}</span>
+            <strong>{status.premium ? "Lifetime" : "Gratuit"}</strong>
           </div>
           <div className="vf-account-bars">
-            <span style={{ "--value": `${Math.min(100, status.credits / 10)}%` }}>Payes</span>
-            <span style={{ "--value": `${Math.min(100, status.bonusCredits / 10)}%` }}>Bonus</span>
-            <span style={{ "--value": `${Math.min(100, status.reservedCredits / 10)}%` }}>Reserves</span>
+            <span style={{ "--value": status.premium ? "100%" : "38%" }}>Studio</span>
+            <span style={{ "--value": status.premium ? "100%" : "38%" }}>Vibe_CUT</span>
+            <span style={{ "--value": status.premium ? "100%" : "38%" }}>Publication</span>
           </div>
           <Link href="/pricing" className="vf-account-secondary">Voir les tarifs</Link>
         </article>
 
         <article className="vf-account-panel">
           <div className="vf-account-panel-head">
-            <span>Securite</span>
-            <strong>Lecture seule sensible</strong>
+            <span>Profil</span>
+            <strong>Informations</strong>
           </div>
           <dl className="vf-account-facts">
-            <div><dt>UID</dt><dd>{user?.uid || "..."}</dd></div>
-            <div><dt>Derniere activite</dt><dd>{safeDate(profile?.lastLoginAt)}</dd></div>
+            <div><dt>Email</dt><dd>{user?.email || "Non renseigne"}</dd></div>
+            <div><dt>Derniere connexion</dt><dd>{safeDate(profile?.lastLoginAt)}</dd></div>
             <div><dt>Total paye</dt><dd>{(status.paid / 100).toFixed(2)} EUR</dd></div>
           </dl>
           <div className="vf-account-actions">
@@ -490,14 +516,15 @@ export default function AccountClient({ initialView = "overview" }) {
       <section id="account-panel" className="vf-account-workspace" data-view={view} aria-live="polite">
         {view === "billing" ? (
           <BillingPanel
+            aiInterfacesEnabled={aiInterfacesEnabled}
             busy={busy}
-            products={billingProducts}
+            products={visibleBillingProducts}
             payments={payments}
-            checkouts={checkouts}
             onCheckout={handleCheckout}
           />
         ) : view === "usage" ? (
           <UsagePanel
+            aiInterfacesEnabled={aiInterfacesEnabled}
             busy={busy}
             jobs={jobs}
             aiFeature={aiFeature}
@@ -509,10 +536,10 @@ export default function AccountClient({ initialView = "overview" }) {
         ) : (
           <div className="vf-account-readiness">
             {[
-              ["Auth permanent", isAnonymous ? "A lier" : "Actif"],
-              ["Credits ledger", "Serveur uniquement"],
-              ["Stripe fulfillment", "Webhook uniquement"],
-              ["AI gateway", "Mock credits v1"],
+              ["Compte", isAnonymous ? "A lier" : "Actif"],
+              ["Acces lifetime", status.premium ? "Actif" : "Disponible"],
+              ["Studio", "Pret"],
+              ["Publications", "Preparees"],
             ].map(([label, value]) => (
               <article key={label}>
                 <span>{label}</span>
@@ -558,22 +585,39 @@ function AccountTable({ title, columns, rows, empty }) {
 function UsagePanel({
   jobs,
   busy,
+  aiInterfacesEnabled,
   aiFeature,
   aiPrompt,
   onFeatureChange,
   onPromptChange,
   onCreateAiJob,
 }) {
+  if (!aiInterfacesEnabled) {
+    return (
+      <div className="vf-account-usage-stack">
+        <article className="vf-account-ai-panel" aria-labelledby="account-activity-title">
+          <header>
+            <span>Activite</span>
+            <h2 id="account-activity-title">Votre activite apparaitra ici.</h2>
+          </header>
+          <p className="vf-account-empty">
+            Les achats et les actions importantes de votre compte seront affiches dans cet espace.
+          </p>
+        </article>
+      </div>
+    );
+  }
+
   return (
     <div className="vf-account-usage-stack">
       <article className="vf-account-ai-panel" aria-labelledby="ai-job-title">
         <header>
-          <span>AI gateway</span>
-          <h2 id="ai-job-title">Nouveau job IA</h2>
+          <span>Creation assistee</span>
+          <h2 id="ai-job-title">Nouvelle demande</h2>
         </header>
         <form className="vf-account-ai-form" onSubmit={onCreateAiJob}>
           <label>
-            <span>Feature</span>
+            <span>Type</span>
             <select value={aiFeature} onChange={(event) => onFeatureChange(event.target.value)}>
               {aiFeatureOptions.map((option) => (
                 <option key={option.key} value={option.key}>{option.label}</option>
@@ -590,32 +634,32 @@ function UsagePanel({
             />
           </label>
           <button type="submit" disabled={busy || !aiPrompt.trim()}>
-            {busy ? "Traitement..." : "Lancer le job"}
+            {busy ? "Traitement..." : "Lancer la demande"}
           </button>
         </form>
       </article>
       <AccountTable
-        title="Jobs IA"
-        empty="Aucun job IA."
+        title="Demandes"
+        empty="Aucune demande."
         rows={jobs.map((job) => [
           job.feature || "job",
           job.status || "unknown",
           `${formatNumber(job.capturedCredits || job.estimatedCredits || 0)} credits`,
           safeDate(job.createdAt),
         ])}
-        columns={["Feature", "Statut", "Cout", "Date"]}
+        columns={["Type", "Statut", "Cout", "Date"]}
       />
     </div>
   );
 }
 
-function BillingPanel({ products, payments, checkouts, busy, onCheckout }) {
+function BillingPanel({ aiInterfacesEnabled, products, payments, busy, onCheckout }) {
   return (
     <div className="vf-account-billing-stack">
       <article className="vf-account-shop" aria-labelledby="billing-shop-title">
         <header>
-          <span>Boutique</span>
-          <h2 id="billing-shop-title">Premium et credits IA</h2>
+          <span>Achat</span>
+          <h2 id="billing-shop-title">{aiInterfacesEnabled ? "Acces et packs" : "Acces lifetime"}</h2>
         </header>
         <div className="vf-account-shop-grid">
           {products.map((product) => (
@@ -633,26 +677,14 @@ function BillingPanel({ products, payments, checkouts, busy, onCheckout }) {
         </div>
       </article>
       <AccountTable
-        title="Paiements"
-        empty="Aucun paiement Stripe fulfil par webhook pour ce compte."
+        title="Achats"
+        empty="Aucun achat pour le moment."
         rows={payments.map((payment) => [
-          payment.productType || "payment",
-          payment.status || "unknown",
-          payment.stripeSessionId || payment.id,
+          formatProductLabel(payment.productType),
+          formatPaymentStatus(payment.status),
           safeDate(payment.createdAt),
         ])}
-        columns={["Produit", "Statut", "Session", "Date"]}
-      />
-      <AccountTable
-        title="Sessions Checkout"
-        empty="Aucune session Checkout creee depuis ce compte."
-        rows={checkouts.map((checkout) => [
-          checkout.productKey || checkout.productType || "checkout",
-          checkout.status || "unknown",
-          checkout.stripeSessionId || checkout.id,
-          safeDate(checkout.updatedAt || checkout.createdAt),
-        ])}
-        columns={["Produit", "Statut", "Session", "Mise a jour"]}
+        columns={["Produit", "Statut", "Date"]}
       />
     </div>
   );

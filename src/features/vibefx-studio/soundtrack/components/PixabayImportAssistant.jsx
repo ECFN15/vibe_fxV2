@@ -88,11 +88,14 @@ export default function PixabayImportAssistant({
         <section className="soundtrack-pixabay-assistant" data-state={status} data-testid="pixabay-import-assistant" aria-label="Assistant import Pixabay">
             <div className="soundtrack-pixabay-assistant__head">
                 <div>
-                    <p>Assistant Pixabay</p>
+                    <p>Source gratuite Pixabay</p>
                     <strong>{selectedTag?.label || 'Pixabay Music'}</strong>
                 </div>
                 <span>{targetLabel}</span>
             </div>
+            <p className="soundtrack-pixabay-assistant__explain">
+                Ce bloc sert seulement a importer une piste telechargee depuis Pixabay Music. Pour creer une piste IA par theme, utilise le bouton Musique IA par theme en haut.
+            </p>
             <div className="soundtrack-pixabay-assistant__flow">
                 <a href={officialUrl} target="_blank" rel="noreferrer">
                     <ExternalLink size={13} />

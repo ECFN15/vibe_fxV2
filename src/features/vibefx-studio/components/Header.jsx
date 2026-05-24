@@ -2,7 +2,7 @@ import React, { useSyncExternalStore } from 'react';
 import { Camera, Sun, Moon, Zap, Layers, LayoutTemplate, Aperture, Download, Library, Film, Send, Sparkles, Music2 } from 'lucide-react';
 import MusicPlayer from './MusicPlayer';
 
-const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, onExport, onImportPublication, onOpenPublications, isAiRailOpen, onToggleAiRail, aiJobActive }) => {
+const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, onExport, onImportPublication, onOpenPublications, isAiRailOpen, onToggleAiRail, aiJobActive, aiInterfacesEnabled = false }) => {
     const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
 
     // Helper simple pour les icônes conditionnelles
@@ -38,7 +38,7 @@ const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, 
                         { id: 'studio', icon: 'Zap', label: 'Studio' },
                         { id: 'fusion', icon: 'Layers', label: 'Fusion' },
                         { id: 'layout', icon: 'LayoutTemplate', label: 'Layout' },
-                        { id: 'library', icon: 'Library', label: 'Library' },
+                        ...(aiInterfacesEnabled ? [{ id: 'library', icon: 'Library', label: 'Library' }] : []),
                         { id: 'soundtrack', icon: 'Music2', label: 'Soundtrack' },
                         { id: 'vision-pro', icon: 'Aperture', label: 'Vision' },
                         { id: 'video', icon: 'Film', label: 'Video' }

@@ -9,16 +9,23 @@ const EXACT_AUDIO_HOSTS = new Set([
     'whitebataudio.com',
     'www.whitebataudio.com',
     'freesound.org',
-    'archive.org',
-    'commons.wikimedia.org',
+    'api.minimax.io',
+    'filecdn.minimax.chat',
+    'api.mureka.ai',
+    'platform.mureka.ai',
+    'replicate.com',
+    'replicate.delivery',
+    'fal.media',
 ]);
 
 const SUBDOMAIN_AUDIO_HOSTS = [
     'storage.jamendo.com',
     'freesound.org',
-    'archive.org',
-    'us.archive.org',
-    'upload.wikimedia.org',
+    'minimax.io',
+    'minimax.chat',
+    'mureka.ai',
+    'replicate.delivery',
+    'fal.media',
 ];
 
 export const errorResponse = (message, status = 400) => (
@@ -44,7 +51,7 @@ export const isAllowedAudioUrl = (value) => {
 export async function fetchVerifiedAudio(audioUrl) {
     if (!isAllowedAudioUrl(audioUrl)) {
         throw Object.assign(
-            new Error('URL audio refusee: utilisez une URL HTTPS directe depuis une source gratuite verifiee.'),
+            new Error('URL audio refusee: utilisez une URL HTTPS directe depuis une source verifiee ou importez le fichier audio.'),
             { status: 400 }
         );
     }

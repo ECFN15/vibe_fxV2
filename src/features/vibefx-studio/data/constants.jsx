@@ -21,6 +21,61 @@ export const TEMPLATES = [
     { id: 'cinema', label: 'Cinéma', icon: <Maximize size={18} />, slots: 1 },
 ];
 
+export const CUSTOM_LAYOUT_PRESETS = [
+    {
+        id: 'catalog-cf1',
+        label: 'Catalogue CF1',
+        description: 'Grande image, bande detail et vignettes.',
+        zones: [
+            { id: 'custom-hero', label: 'Hero', x: 0, y: 0, w: 0.62, h: 0.62, imageIndex: 0 },
+            { id: 'custom-copy', label: 'Texte / fiche', x: 0.64, y: 0, w: 0.36, h: 0.62, imageIndex: 1 },
+            { id: 'custom-thumb-1', label: 'Detail 1', x: 0, y: 0.64, w: 0.235, h: 0.18, imageIndex: 2 },
+            { id: 'custom-thumb-2', label: 'Detail 2', x: 0.255, y: 0.64, w: 0.235, h: 0.18, imageIndex: 3 },
+            { id: 'custom-thumb-3', label: 'Detail 3', x: 0.51, y: 0.64, w: 0.235, h: 0.18, imageIndex: 4 },
+            { id: 'custom-thumb-4', label: 'Detail 4', x: 0.765, y: 0.64, w: 0.235, h: 0.18, imageIndex: 5 },
+            { id: 'custom-price', label: 'Prix / focus', x: 0, y: 0.84, w: 0.49, h: 0.16, imageIndex: 6 },
+            { id: 'custom-wide', label: 'Ambiance', x: 0.51, y: 0.84, w: 0.49, h: 0.16, imageIndex: 7 },
+        ],
+    },
+    {
+        id: 'split-feature',
+        label: 'Feature + 4',
+        description: 'Une image forte et quatre blocs secondaires.',
+        zones: [
+            { id: 'custom-main', label: 'Image principale', x: 0, y: 0, w: 1, h: 0.58, imageIndex: 0 },
+            { id: 'custom-a', label: 'Bloc A', x: 0, y: 0.61, w: 0.49, h: 0.18, imageIndex: 1 },
+            { id: 'custom-b', label: 'Bloc B', x: 0.51, y: 0.61, w: 0.49, h: 0.18, imageIndex: 2 },
+            { id: 'custom-c', label: 'Bloc C', x: 0, y: 0.82, w: 0.49, h: 0.18, imageIndex: 3 },
+            { id: 'custom-d', label: 'Bloc D', x: 0.51, y: 0.82, w: 0.49, h: 0.18, imageIndex: 4 },
+        ],
+    },
+    {
+        id: 'editorial-grid',
+        label: 'Editorial 6',
+        description: 'Grille propre pour moodboard ou carrousel.',
+        zones: [
+            { id: 'custom-e1', label: 'Zone 1', x: 0, y: 0, w: 0.49, h: 0.32, imageIndex: 0 },
+            { id: 'custom-e2', label: 'Zone 2', x: 0.51, y: 0, w: 0.49, h: 0.32, imageIndex: 1 },
+            { id: 'custom-e3', label: 'Zone 3', x: 0, y: 0.34, w: 0.49, h: 0.32, imageIndex: 2 },
+            { id: 'custom-e4', label: 'Zone 4', x: 0.51, y: 0.34, w: 0.49, h: 0.32, imageIndex: 3 },
+            { id: 'custom-e5', label: 'Zone 5', x: 0, y: 0.68, w: 0.49, h: 0.32, imageIndex: 4 },
+            { id: 'custom-e6', label: 'Zone 6', x: 0.51, y: 0.68, w: 0.49, h: 0.32, imageIndex: 5 },
+        ],
+    },
+];
+
+export const DEFAULT_CUSTOM_TEMPLATE = {
+    id: 'custom',
+    label: 'Personnalise',
+    icon: <LayoutTemplate size={18} />,
+    slots: CUSTOM_LAYOUT_PRESETS[0].zones.length,
+    customLayout: {
+        version: 1,
+        presetId: CUSTOM_LAYOUT_PRESETS[0].id,
+        zones: CUSTOM_LAYOUT_PRESETS[0].zones,
+    },
+};
+
 export const FONT_OPTIONS = [
     { label: 'Inter (Moderne)', value: 'Inter' },
     { label: 'Montserrat (Géométrique)', value: 'Montserrat' },

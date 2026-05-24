@@ -1,8 +1,8 @@
 import AccountClient from "../AccountClient";
 
 export const metadata = {
-  title: "Usage",
-  description: "Espace prive d'usage credits et jobs IA Vibe_fx V2.",
+  title: "Activite",
+  description: "Espace prive d'activite Vibe_fx V2.",
   robots: {
     index: false,
     follow: false,

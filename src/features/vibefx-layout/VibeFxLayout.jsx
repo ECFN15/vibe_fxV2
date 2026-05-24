@@ -159,6 +159,14 @@ const canvasToBlob = (canvas, mimeType = 'image/png', quality = 0.92) =>
     canvas.toBlob((blob) => resolve(blob), mimeType, quality);
   });
 
+const serializeSlotConfigs = (configs) => Object.fromEntries(
+  Object.entries(configs || {}).map(([slotId, config]) => {
+    const serializableConfig = { ...(config || {}) };
+    delete serializableConfig.image;
+    return [slotId, serializableConfig];
+  })
+);
+
 const buildSocialImages = async (exportCanvas, activeFormat) => {
   const slices = activeFormat?.id === 'pano-2' ? 2 : activeFormat?.id === 'pano-3' ? 3 : 1;
   if (slices <= 1) {
@@ -693,7 +701,7 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
         layoutSmoothBlur,
         texts,
         assets,
-        slotConfigs,
+        slotConfigs: serializeSlotConfigs(slotConfigs),
       },
       createdAt: new Date().toISOString(),
     };
@@ -870,6 +878,7 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
 
           <LayoutSidebar
             images={images}
+            setImages={setImages}
             isDarkMode
             selectedSlotIndex={selectedSlotIndex}
             setSelectedSlotIndex={setSelectedSlotIndex}
@@ -890,6 +899,7 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
             currentAsset={currentAsset}
             updateActiveText={updateActiveText}
             deleteActiveText={deleteActiveText}
+            setTexts={setTexts}
             setActiveAssetId={setActiveAssetId}
             deleteActiveAsset={deleteActiveAsset}
             activeAssetId={activeAssetId}

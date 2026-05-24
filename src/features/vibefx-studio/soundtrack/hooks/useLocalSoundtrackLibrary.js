@@ -51,10 +51,18 @@ async function readAudioDuration(blob) {
     }
 }
 
-async function validateAudioBlob(blob) {
+async function validateAudioBlob(blob, fallbackDuration = 0) {
     if (!blob?.type?.startsWith('audio/')) throw new Error('MIME audio invalide.');
     if (blob.size > MAX_AUDIO_BYTES) throw new Error('Fichier trop lourd: limite 150 MB.');
-    const duration = await readAudioDuration(blob);
+    let duration = 0;
+    try {
+        duration = await readAudioDuration(blob);
+    } catch {
+        duration = 0;
+    }
+    if ((!Number.isFinite(duration) || duration <= 0 || duration > MAX_AUDIO_SECONDS) && fallbackDuration > 0 && fallbackDuration <= MAX_AUDIO_SECONDS) {
+        return fallbackDuration;
+    }
     if (duration > MAX_AUDIO_SECONDS) throw new Error('Duree trop longue: limite 30 minutes.');
     return duration;
 }
@@ -310,7 +318,8 @@ export function useLocalSoundtrackLibrary() {
         setLastEvent('');
         try {
             const fetched = await fetchAudioBlobForTrack(track);
-            const duration = await validateAudioBlob(fetched.blob);
+            const trustedBundledAudio = String(track.downloadUrl || track.previewUrl || track.url || '').startsWith('/music/');
+            const duration = await validateAudioBlob(fetched.blob, trustedBundledAudio ? Number(track.duration) || 0 : 0);
             let fileName = track.fileName;
             if (directoryHandleRef.current) {
                 fileName = await writeAudioFileToDirectory(directoryHandleRef.current, track, fetched.blob, fetched.contentType);

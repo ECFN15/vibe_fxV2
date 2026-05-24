@@ -8,25 +8,30 @@ export default function AggregatorPanel({
     player,
     localLibrary,
     projectLibrary,
+    selectedTrack,
     onPlayTrack,
     onUseInVideo,
     onSelectTrack,
     onImportComplete,
+    onOpenAiImport,
 }) {
     const activeProvider = search.providerStatus?.find((provider) => provider.id === search.provider);
     const providerTitle = activeProvider?.label
-        || (search.provider === 'pixabay' ? 'Pixabay Music' : 'Openverse Audio');
+        || search.providerDefinitions?.find((provider) => provider.id === search.provider)?.label
+        || 'Openverse Audio';
 
     return (
         <section className="soundtrack-aggregator-panel" aria-label="Agregateur sources gratuites">
-            <SoundtrackSearch search={search} />
-            <PixabayImportAssistant
-                search={search}
-                localLibrary={localLibrary}
-                projectLibrary={projectLibrary}
-                onSelectTrack={onSelectTrack}
-                onImportComplete={onImportComplete}
-            />
+            <div className="soundtrack-aggregator-tools">
+                <SoundtrackSearch search={search} onOpenAiImport={onOpenAiImport} />
+                <PixabayImportAssistant
+                    search={search}
+                    localLibrary={localLibrary}
+                    projectLibrary={projectLibrary}
+                    onSelectTrack={onSelectTrack}
+                    onImportComplete={onImportComplete}
+                />
+            </div>
             <SoundtrackResults
                 results={search.results}
                 libraryTracks={localLibrary.tracks}
@@ -37,11 +42,12 @@ export default function AggregatorPanel({
                 player={player}
                 library={localLibrary}
                 projectLibrary={projectLibrary}
+                selectedTrack={selectedTrack}
                 modeEyebrow="Agregateur provider-first"
                 modeTitle={providerTitle}
-                onPlayTrack={(track, url) => {
+                onPlayTrack={(track, url, options) => {
                     onSelectTrack(track);
-                    onPlayTrack(track, url);
+                    onPlayTrack(track, url, options);
                 }}
                 onUseInVideo={onUseInVideo}
                 onSelectTrack={onSelectTrack}

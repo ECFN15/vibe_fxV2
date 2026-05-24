@@ -161,12 +161,12 @@ const FusionPanel = ({ isDarkMode, config, setConfig, images, activeFormat, setA
                                                 <Trash2 size={12} />
                                             </button>
                                         </div>
-                                    ) : (
+                                    ) : onOpenLibrarySelector ? (
                                         <button onClick={onOpenLibrarySelector} className={`w-full h-full border border-dashed rounded flex flex-col items-center justify-center text-[8px] font-mono text-center transition-colors ${isDarkMode ? 'border-neutral-700 text-neutral-500 hover:border-indigo-500 hover:text-indigo-400 hover:bg-indigo-500/5' : 'border-gray-300 text-gray-500 hover:border-indigo-500 hover:text-indigo-500 hover:bg-indigo-50'}`}>
                                             <Plus size={14} className="mb-0.5" />
                                             LIB
                                         </button>
-                                    )}
+                                    ) : null}
                                 </div>
                             )}
                         </div>

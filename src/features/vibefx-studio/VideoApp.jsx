@@ -2,12 +2,14 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ChevronDown, Film, Monitor, Smartphone, Sparkles, Undo2, Redo2 } from 'lucide-react';
+import { useAiLaunchSettings } from '@/hooks/useAiLaunchSettings';
 import VideoEditor from './video/VideoEditor';
 import useVideoStore from './video/store/videoStore';
 import { EXPORT_PRESETS } from './video/engine/VideoEngine';
 import StudioAiRail from './components/ai/StudioAiRail';
 
 function VideoApp({ onBack }) {
+    const { aiInterfacesEnabled } = useAiLaunchSettings();
     const [isSequenceMenuOpen, setIsSequenceMenuOpen] = useState(false);
     const [isAiRailOpen, setIsAiRailOpen] = useState(false);
     const menuRef = useRef(null);
@@ -154,33 +156,37 @@ function VideoApp({ onBack }) {
                     </div>
 
                     <div className="flex w-24 shrink-0 justify-end">
-                        <button
-                            type="button"
-                            data-testid="studio-ai-toggle"
-                            data-active={isAiRailOpen ? 'true' : 'false'}
-                            onClick={() => setIsAiRailOpen(current => !current)}
-                            className="vf-ai-header-button"
-                            aria-pressed={isAiRailOpen}
-                            title="AI clip"
-                        >
-                            <Sparkles size={13} />
-                            AI
-                        </button>
+                        {aiInterfacesEnabled && (
+                            <button
+                                type="button"
+                                data-testid="studio-ai-toggle"
+                                data-active={isAiRailOpen ? 'true' : 'false'}
+                                onClick={() => setIsAiRailOpen(current => !current)}
+                                className="vf-ai-header-button"
+                                aria-pressed={isAiRailOpen}
+                                title="AI clip"
+                            >
+                                <Sparkles size={13} />
+                                AI
+                            </button>
+                        )}
                     </div>
                 </div>
             </header>
 
             {/* Editor */}
             <main className="flex-1 flex overflow-hidden">
-                <VideoEditor onAiOpen={() => setIsAiRailOpen(true)} />
+                <VideoEditor onAiOpen={aiInterfacesEnabled ? () => setIsAiRailOpen(true) : null} />
             </main>
-            <StudioAiRail
-                open={isAiRailOpen}
-                onClose={() => setIsAiRailOpen(false)}
-                view="video"
-                context={aiContext}
-                mutators={{}}
-            />
+            {aiInterfacesEnabled && (
+                <StudioAiRail
+                    open={isAiRailOpen}
+                    onClose={() => setIsAiRailOpen(false)}
+                    view="video"
+                    context={aiContext}
+                    mutators={{}}
+                />
+            )}
         </div>
     );
 }

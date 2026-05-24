@@ -147,11 +147,14 @@ const VideoEditor = ({ onAiOpen }) => {
                 {/* Preview */}
                 <div className="flex-1 flex flex-col min-w-0 bg-neutral-950">
                     {clips.length === 0 ? (
-                        <div className="flex-1 flex items-center justify-center p-4">
-                            <div className="w-full max-w-md">
+                        <div
+                            className="flex-1 flex items-start justify-center px-4 sm:px-6 lg:px-8"
+                            style={{ paddingTop: 'clamp(5rem, 12vh, 8rem)' }}
+                        >
+                            <div className="w-full max-w-none">
                                 <button
                                     onClick={handleImportClick}
-                                    className="group w-full flex flex-col items-center gap-5 p-10 border border-dashed border-neutral-800 hover:border-indigo-500/40 transition-all hover:bg-indigo-500/5"
+                                    className="group w-full min-h-44 flex flex-col items-center justify-center gap-5 p-10 border border-dashed border-neutral-800 hover:border-indigo-500/40 transition-all hover:bg-indigo-500/5"
                                 >
                                     <div className="w-14 h-14 flex items-center justify-center bg-neutral-900 group-hover:bg-indigo-600/20 transition">
                                         <Upload size={24} className="text-neutral-500 group-hover:text-indigo-400 transition" />

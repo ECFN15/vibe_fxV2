@@ -1,8 +1,8 @@
 import AccountClient from "../AccountClient";
 
 export const metadata = {
-  title: "Facturation",
-  description: "Espace prive de facturation Vibe_fx V2.",
+  title: "Acces lifetime",
+  description: "Espace prive pour acheter et consulter l'acces lifetime Vibe_fx V2.",
   robots: {
     index: false,
     follow: false,

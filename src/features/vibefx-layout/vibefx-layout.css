@@ -178,16 +178,22 @@
   background: linear-gradient(180deg, rgba(129, 140, 248, 0.98), rgba(79, 70, 229, 0.88)) !important;
 }
 
+.vibefx-layout-shell .vibefx-format-grid,
 .vibefx-format-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 7px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .vibefx-format-button {
   min-width: 0 !important;
   min-height: 82px;
   padding: 11px 5px 10px !important;
+}
+
+.vibefx-format-button[data-format-id="pano-2"],
+.vibefx-format-button[data-format-id="pano-3"] {
+  grid-column: span 2;
 }
 
 .vibefx-format-icon {

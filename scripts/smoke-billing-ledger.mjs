@@ -251,7 +251,7 @@ async function testPremiumAndFailedCheckout() {
 
   const premium = checkoutSession({
     id: "cs_test_premium",
-    amount_total: 2900,
+    amount_total: 999,
     line_items: { data: [{ price: { id: "price_premium" } }] },
     metadata: {
       uid: "u_premium",

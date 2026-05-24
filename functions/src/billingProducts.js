@@ -7,7 +7,7 @@ const PRODUCT_DEFINITIONS = Object.freeze({
     entitlementType: "premium",
     envPriceId: "STRIPE_PRICE_PREMIUM_LIFETIME",
     creditAmount: 0,
-    targetAmountCents: 2900,
+    targetAmountCents: 999,
     currency: "eur",
   }),
   credits_500: Object.freeze({

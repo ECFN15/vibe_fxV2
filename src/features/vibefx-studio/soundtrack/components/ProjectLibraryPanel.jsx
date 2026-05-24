@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, ArrowDown, ArrowUp, Film, Heart, Import, ListMusic, Loader2, Music2, Pause, Play, Plus, ShieldAlert, Square, Trash2, Upload, UploadCloud, X } from 'lucide-react';
+import { Archive, ArrowDown, ArrowUp, Film, Heart, Import, ListMusic, Loader2, Music2, Pause, Play, Plus, ShieldAlert, Sparkles, Square, Trash2, Upload, UploadCloud, X } from 'lucide-react';
+import AiMusicImportAssistant from './AiMusicImportAssistant';
 import { getRightsLabel, getSoundtrackRightsAudit } from '../services/soundtrackRights';
 
 const formatDuration = (seconds = 0) => {
@@ -228,7 +229,7 @@ const LocalTrackRow = ({ track, localLibrary, activePlaylist, inActivePlaylist, 
     );
 };
 
-const StarterTrackRow = ({ track, isSelected, player, onSelect, onPlay, onImportProject, onUseInVideo, busy, onReconnect }) => {
+const StarterTrackRow = ({ track, isSelected, player, onSelect, onPlay, onImportProject, onUseInVideo, onRemove, busy, onReconnect }) => {
     const audit = getSoundtrackRightsAudit(track);
     const playableUrl = track.localObjectUrl || track.previewUrl || track.downloadUrl;
     return (
@@ -253,6 +254,14 @@ const StarterTrackRow = ({ track, isSelected, player, onSelect, onPlay, onImport
                 <button type="button" onClick={() => onUseInVideo(track)} disabled={audit.blocked} title="Utiliser dans Vibe_CUT">
                     <Film size={13} />
                 </button>
+                <button
+                    type="button"
+                    onClick={() => onRemove?.(track)}
+                    title="Supprimer de la bibliotheque Vibe_fx"
+                    aria-label={`Supprimer ${track.title} de la bibliotheque Vibe_fx`}
+                >
+                    <Trash2 size={13} />
+                </button>
             </div>
         </article>
         <TrackScrubPanel track={track} isSelected={isSelected} player={player} onPlay={onPlay} playableUrl={playableUrl} onReconnect={onReconnect} />
@@ -260,13 +269,14 @@ const StarterTrackRow = ({ track, isSelected, player, onSelect, onPlay, onImport
     );
 };
 
-export default function ProjectLibraryPanel({ projectLibrary, localLibrary, starterTracks = [], selectedTrack, player, onSelectTrack, onPlayTrack, onUseInVideo, variant = 'panel' }) {
+export default function ProjectLibraryPanel({ projectLibrary, localLibrary, starterTracks = [], selectedTrack, player, onSelectTrack, onPlayTrack, onRemoveStarterTrack, onUseInVideo, variant = 'panel' }) {
     const inputRef = useRef(null);
     const [showArchived, setShowArchived] = useState(false);
     const [playlistName, setPlaylistName] = useState('');
     const [renameValue, setRenameValue] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('');
     const [draft, setDraft] = useState({ category: '', tags: '' });
+    const [showAiImport, setShowAiImport] = useState(false);
     const playlistLibrary = projectLibrary.capability?.ready ? projectLibrary : localLibrary;
     const playlistMode = projectLibrary.capability?.ready ? 'project' : 'local';
     const playlists = playlistLibrary?.playlists || [];
@@ -353,11 +363,29 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
                     <Upload size={14} />
                     Importer fichier
                 </button>
+                <button type="button" onClick={() => setShowAiImport((value) => !value)} data-active={showAiImport}>
+                    <Sparkles size={14} />
+                    Musique IA
+                </button>
                 <button type="button" onClick={() => setShowArchived((value) => !value)} data-active={showArchived}>
                     <Archive size={14} />
                     Archives
                 </button>
             </div>
+            {showAiImport && (
+                <div className="soundtrack-project-ai-import">
+                    <AiMusicImportAssistant
+                        compact
+                        localLibrary={localLibrary}
+                        projectLibrary={projectLibrary}
+                        onSelectTrack={onSelectTrack}
+                        onImportComplete={(track) => {
+                            onSelectTrack?.(track);
+                            setShowAiImport(false);
+                        }}
+                    />
+                </div>
+            )}
             <input
                 ref={inputRef}
                 type="file"
@@ -486,6 +514,7 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
                             onPlay={onPlayTrack}
                             onImportProject={projectLibrary.importTrackToProject}
                             onUseInVideo={onUseInVideo}
+                            onRemove={onRemoveStarterTrack}
                             busy={projectLibrary.busyTrackId === track.id}
                             onReconnect={reconnectLocalAudio}
                         />

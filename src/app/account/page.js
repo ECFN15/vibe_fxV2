@@ -2,7 +2,7 @@ import AccountClient from "./AccountClient";
 
 export const metadata = {
   title: "Compte",
-  description: "Dashboard prive Vibe_fx V2 pour profil, statut premium, credits, usage et securite.",
+  description: "Espace prive Vibe_fx V2 pour profil, acces lifetime et achats.",
   robots: {
     index: false,
     follow: false,

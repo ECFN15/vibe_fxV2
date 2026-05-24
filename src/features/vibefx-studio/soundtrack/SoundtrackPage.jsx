@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useMemo, useState } from 'react';
-import { Heart, Library, Music2, Radar, X } from 'lucide-react';
+import { Heart, Library, Music2, Radar, Sparkles, X } from 'lucide-react';
 import AggregatorPanel from './components/AggregatorPanel';
+import AiMusicImportAssistant from './components/AiMusicImportAssistant';
 import ProjectLibraryPanel from './components/ProjectLibraryPanel';
 import SoundtrackFolderPanel from './components/SoundtrackFolderPanel';
 import SoundtrackPlayer from './components/SoundtrackPlayer';
@@ -13,7 +14,7 @@ import { useLocalSoundtrackLibrary } from './hooks/useLocalSoundtrackLibrary';
 import { useProjectSoundLibrary } from './hooks/useProjectSoundLibrary';
 import { useSoundtrackPlayer } from './hooks/useSoundtrackPlayer';
 import { useSoundtrackSearch } from './hooks/useSoundtrackSearch';
-import { fetchAudioBlobForTrack } from './services/soundtrackDownloads';
+import { AI_AUDIO_PROVIDERS, fetchAudioBlobForTrack } from './services/soundtrackDownloads';
 
 const MOBILE_TABS = [
     { id: 'scan', label: 'Scan', icon: Radar },
@@ -21,9 +22,26 @@ const MOBILE_TABS = [
 ];
 
 const DESKTOP_MODES = [
-    { id: 'project', label: 'Bibliotheque projet' },
-    { id: 'aggregator', label: 'Agregateur' },
+    { id: 'project', label: 'Bibliotheque' },
+    { id: 'aggregator', label: 'Sources gratuites' },
 ];
+
+const HIDDEN_STARTER_TRACKS_KEY = 'vibefx-soundtrack-hidden-starter-tracks';
+
+const loadHiddenStarterTracks = () => {
+    if (typeof window === 'undefined') return [];
+    try {
+        const parsed = JSON.parse(window.localStorage.getItem(HIDDEN_STARTER_TRACKS_KEY) || '[]');
+        return Array.isArray(parsed) ? parsed.filter(Boolean).map(String) : [];
+    } catch {
+        return [];
+    }
+};
+
+const saveHiddenStarterTracks = (trackIds) => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(HIDDEN_STARTER_TRACKS_KEY, JSON.stringify(trackIds));
+};
 
 export default function SoundtrackPage({ onUseInVideo }) {
     const search = useSoundtrackSearch();
@@ -31,23 +49,47 @@ export default function SoundtrackPage({ onUseInVideo }) {
     const projectLibrary = useProjectSoundLibrary();
     const player = useSoundtrackPlayer();
     const starterTracks = useMemo(() => getStarterSoundtrackTracks(), []);
+    const [hiddenStarterTrackIds, setHiddenStarterTrackIds] = useState(loadHiddenStarterTracks);
+    const hiddenStarterTrackIdSet = useMemo(() => new Set(hiddenStarterTrackIds), [hiddenStarterTrackIds]);
+    const visibleStarterTracks = useMemo(() => (
+        starterTracks.filter((track) => !hiddenStarterTrackIdSet.has(track.id))
+    ), [hiddenStarterTrackIdSet, starterTracks]);
     const [activeMobileTab, setActiveMobileTab] = useState('scan');
     const [libraryOpen, setLibraryOpen] = useState(false);
+    const [aiImportProviderId, setAiImportProviderId] = useState('minimax-music');
+    const [aiImportOpen, setAiImportOpen] = useState(false);
     const [showFavorites, setShowFavorites] = useState(false);
     const [selectedTrackId, setSelectedTrackId] = useState('');
     const mergedTrackById = useMemo(() => {
         const map = new Map();
         search.results.forEach((track) => map.set(track.id, track));
-        starterTracks.forEach((track) => map.set(track.id, track));
+        visibleStarterTracks.forEach((track) => map.set(track.id, track));
         library.tracks.forEach((track) => map.set(track.id, track));
         projectLibrary.tracks.forEach((track) => map.set(track.id, track));
         return map;
-    }, [library.tracks, projectLibrary.tracks, search.results, starterTracks]);
-    const selectedTrack = mergedTrackById.get(selectedTrackId) || player.currentTrack || projectLibrary.tracks[0] || starterTracks[0] || library.tracks[0] || search.results[0] || null;
+    }, [library.tracks, projectLibrary.tracks, search.results, visibleStarterTracks]);
+    const selectedTrack = mergedTrackById.get(selectedTrackId) || player.currentTrack || projectLibrary.tracks[0] || visibleStarterTracks[0] || library.tracks[0] || search.results[0] || null;
 
     const playTrack = (track, explicitUrl, options) => {
         setSelectedTrackId(track.id);
         player.play(track, explicitUrl || track.localObjectUrl || track.previewUrl || track.downloadUrl, options);
+    };
+
+    const openAiImport = (providerId = 'minimax-music') => {
+        setAiImportProviderId(AI_AUDIO_PROVIDERS.includes(providerId) ? providerId : 'minimax-music');
+        setAiImportOpen(true);
+    };
+
+    const removeStarterTrack = (track) => {
+        if (!track?.id) return;
+        setHiddenStarterTrackIds((current) => {
+            if (current.includes(track.id)) return current;
+            const next = [...current, track.id];
+            saveHiddenStarterTracks(next);
+            return next;
+        });
+        if (selectedTrackId === track.id) setSelectedTrackId('');
+        if (player.playingId === track.id) player.stop();
     };
 
     const handleUseInVideo = async (track) => {
@@ -109,6 +151,12 @@ export default function SoundtrackPage({ onUseInVideo }) {
                         </button>
                     ))}
                 </nav>
+                <div className="soundtrack-command-strip__actions">
+                    <button type="button" onClick={() => openAiImport(search.provider)} title="Generer ou importer une musique par theme">
+                        <Sparkles size={13} />
+                        Musique IA par theme
+                    </button>
+                </div>
                 <div className="soundtrack-command-strip__status">
                     <span data-state={projectLibrary.status === 'error' ? 'warning' : 'ready'}>{projectLibrary.status}</span>
                     <span>{projectLibrary.tracks.length} projet</span>
@@ -124,10 +172,12 @@ export default function SoundtrackPage({ onUseInVideo }) {
                             player={player}
                             localLibrary={library}
                             projectLibrary={projectLibrary}
+                            selectedTrack={selectedTrack}
                             onPlayTrack={playTrack}
                             onUseInVideo={handleUseInVideo}
                             onSelectTrack={(track) => setSelectedTrackId(track.id)}
                             onImportComplete={() => setLibraryOpen(true)}
+                            onOpenAiImport={openAiImport}
                         />
                     )}
                     <div className="soundtrack-toolbar">
@@ -150,6 +200,7 @@ export default function SoundtrackPage({ onUseInVideo }) {
                             player={player}
                             library={library}
                             projectLibrary={projectLibrary}
+                            selectedTrack={selectedTrack}
                             onPlayTrack={playTrack}
                             onUseInVideo={handleUseInVideo}
                             onSelectTrack={(track) => setSelectedTrackId(track.id)}
@@ -189,12 +240,56 @@ export default function SoundtrackPage({ onUseInVideo }) {
                             variant="modal"
                             projectLibrary={projectLibrary}
                             localLibrary={library}
-                            starterTracks={starterTracks}
+                            starterTracks={visibleStarterTracks}
                             selectedTrack={selectedTrack}
                             player={player}
                             onSelectTrack={(track) => setSelectedTrackId(track.id)}
                             onPlayTrack={playTrack}
+                            onRemoveStarterTrack={removeStarterTrack}
                             onUseInVideo={handleUseInVideo}
+                        />
+                    </section>
+                </div>
+            )}
+
+            {aiImportOpen && (
+                <div className="soundtrack-ai-import-backdrop" onClick={() => setAiImportOpen(false)}>
+                    <section
+                        className="soundtrack-ai-import-modal"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Generer une musique IA par theme"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <header className="soundtrack-ai-import-modal__header">
+                            <div>
+                                <p>Musique IA simple</p>
+                                <h2>Choisis un theme, Vibe_fx importe la piste</h2>
+                            </div>
+                            <button type="button" onClick={() => setAiImportOpen(false)} aria-label="Fermer import IA">
+                                <X size={16} />
+                            </button>
+                        </header>
+                        <div className="soundtrack-ai-import-modal__guide" aria-label="Etapes import IA">
+                            <span><strong>1</strong> Choisis un provider IA</span>
+                            <span><strong>2</strong> Clique un theme ou filtre</span>
+                            <span><strong>3</strong> Genere et importe</span>
+                        </div>
+                        <p className="soundtrack-ai-import-modal__note">
+                            Ce flux ne scanne pas Pixabay. Il appelle un provider IA connecte avec le theme choisi, recupere l'audio, puis l'ajoute directement a ta bibliotheque.
+                        </p>
+                        <AiMusicImportAssistant
+                            key={aiImportProviderId}
+                            compact
+                            defaultProviderId={aiImportProviderId}
+                            localLibrary={library}
+                            projectLibrary={projectLibrary}
+                            onSelectTrack={(track) => setSelectedTrackId(track.id)}
+                            onImportComplete={(track) => {
+                                setSelectedTrackId(track.id);
+                                setAiImportOpen(false);
+                                setLibraryOpen(true);
+                            }}
                         />
                     </section>
                 </div>

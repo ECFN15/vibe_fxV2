@@ -7,6 +7,7 @@ const MAX_QUERY_LENGTH = 80;
 const DEFAULT_RESULTS_PER_PROVIDER = 20;
 const MAX_RESULTS_PER_PROVIDER = 20;
 const MAX_SCAN_PAGES = 5;
+const MAX_SCAN_START_PAGE = 20;
 const REQUEST_TIMEOUT_MS = 9000;
 const EXACT_AUDIO_HOSTS = new Set([
     'cdn.pixabay.com',
@@ -15,25 +16,63 @@ const EXACT_AUDIO_HOSTS = new Set([
     'whitebataudio.com',
     'www.whitebataudio.com',
     'freesound.org',
-    'archive.org',
-    'commons.wikimedia.org',
 ]);
 const SUBDOMAIN_AUDIO_HOSTS = [
     'storage.jamendo.com',
     'freesound.org',
-    'archive.org',
-    'us.archive.org',
-    'upload.wikimedia.org',
 ];
 
 const PROVIDERS = [
-    { id: 'pixabay', label: 'Pixabay Music', keyRequired: false, pageScan: true },
-    { id: 'openverse', label: 'Openverse Audio', keyRequired: false },
-    { id: 'jamendo', label: 'Jamendo Music', keyRequired: true, env: ['JAMENDO_CLIENT_ID', 'MUSIC_JAMENDO_CLIENT_ID'] },
-    { id: 'freesound', label: 'Freesound', keyRequired: true, env: ['FREESOUND_API_KEY', 'MUSIC_FREESOUND_API_KEY'] },
-    { id: 'archive', label: 'Internet Archive', keyRequired: false },
-    { id: 'wikimedia', label: 'Wikimedia Commons', keyRequired: false },
+    {
+        id: 'pixabay',
+        label: 'Pixabay Music',
+        mediaType: 'music',
+        keyRequired: false,
+        pageScan: true,
+        officialDocsUrl: 'https://pixabay.com/music/',
+    },
+    {
+        id: 'openverse',
+        label: 'Openverse Audio',
+        mediaType: 'audio',
+        keyRequired: false,
+        officialDocsUrl: 'https://api.openverse.org/v1/#tag/audio',
+    },
+    {
+        id: 'jamendo',
+        label: 'Jamendo Music',
+        mediaType: 'music',
+        keyRequired: true,
+        env: ['JAMENDO_CLIENT_ID', 'MUSIC_JAMENDO_CLIENT_ID'],
+        officialDocsUrl: 'https://developer.jamendo.com/v3.0/tracks',
+    },
+    {
+        id: 'freesound',
+        label: 'Freesound',
+        mediaType: 'sfx/audio',
+        keyRequired: true,
+        env: ['FREESOUND_API_KEY', 'MUSIC_FREESOUND_API_KEY'],
+        officialDocsUrl: 'https://freesound.org/docs/api/',
+    },
 ];
+
+const PROVIDER_MAP = new Map(PROVIDERS.map((provider) => [provider.id, provider]));
+
+const JAMENDO_FEATURED_TAGS = new Set([
+    'lounge',
+    'classical',
+    'electronic',
+    'jazz',
+    'pop',
+    'hiphop',
+    'relaxation',
+    'rock',
+    'soundtrack',
+    'world',
+    'metal',
+]);
+
+const OPENVERSE_SOURCE_ALIASES = {};
 
 const normaliseText = (value, limit = MAX_QUERY_LENGTH) => (
     typeof value === 'string' ? value.trim().slice(0, limit) : ''
@@ -154,13 +193,33 @@ const buildTrack = ({
     };
 };
 
-const searchOpenverse = async ({ query, genre, limit, page }) => {
+const searchOpenverse = async ({
+    query,
+    genre,
+    category,
+    limit,
+    page,
+    source,
+    mediaCategory,
+    licenseType,
+    length,
+}) => {
     const params = new URLSearchParams({
         q: query || genre || 'music',
         page_size: String(limit),
         page: String(page),
     });
-    if (genre) params.set('tags', genre);
+    const tag = normaliseText(category || genre, 40);
+    const sourceFilter = normaliseText(OPENVERSE_SOURCE_ALIASES[source] || source, 40);
+    const mediaCategoryFilter = normaliseText(mediaCategory, 40);
+    const licenseTypeFilter = normaliseText(licenseType, 40);
+    const lengthFilter = normaliseText(length, 40);
+    if (sourceFilter) params.set('source', sourceFilter);
+    if (mediaCategoryFilter) params.set('category', mediaCategoryFilter);
+    if (licenseTypeFilter) params.set('license_type', licenseTypeFilter);
+    if (lengthFilter) params.set('length', lengthFilter);
+    if (!mediaCategoryFilter && tag && ['music', 'sound_effect', 'podcast'].includes(tag)) params.set('category', tag);
+    else if (tag && !/^(source|license|length|category|title)-/.test(tag) && !query.toLowerCase().includes(tag.toLowerCase())) params.set('tags', tag);
     const response = await withTimeout(`https://api.openverse.engineering/v1/audio/?${params.toString()}`);
     if (!response.ok) throw new Error('Openverse a refuse la recherche.');
     const payload = await response.json();
@@ -184,9 +243,10 @@ const searchOpenverse = async ({ query, genre, limit, page }) => {
     return { provider: 'openverse', configured: true, tracks };
 };
 
-const searchJamendo = async ({ query, genre, limit }) => {
+const searchJamendo = async ({ query, genre, category, limit }) => {
     const clientId = getEnv(PROVIDERS.find((provider) => provider.id === 'jamendo').env);
     if (!clientId) return { provider: 'jamendo', configured: false, tracks: [], error: 'JAMENDO_CLIENT_ID manquant.' };
+    const tag = normaliseText(category || genre, 40);
 
     const params = new URLSearchParams({
         client_id: clientId,
@@ -203,7 +263,10 @@ const searchJamendo = async ({ query, genre, limit }) => {
         vocalinstrumental: 'instrumental',
     });
     if (query) params.set('search', query);
-    if (genre) params.set('fuzzytags', genre);
+    if (tag) {
+        params.set('fuzzytags', tag);
+        if (JAMENDO_FEATURED_TAGS.has(tag)) params.set('tags', tag);
+    }
 
     const response = await withTimeout(`https://api.jamendo.com/v3.0/tracks/?${params.toString()}`);
     if (!response.ok) throw new Error('Jamendo a refuse la recherche.');
@@ -236,17 +299,18 @@ const searchJamendo = async ({ query, genre, limit }) => {
     return { provider: 'jamendo', configured: true, tracks };
 };
 
-const searchFreesound = async ({ query, genre, limit }) => {
+const searchFreesound = async ({ query, genre, category, limit }) => {
     const token = getEnv(PROVIDERS.find((provider) => provider.id === 'freesound').env);
     if (!token) return { provider: 'freesound', configured: false, tracks: [], error: 'FREESOUND_API_KEY manquant.' };
+    const tag = normaliseText(category || genre, 40);
 
     const params = new URLSearchParams({
-        query: query || genre || 'music loop',
+        query: query || tag || 'music loop',
         page_size: String(limit),
         fields: 'id,name,username,url,license,duration,previews,tags',
         token,
     });
-    if (genre) params.set('filter', `tag:${genre} duration:[0 TO 1800]`);
+    if (tag) params.set('filter', `tag:${tag} duration:[0 TO 1800]`);
     else params.set('filter', 'duration:[0 TO 1800]');
 
     const response = await withTimeout(`https://freesound.org/apiv2/search/?${params.toString()}`);
@@ -274,107 +338,28 @@ const searchFreesound = async ({ query, genre, limit }) => {
     return { provider: 'freesound', configured: true, tracks };
 };
 
-const pickArchiveAudioFile = (files = []) => (
-    files.find((file) => /vbr mp3/i.test(file.format || '') && file.name)
-    || files.find((file) => /mp3/i.test(file.name || '') && file.name)
-    || files.find((file) => /ogg/i.test(file.name || '') && file.name)
-);
-
-const searchArchive = async ({ query, genre, limit, page }) => {
-    const term = normaliseText([query, genre].filter(Boolean).join(' '), 120) || 'music';
-    const params = new URLSearchParams({
-        q: `mediatype:audio AND (${term}) AND (licenseurl:creativecommons.org OR licenseurl:publicdomain)`,
-        rows: String(Math.min(5, limit)),
-        page: String(page),
-        output: 'json',
-    });
-    ['identifier', 'title', 'creator', 'licenseurl'].forEach((field) => params.append('fl[]', field));
-    const response = await withTimeout(`https://archive.org/advancedsearch.php?${params.toString()}`);
-    if (!response.ok) throw new Error('Internet Archive a refuse la recherche.');
-    const payload = await response.json();
-    const docs = payload.response?.docs || [];
-    const details = await Promise.allSettled(docs.map(async (doc) => {
-        const metaResponse = await withTimeout(`https://archive.org/metadata/${encodeURIComponent(doc.identifier)}`);
-        if (!metaResponse.ok) return null;
-        const metadata = await metaResponse.json();
-        const audioFile = pickArchiveAudioFile(metadata.files);
-        if (!audioFile) return null;
-        const fileUrl = `https://archive.org/download/${encodeURIComponent(doc.identifier)}/${encodeURIComponent(audioFile.name)}`;
-        const title = doc.title || metadata.metadata?.title || doc.identifier;
-        const artist = Array.isArray(doc.creator) ? doc.creator.join(', ') : doc.creator || metadata.metadata?.creator || 'Internet Archive contributor';
-        const licenseUrl = Array.isArray(doc.licenseurl) ? doc.licenseurl[0] : doc.licenseurl || metadata.metadata?.licenseurl || '';
-        return buildTrack({
-            id: doc.identifier,
-            provider: 'archive',
-            title,
-            artist,
-            previewUrl: fileUrl,
-            downloadUrl: fileUrl,
-            sourceName: 'Internet Archive',
-            sourceUrl: `https://archive.org/details/${doc.identifier}`,
-            licenseUrl,
-            attribution: `${title} by ${artist}`,
-            contentIdWarning: 'Internet Archive a des metadonnees heterogenes. Verifier licenseurl et page item avant publication.',
-            tags: ['archive'],
-        });
-    }));
-    const tracks = details.map((item) => item.status === 'fulfilled' ? item.value : null).filter(Boolean);
-    return { provider: 'archive', configured: true, tracks };
-};
-
-const cleanHtml = (value = '') => String(value).replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
-
-const searchWikimedia = async ({ query, genre, limit }) => {
-    const term = normaliseText([query, genre, 'filetype:ogg'].filter(Boolean).join(' '), 120) || 'music filetype:ogg';
-    const params = new URLSearchParams({
-        action: 'query',
-        generator: 'search',
-        gsrsearch: term,
-        gsrnamespace: '6',
-        gsrlimit: String(limit),
-        prop: 'imageinfo',
-        iiprop: 'url|extmetadata',
-        format: 'json',
-        origin: '*',
-    });
-    const response = await withTimeout(`https://commons.wikimedia.org/w/api.php?${params.toString()}`);
-    if (!response.ok) throw new Error('Wikimedia Commons a refuse la recherche.');
-    const payload = await response.json();
-    const pages = Object.values(payload.query?.pages || {});
-    const tracks = pages.map((page) => {
-        const info = page.imageinfo?.[0];
-        if (!info?.url || !/^audio\//i.test(info.mime || 'audio/unknown') && !/\.(ogg|oga|mp3|wav)$/i.test(info.url)) return null;
-        const meta = info.extmetadata || {};
-        const title = cleanHtml(meta.ObjectName?.value) || page.title?.replace(/^File:/, '') || 'Wikimedia audio';
-        const artist = cleanHtml(meta.Artist?.value || meta.Credit?.value) || 'Wikimedia Commons contributor';
-        const license = cleanHtml(meta.LicenseShortName?.value || meta.UsageTerms?.value);
-        const licenseUrl = meta.LicenseUrl?.value || info.descriptionurl || '';
-        return buildTrack({
-            id: page.pageid,
-            provider: 'wikimedia',
-            title,
-            artist,
-            previewUrl: info.url,
-            downloadUrl: info.url,
-            sourceName: 'Wikimedia Commons',
-            sourceUrl: info.descriptionurl,
-            license,
-            licenseUrl,
-            attribution: `${title} by ${artist}`,
-            contentIdWarning: 'Wikimedia Commons audio est tres heterogene. Verifier la page fichier et la licence avant publication.',
-            tags: ['commons'],
-        });
-    }).filter(Boolean);
-    return { provider: 'wikimedia', configured: true, tracks };
-};
-
 const SEARCHERS = {
     pixabay: async (filters) => pixabayAudioAdapter.search(filters),
     openverse: searchOpenverse,
     jamendo: searchJamendo,
     freesound: searchFreesound,
-    archive: searchArchive,
-    wikimedia: searchWikimedia,
+};
+
+const buildStats = (tracks = [], providerStatus = []) => {
+    const found = tracks.length;
+    const importable = tracks.filter((track) => track.downloadAllowed).length;
+    const ignoredReasons = providerStatus
+        .filter((provider) => provider.error)
+        .map((provider) => ({
+            reason: provider.configured === false ? 'provider-missing-key' : 'provider-unavailable',
+            count: 1,
+        }));
+    return {
+        found,
+        importable,
+        ignored: Math.max(0, found - importable) + ignoredReasons.reduce((sum, item) => sum + item.count, 0),
+        ignoredReasons,
+    };
 };
 
 export async function GET(request) {
@@ -382,9 +367,14 @@ export async function GET(request) {
     const query = normaliseText(searchParams.get('q')) || 'ambient';
     const genre = normaliseText(searchParams.get('genre'), 40);
     const category = normaliseText(searchParams.get('category'), 40);
+    const source = normaliseText(searchParams.get('source'), 40);
+    const mediaCategory = normaliseText(searchParams.get('media_category'), 40);
+    const licenseType = normaliseText(searchParams.get('license_type'), 40);
+    const length = normaliseText(searchParams.get('length'), 40);
     const requestedProvider = normaliseText(searchParams.get('provider'), 30) || 'all';
     const limit = normaliseNumber(searchParams.get('limit'), DEFAULT_RESULTS_PER_PROVIDER, 1, MAX_RESULTS_PER_PROVIDER);
     const pages = normaliseNumber(searchParams.get('pages'), 1, 1, MAX_SCAN_PAGES);
+    const pageStart = normaliseNumber(searchParams.get('start_page') || searchParams.get('page_start'), 1, 1, MAX_SCAN_START_PAGE);
 
     if (requestedProvider === 'pixabay') {
         const payload = await pixabayAudioAdapter.search({
@@ -399,16 +389,54 @@ export async function GET(request) {
             },
         });
     }
+
     const selectedProviders = requestedProvider === 'all'
-        ? PROVIDERS.map((provider) => provider.id)
+        ? PROVIDERS.filter((provider) => !provider.keyRequired || getEnv(provider.env)).map((provider) => provider.id)
         : PROVIDERS.some((provider) => provider.id === requestedProvider)
             ? [requestedProvider]
-            : ['openverse'];
+            : [];
+
+    if (!selectedProviders.length) {
+        return NextResponse.json({
+            provider: requestedProvider,
+            configured: false,
+            providers: [{
+                id: requestedProvider || 'unknown',
+                label: requestedProvider || 'unknown',
+                mediaType: 'audio',
+                status: 'unsupported',
+                configured: false,
+                count: 0,
+                importable: 0,
+                error: 'Provider retire: aucune API audio exploitable dans Vibe_fx.',
+            }],
+            scan: { pages, limit, pageStart },
+            cache: { status: 'disabled' },
+            status: 'provider-unavailable',
+            stats: {
+                found: 0,
+                importable: 0,
+                ignored: 1,
+                ignoredReasons: [{ reason: 'unsupported-provider', count: 1 }],
+            },
+            tracks: [],
+        }, { status: 400 });
+    }
 
     const scanJobs = selectedProviders.flatMap((provider) => (
-        Array.from({ length: pages }, (_, index) => ({ provider, page: index + 1 }))
+        Array.from({ length: pages }, (_, index) => ({ provider, page: pageStart + index }))
     ));
-    const settled = await Promise.allSettled(scanJobs.map((job) => SEARCHERS[job.provider]({ query, genre, limit, page: job.page })));
+    const settled = await Promise.allSettled(scanJobs.map((job) => SEARCHERS[job.provider]({
+        query,
+        genre,
+        category,
+        limit,
+        page: job.page,
+        source,
+        mediaCategory,
+        licenseType,
+        length,
+    })));
     const providerStatusMap = new Map();
     settled.forEach((result, index) => {
         const id = scanJobs[index].provider;
@@ -417,14 +445,20 @@ export async function GET(request) {
             const previous = providerStatusMap.get(id) || {
                 id,
                 label: definition.label,
+                mediaType: definition.mediaType,
+                status: result.value.configured === false ? 'provider-missing-key' : 'active',
                 configured: result.value.configured,
                 count: 0,
+                importable: 0,
                 error: result.value.error || '',
+                officialDocsUrl: definition.officialDocsUrl,
             };
             providerStatusMap.set(id, {
                 ...previous,
                 configured: previous.configured || result.value.configured,
+                status: previous.error || result.value.error ? previous.status : 'active',
                 count: previous.count + result.value.tracks.length,
+                importable: previous.importable + result.value.tracks.filter((track) => track.downloadAllowed).length,
                 error: previous.error || result.value.error || '',
             });
             return;
@@ -432,9 +466,13 @@ export async function GET(request) {
         providerStatusMap.set(id, {
             id,
             label: definition.label,
+            mediaType: definition.mediaType,
+            status: definition.keyRequired && !getEnv(definition.env) ? 'provider-missing-key' : 'provider-unavailable',
             configured: !definition.keyRequired,
             count: 0,
+            importable: 0,
             error: result.reason?.message || 'Recherche indisponible.',
+            officialDocsUrl: definition.officialDocsUrl,
         });
     });
     const providerStatus = selectedProviders.map((id) => providerStatusMap.get(id)).filter(Boolean);
@@ -448,17 +486,22 @@ export async function GET(request) {
             return true;
         });
 
+    const stats = buildStats(tracks, providerStatus);
+    const sourceProvider = PROVIDER_MAP.get(requestedProvider) || PROVIDER_MAP.get(selectedProviders[0]);
+
     return NextResponse.json({
         provider: requestedProvider,
         configured: providerStatus.some((status) => status.configured),
         providers: providerStatus,
-        scan: { pages, limit },
-        sourceUrl: requestedProvider === 'pixabay' ? 'https://pixabay.com/api/docs/' : 'https://docs.openverse.org/api/',
+        scan: { pages, limit, pageStart },
+        sourceUrl: sourceProvider?.officialDocsUrl || 'https://api.openverse.org/v1/#tag/audio',
         cache: {
             status: 'controlled',
             ttlSeconds: 86400,
-            note: 'Pixabay impose un cache 24h pour son API images/videos; les scans Soundtrack restent volontaires et limites.',
+            note: 'Recherches provider-first cote serveur, limitees et cachees pour eviter les scans massifs.',
         },
+        status: tracks.length ? 'ready' : providerStatus.some((provider) => provider.error) ? 'provider-unavailable' : 'empty',
+        stats,
         tracks,
     }, {
         headers: {

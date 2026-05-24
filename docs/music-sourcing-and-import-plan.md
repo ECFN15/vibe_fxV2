@@ -16,6 +16,9 @@ The music product should not depend on random "no copyright" downloads. Vibe_fx 
 | P0 | Soundstripe | Strong licensing/API partner | Partnership API | Good fit for in-app licensing, possible indemnification/commercial coverage. Requires partnership. |
 | P1 | Artlist | Premium creator catalog | Enterprise API | Browse/stream/search/download exists for enterprise users. Watch resale/library restrictions. |
 | P1 | Mubert | AI generation API | Server connector | Text-to-music, moods, BPM, streaming, sublicensing claims. Keep keys server-side. |
+| P1 | MiniMax Music | AI song/instrumental API | Server connector | First prototype connector: official `/v1/music_generation`, server key, hex audio imported immediately. |
+| P1 | Mureka | AI song/instrumental API | Manual import first, async connector later | Official API, async task model; use for existing generation import until account-backed task schema is validated. |
+| P1 | Replicate | AI model hub | Manual import first, model-specific connectors later | Useful to test MiniMax/MusicGen/Riffusion quickly; pin model/schema/license before automatic generation. |
 | P1 | Beatoven.ai | AI music for video/podcast | Server/manual first | Good creative fit; confirm API/commercial plan before automation. |
 | P1 | Stable Audio | High-quality AI generation | Server/manual first | Creator license supports individual commercial projects; enterprise for app-scale use. |
 | P2 | Openverse Audio | Free Creative Commons/public-domain discovery | Server API, no key required | Best default aggregator. Returns source/provider, license URL, attribution and media URL, but license accuracy must still be verified upstream. |
@@ -110,6 +113,6 @@ Before export or publication, the app should show:
 Remaining production work:
 
 - Move remote provider import into a fully authenticated server route or callable if direct client upload from the controlled proxy is not sufficient for the final threat model.
-- Implement AI music through Firebase callable/server connector only after a provider contract/API plan is selected.
+- Finish AI music through Firebase callable/server connector after provider contract/API plan selection. Prototype state now supports MiniMax server generation through `/api/music/ai-generate` plus manual import of existing AI generations from MiniMax, Mureka, Replicate and other configured AI providers into the local or Firebase project library.
 - Add premium catalog API connectors only through server-side provider agreements.
 - Decide whether Jamendo CC discovery is enough for production templates or should stay limited to tests/starter workflows behind an explicit warning.

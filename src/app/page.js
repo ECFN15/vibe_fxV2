@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { AI_INTERFACES_DEFAULT_ENABLED } from "@/config/aiLaunch";
 import { PublicationRoutePipeline } from "./components/PublicationRoutePipeline";
 
 export const metadata = {
@@ -115,6 +116,10 @@ export default function Home() {
             <span className="vf-nav-link-dot" aria-hidden="true" />
             Compte
           </Link>
+          <Link href="/backoffice">
+            <span className="vf-nav-link-dot" aria-hidden="true" />
+            Backoffice
+          </Link>
         </div>
         <Link href="/studio" className="vf-nav-cta">
           Launch app
@@ -136,7 +141,7 @@ export default function Home() {
               Launch app
             </Link>
             <Link href="/pricing" className="vf-secondary">
-              Voir credits IA
+              {AI_INTERFACES_DEFAULT_ENABLED ? "Voir credits IA" : "Voir tarifs"}
             </Link>
           </div>
           <div className="vf-hero-stats" aria-label="Statuts du workflow">

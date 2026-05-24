@@ -3,7 +3,7 @@ import {
     Smartphone, LayoutTemplate, Square, RectangleHorizontal, Sparkles,
     ChevronDown, MousePointer2, Scaling, Palette, Type
 } from 'lucide-react';
-import { FORMATS, TEMPLATES } from '../../data/constants';
+import { CUSTOM_LAYOUT_PRESETS, DEFAULT_CUSTOM_TEMPLATE, FORMATS, TEMPLATES } from '../../data/constants';
 import ControlGroup from '../ui/ControlGroup';
 import TextAssetsPanel from '../panels/TextAssetsPanel';
 import GeometryPanel from '../panels/GeometryPanel';
@@ -14,6 +14,7 @@ import BackgroundPanel from '../panels/BackgroundPanel';
  */
 export default function LayoutSidebar({
     images,
+    setImages,
     isDarkMode,
     // Slot selection
     selectedSlotIndex, setSelectedSlotIndex,
@@ -31,6 +32,7 @@ export default function LayoutSidebar({
     addText, addAsset,
     currentText, currentAsset,
     updateActiveText, deleteActiveText,
+    setTexts,
     setActiveAssetId, deleteActiveAsset,
     activeAssetId, setAssets, assets,
     // Geometry
@@ -44,6 +46,47 @@ export default function LayoutSidebar({
     layoutSmoothBlur, setLayoutSmoothBlur,
     showGuidelines, setShowGuidelines,
 }) {
+    const isCustomTemplate = activeTemplate.id === 'custom';
+    const customPresetId = activeTemplate.customLayout?.presetId;
+    const customZonesCount = activeTemplate.customLayout?.zones?.length || 0;
+
+    const applyCustomPreset = (preset) => {
+        if (!isCustomTemplate) {
+            setTexts?.([]);
+        }
+        setActiveTemplate({
+            ...DEFAULT_CUSTOM_TEMPLATE,
+            label: preset.label,
+            slots: preset.zones.length,
+            customLayout: {
+                version: 1,
+                presetId: preset.id,
+                zones: preset.zones,
+            },
+        });
+        setSelectedSlotIndex(null);
+        setActiveTextId(null);
+    };
+
+    const handleSelectedSlotImageUpload = (event) => {
+        const file = event.target.files?.[0];
+        if (!file || selectedSlotIndex === null) return;
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+            img.name = file.name;
+            updateSlotConfig('image', img);
+            updateSlotConfig('imageSrc', url);
+            updateSlotConfig('imageName', file.name);
+            setImages?.(prev => [...prev, img]);
+        };
+        img.onerror = () => {
+            URL.revokeObjectURL(url);
+        };
+        img.src = url;
+        event.target.value = '';
+    };
+
     return (
         <div className="vibefx-sidebar-scroll flex-1 overflow-y-auto custom-scrollbar p-5 animate-in slide-in-from-right-4">
             {/* 1. SELECTION PANEL */}
@@ -51,6 +94,20 @@ export default function LayoutSidebar({
                 <div className="animate-in slide-in-from-right-4 fade-in duration-200 mb-6">
                     <div className="flex justify-between items-center mb-4"><h3 className="text-xs font-bold uppercase tracking-widest text-indigo-400 flex items-center gap-2"><MousePointer2 size={14} /> Zone Sélectionnée</h3><button onClick={() => setSelectedSlotIndex(null)} className="text-[10px] text-gray-500 hover:text-white underline">Fermer</button></div>
                     <div className="bg-indigo-500/10 rounded-2xl p-4 border border-indigo-500/30 relative">
+                        {isCustomTemplate ? (
+                            <div className="mb-4 rounded-xl border border-indigo-400/30 bg-black/30 p-3">
+                                <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-indigo-200">Image de zone</p>
+                                <label className="inline-flex cursor-pointer items-center justify-center border border-indigo-400/60 bg-indigo-500/15 px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-widest text-indigo-100 transition hover:bg-indigo-500/25">
+                                    Importer dans ce bloc
+                                    <input type="file" className="hidden" accept="image/*" onChange={handleSelectedSlotImageUpload} />
+                                </label>
+                                {activeConfig.imageName ? (
+                                    <p className="mt-2 truncate text-[11px] text-neutral-400">{activeConfig.imageName}</p>
+                                ) : (
+                                    <p className="mt-2 text-[11px] text-neutral-500">Clique un bloc sur le canvas, puis importe son image.</p>
+                                )}
+                            </div>
+                        ) : null}
                         <ControlGroup label="Zoom" value={activeConfig.zoom} onChange={(v) => updateSlotConfig('zoom', v)} min={1} max={4} step={0.1} unit="x" isDarkMode={isDarkMode} />
                         <ControlGroup label="Position X" value={activeConfig.x} onChange={(v) => updateSlotConfig('x', v)} min={-100} max={100} unit="%" isDarkMode={isDarkMode} />
                         <ControlGroup label="Position Y" value={activeConfig.y} onChange={(v) => updateSlotConfig('y', v)} min={-100} max={100} unit="%" isDarkMode={isDarkMode} />
@@ -64,9 +121,9 @@ export default function LayoutSidebar({
             {/* 2. FORMAT */}
             <div className="mb-6">
                 <h3 className={`text-xs font-bold uppercase tracking-widest mb-4 flex items-center gap-2 ${isDarkMode ? 'text-neutral-500' : 'text-gray-400'}`}><Smartphone size={14} /> Format</h3>
-                <div className="vibefx-format-grid flex flex-wrap gap-2">
+                <div className="vibefx-format-grid">
                     {FORMATS.map(fmt => (
-                        <button key={fmt.id} onClick={() => setActiveFormat(fmt)} className={`vibefx-format-button flex-1 min-w-[70px] flex flex-col items-center justify-center p-3 border transition-all ${activeFormat.id === fmt.id ? 'bg-indigo-900/30 border-indigo-500 text-indigo-400' : (isDarkMode ? 'border-neutral-800 bg-transparent text-neutral-500 hover:border-neutral-600' : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-white')}`}>
+                        <button key={fmt.id} data-format-id={fmt.id} onClick={() => setActiveFormat(fmt)} className={`vibefx-format-button flex-1 min-w-[70px] flex flex-col items-center justify-center p-3 border transition-all ${activeFormat.id === fmt.id ? 'bg-indigo-900/30 border-indigo-500 text-indigo-400' : (isDarkMode ? 'border-neutral-800 bg-transparent text-neutral-500 hover:border-neutral-600' : 'border-gray-200 bg-gray-50 text-gray-500 hover:bg-white')}`}>
                             <div className="vibefx-format-icon h-6 flex items-center justify-center mb-2">
                                 <div
                                     className={`border rounded-[2px] transition-all ${activeFormat.id === fmt.id ? 'border-indigo-400 bg-indigo-500/10' : (isDarkMode ? 'border-neutral-500' : 'border-gray-400')}`}
@@ -93,6 +150,30 @@ export default function LayoutSidebar({
                             <div><div className="text-xs font-bold">{tpl.label}</div><div className="text-[10px] opacity-60">{tpl.slots} zone(s)</div></div>
                         </button>
                     ))}
+                </div>
+                <div className={`mt-3 border p-3 ${isCustomTemplate ? 'border-indigo-500/60 bg-indigo-500/10' : (isDarkMode ? 'border-neutral-800 bg-black/20' : 'border-gray-200 bg-gray-50')}`}>
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                        <div>
+                            <div className={`text-xs font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Modele personnalise</div>
+                            <div className="mt-1 text-[10px] uppercase tracking-widest opacity-60">
+                                {isCustomTemplate ? `${customZonesCount} zones actives` : 'Canvas vide + blocs importables'}
+                            </div>
+                        </div>
+                        <LayoutTemplate size={18} className={isCustomTemplate ? 'text-indigo-300' : 'opacity-50'} />
+                    </div>
+                    <div className="grid grid-cols-1 gap-2">
+                        {CUSTOM_LAYOUT_PRESETS.map(preset => (
+                            <button
+                                key={preset.id}
+                                type="button"
+                                onClick={() => applyCustomPreset(preset)}
+                                className={`border px-3 py-2 text-left transition-all ${customPresetId === preset.id ? 'border-indigo-400 bg-indigo-500/20 text-indigo-100' : (isDarkMode ? 'border-neutral-800 text-neutral-400 hover:border-indigo-500/50 hover:text-white' : 'border-gray-200 text-gray-600 hover:border-indigo-400 hover:bg-white')}`}
+                            >
+                                <span className="block text-[11px] font-bold uppercase tracking-widest">{preset.label}</span>
+                                <span className="mt-1 block text-[10px] opacity-60">{preset.description}</span>
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 

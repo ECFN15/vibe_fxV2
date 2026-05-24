@@ -27,9 +27,9 @@ export function renderLayoutBackground(ctx, w, h, { images, layoutBgColor, layou
  * renderSlot — Dessine une image dans un slot avec zoom, pan, border, blur.
  */
 export function renderSlot(ctx, slotId, imgIndex, x, y, sw, sh, overrideRadius, { images, slotConfigs, radius, layoutBgBlur, layoutBgColor, activeTemplate, slotRects }) {
-    const safeImgIndex = imgIndex % images.length;
-    const img = images[safeImgIndex];
     const cfg = slotConfigs[slotId] || { zoom: 1, x: 0, y: 0, border: 0, blur: 0 };
+    const safeImgIndex = images.length > 0 ? imgIndex % images.length : null;
+    const img = cfg.image || (safeImgIndex !== null ? images[safeImgIndex] : null);
     const effRadius = overrideRadius !== undefined ? overrideRadius : radius;
 
     ctx.save();
@@ -40,6 +40,29 @@ export function renderSlot(ctx, slotId, imgIndex, x, y, sw, sh, overrideRadius, 
     if (!layoutBgBlur && activeTemplate.id !== 'polaroid') {
         ctx.fillStyle = "#000000";
         ctx.fillRect(x, y, sw, sh);
+    }
+
+    if (!img?.width || !img?.height) {
+        ctx.fillStyle = activeTemplate.id === 'custom' ? 'rgba(99, 102, 241, 0.08)' : '#050505';
+        ctx.fillRect(x, y, sw, sh);
+        ctx.restore();
+        ctx.save();
+        ctx.strokeStyle = activeTemplate.id === 'custom' ? 'rgba(129, 140, 248, 0.55)' : 'rgba(255, 255, 255, 0.18)';
+        ctx.lineWidth = Math.max(2, Math.min(sw, sh) * 0.006);
+        ctx.setLineDash([Math.max(8, sw * 0.025), Math.max(6, sw * 0.014)]);
+        ctx.beginPath();
+        ctx.roundRect(x + 1, y + 1, sw - 2, sh - 2, Math.max(0, effRadius - 1));
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(238, 242, 255, 0.72)';
+        ctx.font = `${Math.max(18, Math.min(42, sw * 0.07))}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('+ IMPORT', x + sw / 2, y + sh / 2);
+        ctx.restore();
+        ctx.restore();
+        slotRects.push({ id: slotId, x, y, w: sw, h: sh, r: effRadius });
+        return;
     }
 
     const imgRatio = img.width / img.height;
@@ -83,7 +106,17 @@ export function renderTemplateSlots(ctx, w, h, opts) {
         renderSlot(ctx, slotId, imgIndex, x, y, sw, sh, overrideRadius, opts);
     };
 
-    if (activeTemplate.id === 'minimal') {
+    if (activeTemplate.id === 'custom') {
+        const zones = activeTemplate.customLayout?.zones || [];
+        zones.forEach((zone, index) => {
+            const slotX = startX + (zone.x * safeW);
+            const slotY = startY + (zone.y * safeH);
+            const slotW = zone.w * safeW;
+            const slotH = zone.h * safeH;
+            rs(zone.id || `custom-${index}`, zone.imageIndex ?? index, slotX, slotY, slotW, slotH, zone.radius);
+        });
+    }
+    else if (activeTemplate.id === 'minimal') {
         rs(0, 0, startX, startY, safeW, safeH);
     }
     else if (activeTemplate.id === 'polaroid') {

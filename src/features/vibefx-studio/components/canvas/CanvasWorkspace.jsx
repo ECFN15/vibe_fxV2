@@ -40,7 +40,7 @@ export default function CanvasWorkspace({
     visionCompareSplit,
 }) {
     // Show canvas if there are images OR if we are in Fusion mode (to see background image/gradient)
-    const showCanvas = images.length > 0 || view === 'fusion';
+    const showCanvas = images.length > 0 || view === 'fusion' || (view === 'layout' && activeTemplate?.id === 'custom');
 
     // Dynamic canvas style for consistent aspect ratios
     const getCanvasStyle = () => {
@@ -103,9 +103,9 @@ export default function CanvasWorkspace({
                                 <input type="file" multiple className="hidden" accept="image/*,.cr2,.nef,.arw,.dng" onChange={handleImageUpload} />
                             </label>
 
-                            <button onClick={onOpenLibrarySelector} className={`cursor-pointer px-6 py-3 font-mono text-[10px] font-bold uppercase tracking-widest transition shadow-[0_0_15px_rgba(236,72,153,0.3)] hover:shadow-[0_0_25px_rgba(236,72,153,0.5)] inline-block border flex items-center justify-center gap-2 ${isDarkMode ? 'bg-pink-900/20 border-pink-500 text-pink-400 hover:bg-pink-900/40' : 'bg-white border-pink-200 text-pink-600 hover:bg-pink-50'}`}>
+                            {onOpenLibrarySelector && <button onClick={onOpenLibrarySelector} className={`cursor-pointer px-6 py-3 font-mono text-[10px] font-bold uppercase tracking-widest transition shadow-[0_0_15px_rgba(236,72,153,0.3)] hover:shadow-[0_0_25px_rgba(236,72,153,0.5)] inline-block border flex items-center justify-center gap-2 ${isDarkMode ? 'bg-pink-900/20 border-pink-500 text-pink-400 hover:bg-pink-900/40' : 'bg-white border-pink-200 text-pink-600 hover:bg-pink-50'}`}>
                                 <Layers size={14} /> [ BIBLIOTHÈQUE ]
-                            </button>
+                            </button>}
                         </div>
                     </div>
                 ) : (
@@ -193,9 +193,9 @@ export default function CanvasWorkspace({
                                         PC
                                         <input type="file" multiple className="hidden" accept="image/*" onChange={handleImageUpload} />
                                     </label>
-                                    <button onClick={onOpenLibrarySelector} className={`flex-shrink-0 w-16 h-8 rounded-sm border border-dashed flex items-center justify-center cursor-pointer transition uppercase font-mono text-[8px] tracking-widest ${isDarkMode ? 'border-neutral-700 hover:border-pink-500 text-neutral-500 hover:text-pink-400' : 'border-gray-300 hover:border-pink-500 text-gray-500 hover:text-pink-500'}`} title="Ajouter depuis la Bibliothèque">
+                                    {onOpenLibrarySelector && <button onClick={onOpenLibrarySelector} className={`flex-shrink-0 w-16 h-8 rounded-sm border border-dashed flex items-center justify-center cursor-pointer transition uppercase font-mono text-[8px] tracking-widest ${isDarkMode ? 'border-neutral-700 hover:border-pink-500 text-neutral-500 hover:text-pink-400' : 'border-gray-300 hover:border-pink-500 text-gray-500 hover:text-pink-500'}`} title="Ajouter depuis la Bibliothèque">
                                         <Layers size={12} className="mr-1" /> BIB
-                                    </button>
+                                    </button>}
                                 </div>
                             </div>
                         )}

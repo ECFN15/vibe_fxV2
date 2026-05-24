@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { X, Search, Play, Pause, Download, Music, Loader, ExternalLink, Upload, ShieldCheck, Sparkles, AlertTriangle, ClipboardCheck } from 'lucide-react';
+import { isAiProviderId } from '@/config/aiLaunch';
+import { useAiLaunchSettings } from '@/hooks/useAiLaunchSettings';
 import useVideoStore from '../store/videoStore';
 import { MUSIC_GENRES, MUSIC_PROVIDERS, getCuratedTracks } from '../data/musicCatalog';
 import {
@@ -31,6 +33,7 @@ const formatDuration = (seconds) => {
 const createTrackId = () => crypto.randomUUID?.() || Math.random().toString(36).slice(2, 10);
 
 const MusicLibrary = () => {
+    const { aiInterfacesEnabled } = useAiLaunchSettings();
     const { addAudioTrack, setActivePanel, currentTime } = useVideoStore();
     const [mode, setMode] = useState('import');
     const [importPresetId, setImportPresetId] = useState('pixabay-manual');
@@ -140,6 +143,12 @@ const MusicLibrary = () => {
         };
     }, []);
 
+    useEffect(() => {
+        if (!aiInterfacesEnabled && mode === 'ai') {
+            setMode('import');
+        }
+    }, [aiInterfacesEnabled, mode]);
+
     return (
         <div className="flex h-full min-h-0 flex-col">
             <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
@@ -152,11 +161,11 @@ const MusicLibrary = () => {
                 </button>
             </div>
 
-            <div className="grid grid-cols-4 gap-1 border-b border-neutral-800/50 px-3 py-2">
+            <div className={`grid ${aiInterfacesEnabled ? 'grid-cols-4' : 'grid-cols-3'} gap-1 border-b border-neutral-800/50 px-3 py-2`}>
                 <ModeButton id="import" label="Gratuit" icon={Search} active={mode === 'import'} onClick={setMode} />
                 <ModeButton id="catalog" label="Starter" icon={Music} active={mode === 'catalog'} onClick={setMode} />
                 <ModeButton id="providers" label="Sources" icon={ShieldCheck} active={mode === 'providers'} onClick={setMode} />
-                <ModeButton id="ai" label="IA" icon={Sparkles} active={mode === 'ai'} onClick={setMode} />
+                {aiInterfacesEnabled && <ModeButton id="ai" label="IA" icon={Sparkles} active={mode === 'ai'} onClick={setMode} />}
             </div>
 
             {mode === 'catalog' && (
@@ -175,11 +184,11 @@ const MusicLibrary = () => {
                 />
             )}
 
-            {mode === 'providers' && <ProviderView onStartImport={startVerifiedImport} />}
+            {mode === 'providers' && <ProviderView aiInterfacesEnabled={aiInterfacesEnabled} onStartImport={startVerifiedImport} />}
 
             {mode === 'import' && <LocalAudioImport initialPresetId={importPresetId} onSelectPreset={setImportPresetId} />}
 
-            {mode === 'ai' && <AiMusicView />}
+            {aiInterfacesEnabled && mode === 'ai' && <AiMusicView />}
         </div>
     );
 };
@@ -319,21 +328,23 @@ const TrackRow = ({ track, isPlaying, onPlay, onImport }) => (
     </div>
 );
 
-const ProviderView = ({ onStartImport }) => (
+const ProviderView = ({ aiInterfacesEnabled, onStartImport }) => (
     <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-3">
         <div className="mb-3 rounded-sm border border-amber-500/20 bg-amber-500/5 p-3">
             <p className="text-[9px] font-mono uppercase tracking-widest text-amber-300">Decision produit</p>
             <p className="mt-1 text-[10px] leading-relaxed text-neutral-400">
                 Trois voies seulement: catalogue premium sous contrat, sources gratuites verifiees en import manuel,
-                et generation IA via connecteurs serveur. Aucun scraping, aucune cle provider dans le client.
+                {aiInterfacesEnabled
+                    ? 'et generation IA via connecteurs serveur. Aucun scraping, aucune cle provider dans le client.'
+                    : 'avec sources gratuites et imports verifies pour ce premier lancement. Aucun scraping, aucune cle provider dans le client.'}
             </p>
         </div>
 
-        <div className="mb-3 grid grid-cols-3 gap-1">
+        <div className={`mb-3 grid ${aiInterfacesEnabled ? 'grid-cols-3' : 'grid-cols-2'} gap-1`}>
             {[
                 ['Premium', 'Partner API', 'Production social safe'],
                 ['Free verifie', 'Import manuel', 'Tests et templates'],
-                ['IA', 'Callable serveur', 'Quota + licence capturee'],
+                ...(aiInterfacesEnabled ? [['IA', 'Callable serveur', 'Quota + licence capturee']] : []),
             ].map(([title, meta, body]) => (
                 <div key={title} className="rounded-sm border border-neutral-800 bg-neutral-950 p-2">
                     <p className="text-[8px] font-mono uppercase tracking-widest text-neutral-200">{title}</p>
@@ -344,7 +355,7 @@ const ProviderView = ({ onStartImport }) => (
         </div>
 
         <div className="space-y-2">
-            {MUSIC_PROVIDERS.map(provider => (
+            {MUSIC_PROVIDERS.filter((provider) => aiInterfacesEnabled || !isAiProviderId(provider.id)).map(provider => (
                 <ProviderCard key={provider.id} provider={provider} onStartImport={onStartImport} />
             ))}
         </div>

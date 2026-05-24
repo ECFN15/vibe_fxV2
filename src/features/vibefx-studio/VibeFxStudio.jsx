@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useAiLaunchSettings } from '@/hooks/useAiLaunchSettings';
 
 
 // --- DATA ---
@@ -43,6 +44,14 @@ const canvasToBlob = (canvas, mimeType = 'image/png', quality = 0.92) =>
     new Promise((resolve) => {
         canvas.toBlob((blob) => resolve(blob), mimeType, quality);
     });
+
+const serializeSlotConfigs = (configs) => Object.fromEntries(
+    Object.entries(configs || {}).map(([slotId, config]) => {
+        const serializableConfig = { ...(config || {}) };
+        delete serializableConfig.image;
+        return [slotId, serializableConfig];
+    })
+);
 
 const buildSocialImages = async (exportCanvas, activeFormat) => {
     const slices = activeFormat?.id === 'pano-2' ? 2 : activeFormat?.id === 'pano-3' ? 3 : 1;
@@ -140,6 +149,7 @@ const buildVisionDiagnosticWarnings = (delta, performanceInfo) => {
 
 // --- APP PRINCIPALE ---
 function App({ onImportToPublication, onOpenPublications, initialView = 'studio' }) {
+    const { aiInterfacesEnabled } = useAiLaunchSettings();
     const [view, setView] = useState(initialView);
     const [images, setImages] = useState([]);
     const [activeCategory, setActiveCategory] = useState(null);
@@ -246,6 +256,12 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         document.body.style.backgroundColor = isDarkMode ? '#0a0a0a' : '#f9fafb';
         document.body.style.color = isDarkMode ? 'white' : '#111827';
     }, [isDarkMode]);
+
+    useEffect(() => {
+        if (!aiInterfacesEnabled && view === 'library') {
+            setView('studio');
+        }
+    }, [aiInterfacesEnabled, view]);
 
     // CHARGEMENT DES POLICES GOOGLE FONTS
     useEffect(() => {
@@ -526,7 +542,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                 layoutSmoothBlur,
                 texts,
                 assets,
-                slotConfigs,
+                slotConfigs: serializeSlotConfigs(slotConfigs),
                 filters,
                 fusionConfig,
             },
@@ -761,8 +777,9 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                 onExport={handleDownload}
                 onImportPublication={typeof onImportToPublication === 'function' ? handleImportPublication : null}
                 onOpenPublications={onOpenPublications}
-                isAiRailOpen={isAiRailOpen}
-                onToggleAiRail={() => setIsAiRailOpen(current => !current)}
+                isAiRailOpen={aiInterfacesEnabled && isAiRailOpen}
+                onToggleAiRail={aiInterfacesEnabled ? () => setIsAiRailOpen(current => !current) : null}
+                aiInterfacesEnabled={aiInterfacesEnabled}
             />
 
             <main className="flex-1 w-full flex overflow-hidden bg-grid-pattern">
@@ -786,10 +803,10 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                             isProcessing={isProcessing}
                             loadingStatus={loadingStatus}
                             loadingProgress={loadingProgress}
-                            onOpenLibrarySelector={() => {
+                            onOpenLibrarySelector={aiInterfacesEnabled ? () => {
                                 setLibraryModalTarget('foreground');
                                 setIsLibraryModalOpen(true);
-                            }}
+                            } : null}
                             handlePointerDown={handlePointerDown}
                             handlePointerMove={handlePointerMove}
                             handlePointerUp={handlePointerUp}
@@ -836,10 +853,10 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                                     activeFormat={activeFormat}
                                     setActiveFormat={setActiveFormat}
                                     images={images}
-                                    onOpenLibrarySelector={() => {
+                                    onOpenLibrarySelector={aiInterfacesEnabled ? () => {
                                         setLibraryModalTarget('background');
                                         setIsLibraryModalOpen(true);
-                                    }}
+                                    } : null}
                                     selectedImgIndex={selectedImgIndex}
                                     setSelectedImgIndex={setSelectedImgIndex}
                                 />
@@ -849,6 +866,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                             {view === 'layout' && (
                                 <LayoutSidebar
                                     images={images}
+                                    setImages={setImages}
                                     isDarkMode={isDarkMode}
                                     selectedSlotIndex={selectedSlotIndex}
                                     setSelectedSlotIndex={setSelectedSlotIndex}
@@ -869,6 +887,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                                     currentAsset={currentAsset}
                                     updateActiveText={updateActiveText}
                                     deleteActiveText={deleteActiveText}
+                                    setTexts={setTexts}
                                     setActiveAssetId={setActiveAssetId}
                                     deleteActiveAsset={deleteActiveAsset}
                                     activeAssetId={activeAssetId}
@@ -933,7 +952,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                     onClose={() => setIsInstaPreviewOpen(false)}
                     activeFormat={activeFormat}
                 />
-                <AssetLibraryModal
+                {aiInterfacesEnabled && <AssetLibraryModal
                     isDarkMode={isDarkMode}
                     isOpen={isLibraryModalOpen}
                     onClose={() => setIsLibraryModalOpen(false)}
@@ -974,7 +993,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                             img.src = asset.src;
                         }
                     }}
-                />
+                />}
                 <ExportModal
                     isDarkMode={isDarkMode}
                     isOpen={isExportModalOpen}
@@ -989,13 +1008,15 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                     onExport={performExport}
                 />
             </main>
-            <StudioAiRail
-                open={isAiRailOpen}
-                onClose={() => setIsAiRailOpen(false)}
-                view={view}
-                context={aiContext}
-                mutators={aiMutators}
-            />
+            {aiInterfacesEnabled && (
+                <StudioAiRail
+                    open={isAiRailOpen}
+                    onClose={() => setIsAiRailOpen(false)}
+                    view={view}
+                    context={aiContext}
+                    mutators={aiMutators}
+                />
+            )}
         </div>
     );
 }

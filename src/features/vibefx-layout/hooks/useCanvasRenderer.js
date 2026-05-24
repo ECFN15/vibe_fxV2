@@ -88,7 +88,8 @@ export default function useCanvasRenderer({
                 bgCanvas: bgCanvasRef.current, activeTemplate,
             });
 
-            if (images.length === 0) return;
+            const hasCustomSlots = activeTemplate.id === 'custom' && activeTemplate.customLayout?.zones?.length > 0;
+            if (images.length === 0 && !hasCustomSlots) return;
 
             // 2. Template slots
             renderTemplateSlots(ctx, w, h, {
@@ -241,14 +242,15 @@ export default function useCanvasRenderer({
         bgCanvasRef, slotRectsRef]);
 
     const renderCanvas = useCallback(() => {
-        if ((!images.length && view !== 'fusion') || !canvasRef.current) return;
+        const canRenderEmptyCustomLayout = view === 'layout' && activeTemplate.id === 'custom';
+        if ((!images.length && view !== 'fusion' && !canRenderEmptyCustomLayout) || !canvasRef.current) return;
         const canvas = canvasRef.current;
         const { width, height } = getCanvasDimensions();
         if (width === 0 || height === 0) return;
         canvas.width = width;
         canvas.height = height;
         renderPipeline(canvas, width, height, true, (isDragging || isDraggingText) ? 'low' : 'high');
-    }, [images, getCanvasDimensions, renderPipeline, isDragging, isDraggingText, view, canvasRef]);
+    }, [activeTemplate, images, getCanvasDimensions, renderPipeline, isDragging, isDraggingText, view, canvasRef]);
 
     // Animation loop
     useEffect(() => {

@@ -1,5 +1,17 @@
 import { manifestDownloadName } from './soundtrackManifest';
 
+export const AI_AUDIO_PROVIDERS = [
+    'minimax-music',
+    'mureka',
+    'replicate-music',
+    'elevenlabs-music',
+    'stable-audio',
+    'loudly',
+    'mubert',
+    'soundraw',
+    'beatoven',
+];
+
 export function downloadBlob(blob, fileName) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -22,6 +34,7 @@ export async function fetchAudioBlobForTrack(track, options = {}) {
     if (!sourceUrl) throw new Error('URL audio manquante.');
 
     const canFetchDirectly = sourceUrl.startsWith('/')
+        || sourceUrl.startsWith('data:audio/')
         || sourceUrl.includes('firebasestorage.googleapis.com')
         || sourceUrl.includes('storage.googleapis.com');
 
@@ -38,7 +51,10 @@ export async function fetchAudioBlobForTrack(track, options = {}) {
         };
     }
 
-    const endpoint = options.projectImport ? '/api/music/project/import-url' : '/api/music/import';
+    const isAiAudio = AI_AUDIO_PROVIDERS.includes(track.provider) || track.rightsStatus === 'ai-generated';
+    const endpoint = options.projectImport
+        ? '/api/music/project/import-url'
+        : isAiAudio ? '/api/music/ai-import' : '/api/music/import';
     const headers = { 'Content-Type': 'application/json' };
     if (options.idToken) headers.Authorization = `Bearer ${options.idToken}`;
     const response = await fetch(endpoint, {

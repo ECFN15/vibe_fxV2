@@ -12,6 +12,7 @@ export default function SoundtrackResults({
     player,
     library,
     projectLibrary,
+    selectedTrack,
     modeEyebrow,
     modeTitle,
     onPlayTrack,
@@ -58,7 +59,9 @@ export default function SoundtrackResults({
                             importedInProject={projectTrackIds.has(track.id)}
                             playlists={library.playlists}
                             selectedPlaylistId={library.selectedPlaylistId}
+                            isSelected={selectedTrack?.id === track.id}
                             isPlaying={player.playingId === track.id}
+                            player={player}
                             visualizer={player.visualizer}
                             isBusy={library.busyTrackId === track.id}
                             isProjectBusy={projectLibrary?.busyTrackId === track.id}

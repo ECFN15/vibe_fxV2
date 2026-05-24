@@ -47,6 +47,10 @@ try {
     "soundtrackRights.mjs",
     [["../../video/data/musicRights", "./musicRights.mjs"]]
   );
+  const aiProviderRegistryUrl = await copyModule(
+    "src/app/api/music/_providers/aiProviderRegistry.js",
+    "aiProviderRegistry.mjs"
+  );
 
   const {
     normalizeSoundtrackTrack,
@@ -82,6 +86,9 @@ try {
     getSoundtrackRightsAudit,
     normalizeSearchTrackRights,
   } = await import(soundtrackRightsUrl);
+  const {
+    getAiProviderDefinitions,
+  } = await import(aiProviderRegistryUrl);
 
   const providerTrack = normalizeSearchTrackRights({
     id: "openverse-test-track",
@@ -205,6 +212,59 @@ try {
   assert.equal(exportManifest.tracks[0].exportId, "export-test-1");
   assert.equal(exportManifest.tracks[0].userId, "uid-test");
   assert.equal(exportManifest.tracks[0].title, "Export Audio A");
+
+  const savedMubertCustomerId = process.env.MUBERT_CUSTOMER_ID;
+  const savedMubertAccessToken = process.env.MUBERT_ACCESS_TOKEN;
+  const savedMubertApiKey = process.env.MUBERT_API_KEY;
+  const savedLoudlyApiKey = process.env.LOUDLY_API_KEY;
+  const savedSoundrawApiKey = process.env.SOUNDRAW_API_KEY;
+  const savedMinimaxApiKey = process.env.MINIMAX_API_KEY;
+  const savedMurekaApiKey = process.env.MUREKA_API_KEY;
+  const savedReplicateToken = process.env.REPLICATE_API_TOKEN;
+  delete process.env.MINIMAX_API_KEY;
+  delete process.env.MUREKA_API_KEY;
+  delete process.env.REPLICATE_API_TOKEN;
+  delete process.env.MUBERT_CUSTOMER_ID;
+  delete process.env.MUBERT_ACCESS_TOKEN;
+  delete process.env.MUBERT_API_KEY;
+  delete process.env.LOUDLY_API_KEY;
+  delete process.env.SOUNDRAW_API_KEY;
+  assert.equal(getAiProviderDefinitions().find((provider) => provider.id === "minimax-music").configured, false);
+  process.env.MINIMAX_API_KEY = "minimax";
+  assert.equal(getAiProviderDefinitions().find((provider) => provider.id === "minimax-music").configured, true, "MiniMax requires MINIMAX_API_KEY only");
+  assert.equal(getAiProviderDefinitions().find((provider) => provider.id === "mureka").configured, false);
+  process.env.MUREKA_API_KEY = "mureka";
+  assert.equal(getAiProviderDefinitions().find((provider) => provider.id === "mureka").configured, true, "Mureka requires MUREKA_API_KEY only");
+  assert.equal(getAiProviderDefinitions().find((provider) => provider.id === "replicate-music").configured, false);
+  process.env.REPLICATE_API_TOKEN = "replicate";
+  assert.equal(getAiProviderDefinitions().find((provider) => provider.id === "replicate-music").configured, true, "Replicate requires REPLICATE_API_TOKEN only");
+  assert.equal(getAiProviderDefinitions().find((provider) => provider.id === "mubert").configured, false);
+  process.env.MUBERT_ACCESS_TOKEN = "token-only";
+  assert.equal(getAiProviderDefinitions().find((provider) => provider.id === "mubert").configured, false, "Mubert must not appear configured with only an access token");
+  process.env.MUBERT_CUSTOMER_ID = "customer-only";
+  delete process.env.MUBERT_ACCESS_TOKEN;
+  assert.equal(getAiProviderDefinitions().find((provider) => provider.id === "mubert").configured, false, "Mubert must not appear configured with only customer id");
+  process.env.MUBERT_ACCESS_TOKEN = "token";
+  assert.equal(getAiProviderDefinitions().find((provider) => provider.id === "mubert").configured, true, "Mubert requires both customer-id and access-token");
+  const aiProviders = getAiProviderDefinitions();
+  assert.ok(aiProviders.find((provider) => provider.id === "loudly").presets.every((preset) => preset.mapping === "prompt-preset"), "Loudly must not expose fake mapped Vibe_CUT values without portal taxonomy");
+  assert.ok(aiProviders.find((provider) => provider.id === "soundraw").presets.every((preset) => preset.mapping === "prompt-preset"), "SOUNDRAW must not expose fake mapped Vibe_CUT values without API taxonomy");
+  if (savedMubertCustomerId === undefined) delete process.env.MUBERT_CUSTOMER_ID;
+  else process.env.MUBERT_CUSTOMER_ID = savedMubertCustomerId;
+  if (savedMubertAccessToken === undefined) delete process.env.MUBERT_ACCESS_TOKEN;
+  else process.env.MUBERT_ACCESS_TOKEN = savedMubertAccessToken;
+  if (savedMubertApiKey === undefined) delete process.env.MUBERT_API_KEY;
+  else process.env.MUBERT_API_KEY = savedMubertApiKey;
+  if (savedLoudlyApiKey === undefined) delete process.env.LOUDLY_API_KEY;
+  else process.env.LOUDLY_API_KEY = savedLoudlyApiKey;
+  if (savedSoundrawApiKey === undefined) delete process.env.SOUNDRAW_API_KEY;
+  else process.env.SOUNDRAW_API_KEY = savedSoundrawApiKey;
+  if (savedMinimaxApiKey === undefined) delete process.env.MINIMAX_API_KEY;
+  else process.env.MINIMAX_API_KEY = savedMinimaxApiKey;
+  if (savedMurekaApiKey === undefined) delete process.env.MUREKA_API_KEY;
+  else process.env.MUREKA_API_KEY = savedMurekaApiKey;
+  if (savedReplicateToken === undefined) delete process.env.REPLICATE_API_TOKEN;
+  else process.env.REPLICATE_API_TOKEN = savedReplicateToken;
 
   const filters = normalizeProviderScanFilters({
     provider: "pixabay",
