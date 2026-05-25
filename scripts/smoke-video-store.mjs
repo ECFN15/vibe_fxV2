@@ -152,16 +152,23 @@ try {
   assert.equal(useVideoStore.getState().audioTracks.length, 2, "allowOverlap=true should accept overlapping music items");
 
   resetStore();
-  useVideoStore.getState().addTextOverlay({ content: "A", startTime: 0, endTime: 2, trackId: "text-main" });
-  useVideoStore.getState().addTextOverlay({ content: "B", startTime: 1, endTime: 3, trackId: "text-main" });
-  assert.equal(useVideoStore.getState().textOverlays.length, 2, "text-main should allow overlap by default");
+  const manualTextTrackId = useVideoStore.getState().addTextTrack();
+  assert.equal(manualTextTrackId, "text-2", "manual text timeline button should create the next text lane");
+  assert.ok(useVideoStore.getState().tracks.some((track) => track.id === "text-2" && track.type === "text"), "manual text timeline must be registered");
+  assert.equal(useVideoStore.getState().textOverlays.length, 0, "manual text timeline creation must not create a text overlay");
 
-  resetStore({
-    tracks: getDefaultTracks().map((track) => track.id === "text-main" ? { ...track, allowOverlap: false } : track),
-  });
+  resetStore();
+  useVideoStore.getState().addTextOverlay({ content: "A", startTime: 0, endTime: 2 });
+  useVideoStore.getState().addTextOverlay({ content: "B", startTime: 1, endTime: 3 });
+  assert.equal(useVideoStore.getState().textOverlays.length, 2, "overlapping text should create a stacked lane by default");
+  assert.equal(useVideoStore.getState().textOverlays[0].trackId, "text-main");
+  assert.equal(useVideoStore.getState().textOverlays[1].trackId, "text-2");
+  assert.ok(useVideoStore.getState().tracks.some((track) => track.id === "text-2" && track.allowOverlap === false), "stacked text lane must be registered");
+
+  resetStore();
   useVideoStore.getState().addTextOverlay({ content: "A", startTime: 0, endTime: 1, trackId: "text-main" });
   useVideoStore.getState().addTextOverlay({ content: "B", startTime: 0.5, endTime: 1.5, trackId: "text-main" });
-  assert.equal(useVideoStore.getState().textOverlays.length, 1, "text-main should reject overlap when allowOverlap=false");
+  assert.equal(useVideoStore.getState().textOverlays.length, 1, "explicit same text track should reject overlap");
 
   console.log("Video store smoke passed");
 } finally {

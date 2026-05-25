@@ -116,7 +116,7 @@ export default function SoundtrackFolderPanel({ library }) {
             </form>
 
             <p className="soundtrack-panel-note">
-                Les fichiers audio restent sur cet appareil ou dans le dossier choisi. IndexedDB garde seulement les metadata, favoris, playlists et le handle local quand le navigateur l'autorise.
+                En local dev, les imports sont aussi copies dans public/music/local-imports. En production, ce role bascule vers Firebase Storage; IndexedDB garde les metadata, favoris, playlists et le handle local quand le navigateur l'autorise.
             </p>
             {library.lastEvent && <p className="soundtrack-event">{library.lastEvent}</p>}
         </section>

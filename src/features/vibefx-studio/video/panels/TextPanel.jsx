@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { X, Plus, Trash2, Bold, Italic, AlignCenter } from 'lucide-react';
 import useVideoStore from '../store/videoStore';
-import { TEXT_ANIMATIONS } from '../engine/VideoEngine';
 import { loadGoogleFont } from '../preview/VideoPreview';
 import { isTrackLocked } from '../model/timelineModel';
 
@@ -34,22 +33,36 @@ const ANIMATION_OUT = [
 
 const TextPanel = () => {
     const {
-        textOverlays, addTextOverlay, updateTextOverlay, removeTextOverlay,
+        textOverlays, addTextOverlay, addTextTrack, updateTextOverlay, removeTextOverlay,
         setActivePanel, currentTime, totalDuration, selectedTextId, setSelectedTextId, tracks
     } = useVideoStore();
-    const textLocked = isTrackLocked(tracks, 'text-main');
+    const textTrackOptions = useMemo(() => (
+        tracks
+            .filter(track => track.type === 'text')
+            .sort((a, b) => Number(a.order || 0) - Number(b.order || 0))
+            .map((track, index) => ({
+                id: track.id,
+                label: index === 0 ? 'Texte' : `Texte ${index + 1}`,
+                locked: track.locked === true,
+            }))
+    ), [tracks]);
+    const allTextTracksLocked = textTrackOptions.length > 0 && textTrackOptions.every(track => track.locked);
 
     useEffect(() => {
         GOOGLE_FONTS.forEach(f => loadGoogleFont(f));
     }, []);
 
     const handleAdd = () => {
-        if (textLocked) return;
+        if (allTextTracksLocked) return;
         addTextOverlay({
             content: 'Votre Texte',
             startTime: currentTime,
             endTime: Math.min(currentTime + 3, Math.max(totalDuration, 3)),
         });
+    };
+    const handleAddTimeline = () => {
+        addTextTrack();
+        setActivePanel('text');
     };
 
     return (
@@ -57,7 +70,16 @@ const TextPanel = () => {
             <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
                 <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Texte</h3>
                 <div className="flex items-center gap-2">
-                    <button onClick={handleAdd} disabled={textLocked} className="text-indigo-400 hover:text-indigo-300 transition disabled:opacity-40 disabled:hover:text-indigo-400" title="Ajouter un texte" aria-label="Ajouter un texte">
+                    <button
+                        onClick={handleAddTimeline}
+                        className="inline-flex items-center gap-1 rounded-sm border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-[9px] font-mono uppercase tracking-widest text-amber-200 transition hover:bg-amber-500/15"
+                        title="Ajouter une timeline texte"
+                        aria-label="Ajouter une timeline texte"
+                    >
+                        <Plus size={11} />
+                        Timeline
+                    </button>
+                    <button onClick={handleAdd} disabled={allTextTracksLocked} className="text-indigo-400 hover:text-indigo-300 transition disabled:opacity-40 disabled:hover:text-indigo-400" title="Ajouter un texte" aria-label="Ajouter un texte">
                         <Plus size={14} />
                     </button>
                     <button onClick={() => setActivePanel(null)} className="text-neutral-500 hover:text-white transition">
@@ -70,8 +92,11 @@ const TextPanel = () => {
                 {textOverlays.length === 0 ? (
                     <div className="text-center py-8">
                         <p className="text-[10px] font-mono text-neutral-600 uppercase tracking-widest mb-3">Aucun texte</p>
-                        <button onClick={handleAdd} disabled={textLocked} className="px-4 py-2 text-[10px] font-mono text-indigo-400 border border-indigo-500/30 hover:bg-indigo-500/10 transition uppercase tracking-widest disabled:opacity-40 disabled:hover:bg-transparent">
+                        <button onClick={handleAdd} disabled={allTextTracksLocked} className="px-4 py-2 text-[10px] font-mono text-indigo-400 border border-indigo-500/30 hover:bg-indigo-500/10 transition uppercase tracking-widest disabled:opacity-40 disabled:hover:bg-transparent">
                             + Ajouter un texte
+                        </button>
+                        <button onClick={handleAddTimeline} className="mt-2 px-4 py-2 text-[10px] font-mono text-amber-300 border border-amber-500/25 bg-amber-500/5 hover:bg-amber-500/10 transition uppercase tracking-widest">
+                            + Ajouter une timeline
                         </button>
                         <p className="text-[9px] font-mono text-neutral-700 mt-3">
                             Glissez le texte sur la preview pour le positionner
@@ -86,7 +111,8 @@ const TextPanel = () => {
                             onSelect={() => setSelectedTextId(text.id)}
                             onUpdate={(updates) => updateTextOverlay(text.id, updates)}
                             onDelete={() => removeTextOverlay(text.id)}
-                            disabled={textLocked}
+                            trackOptions={textTrackOptions}
+                            disabled={isTrackLocked(tracks, text.trackId || 'text-main')}
                         />
                     ))
                 )}
@@ -95,7 +121,7 @@ const TextPanel = () => {
     );
 };
 
-const TextOverlayEditor = ({ text, isSelected, onSelect, onUpdate, onDelete, disabled = false }) => {
+const TextOverlayEditor = ({ text, isSelected, onSelect, onUpdate, onDelete, trackOptions = [], disabled = false }) => {
     const [showFontPicker, setShowFontPicker] = useState(false);
     const [fontSearch, setFontSearch] = useState('');
 
@@ -123,6 +149,24 @@ const TextOverlayEditor = ({ text, isSelected, onSelect, onUpdate, onDelete, dis
                 style={{ fontFamily: `"${text.font}", sans-serif` }}
                 placeholder="Votre texte..."
             />
+
+            <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
+                <span className="text-[8px] font-mono text-neutral-500 uppercase tracking-widest">Piste</span>
+                <select
+                    value={text.trackId || 'text-main'}
+                    disabled={disabled}
+                    onChange={(e) => onUpdate({ trackId: e.target.value })}
+                    aria-label="Piste timeline du texte"
+                    className="w-full bg-neutral-900 border border-neutral-800 rounded-sm px-2 py-1 text-[10px] text-neutral-300 font-mono disabled:opacity-45"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {trackOptions.map(track => (
+                        <option key={track.id} value={track.id} disabled={track.locked && track.id !== (text.trackId || 'text-main')}>
+                            {track.label}{track.locked ? ' - verrouillee' : ''}
+                        </option>
+                    ))}
+                </select>
+            </div>
 
             {/* Font selector */}
             <div className="relative">

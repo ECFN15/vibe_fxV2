@@ -209,11 +209,6 @@ export function useProjectSoundLibrary() {
         await patchProjectSoundTrack(uid, track.id, { rightsStatus: 'needs-review' });
     }, [uid]);
 
-    const archiveTrack = useCallback(async (track) => {
-        if (!uid || !track?.id) return;
-        await patchProjectSoundTrack(uid, track.id, { archived: true });
-    }, [uid]);
-
     const removeTrack = useCallback(async (track) => {
         if (!uid || !track?.id) return;
         await deleteProjectSoundTrack(uid, track.id, track.storagePath);
@@ -296,7 +291,6 @@ export function useProjectSoundLibrary() {
         importFileToProject,
         toggleFavorite,
         markNeedsReview,
-        archiveTrack,
         removeTrack,
         markUsed,
         createPlaylist,

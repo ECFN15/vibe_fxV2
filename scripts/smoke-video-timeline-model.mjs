@@ -51,7 +51,7 @@ try {
   const model = buildTimelineModel({ clips, transitions, transitionItems, textOverlays, audioTracks, totalDuration });
   assert.ok(getDefaultTracks().some((track) => track.id === "effect-main" && track.type === "effect"));
   assert.equal(getDefaultTracks().find((track) => track.id === "transition-main").allowOverlap, false);
-  assert.equal(getDefaultTracks().find((track) => track.id === "text-main").allowOverlap, true);
+  assert.equal(getDefaultTracks().find((track) => track.id === "text-main").allowOverlap, false);
   assert.equal(getDefaultTracks().find((track) => track.id === "music-main").allowOverlap, false);
   assert.ok(model.tracks.some((track) => track.id === "effect-main" && track.type === "effect"));
   const videoItems = model.items.filter((item) => item.type === "video");
@@ -313,20 +313,30 @@ try {
       { id: "txt-b", content: "B", trackId: "text-main", startTime: 1, endTime: 3 },
     ],
   };
-  const overlappingTextAllowedAudit = validateTimelineRenderPlan({
+  const overlappingTextBlockedAudit = validateTimelineRenderPlan({
     totalDuration: 4,
     plan: overlappingTextPlan,
   });
-  assert.deepEqual(overlappingTextAllowedAudit.errors, []);
-
-  const overlappingTextBlockedAudit = validateTimelineRenderPlan({
-    totalDuration: 4,
-    plan: {
-      ...overlappingTextPlan,
-      tracks: getDefaultTracks().map((track) => track.id === "text-main" ? { ...track, allowOverlap: false } : track),
-    },
-  });
   assert.ok(overlappingTextBlockedAudit.errors.some((error) => error.includes("Overlap interdit sur piste Texte")));
+
+  const stackedTextPlan = {
+    ...overlappingTextPlan,
+    tracks: [
+      ...getDefaultTracks(),
+      { id: "text-2", type: "text", name: "Texte 2", locked: false, muted: false, visible: true, allowOverlap: false, order: 40.1 },
+    ],
+    textOverlays: [
+      { id: "txt-a", content: "A", trackId: "text-main", startTime: 0, endTime: 2 },
+      { id: "txt-b", content: "B", trackId: "text-2", startTime: 1, endTime: 3 },
+    ],
+  };
+  const overlappingTextAllowedAudit = validateTimelineRenderPlan({
+    totalDuration: 4,
+    plan: stackedTextPlan,
+  });
+  assert.deepEqual(overlappingTextAllowedAudit.errors, []);
+  const stackedTextRenderPlan = resolveTimelineRenderPlan(stackedTextPlan);
+  assert.equal(stackedTextRenderPlan.textOverlays.length, 2, "stacked text lanes must all render");
 
   const detachedItemAudit = validateTimelineRenderPlan({
     totalDuration: 3,

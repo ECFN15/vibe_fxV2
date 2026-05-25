@@ -21,6 +21,7 @@ export function useSoundtrackPlayer() {
     const [error, setError] = useState('');
     const [visualizer, setVisualizer] = useState({ trackId: '', active: false, levels: [] });
     const [progress, setProgress] = useState({ currentTime: 0, duration: 0 });
+    const [endedEvent, setEndedEvent] = useState(null);
 
     const cleanupAudioGraph = useCallback(() => {
         const graph = audioGraphRef.current;
@@ -207,6 +208,7 @@ export function useSoundtrackPlayer() {
             setStatus('idle');
             setVisualizer({ trackId: '', active: false, levels: [] });
             setProgress({ currentTime: 0, duration: Number(track.duration) || 0 });
+            setEndedEvent({ trackId: track.id, at: Date.now() });
         };
         audioRef.current = audio;
         setCurrentTrack(track);
@@ -259,6 +261,7 @@ export function useSoundtrackPlayer() {
         error,
         visualizer,
         progress,
+        endedEvent,
         play,
         seek,
         stop,

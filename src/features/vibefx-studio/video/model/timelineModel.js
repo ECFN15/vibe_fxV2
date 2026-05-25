@@ -2,7 +2,7 @@ const DEFAULT_TRACKS = [
     { id: 'video-main', type: 'video', name: 'Video', locked: false, muted: false, visible: true, allowOverlap: false, order: 10 },
     { id: 'transition-main', type: 'transition', name: 'Effets', locked: false, muted: false, visible: true, allowOverlap: false, order: 20 },
     { id: 'effect-main', type: 'effect', name: 'Filtres', locked: false, muted: false, visible: true, allowOverlap: true, order: 30 },
-    { id: 'text-main', type: 'text', name: 'Texte', locked: false, muted: false, visible: true, allowOverlap: true, order: 40 },
+    { id: 'text-main', type: 'text', name: 'Texte', locked: false, muted: false, visible: true, allowOverlap: false, order: 40 },
     { id: 'audio-main', type: 'audio', name: 'Audio clips', locked: false, muted: false, visible: true, allowOverlap: true, order: 50 },
     { id: 'music-main', type: 'audio', name: 'Musique', locked: false, muted: false, visible: true, allowOverlap: false, order: 60 },
 ];
@@ -519,7 +519,14 @@ export function resolveTimelineRenderPlan({
     const timelineTransitions = isTrackVisible(tracks, 'transition-main') ? itemsForTrack('transition', 'transition-main') : [];
     const editableTimelineTransitions = timelineTransitions.filter(item => item.params?.placement !== 'cut');
     const effectItems = isTrackVisible(tracks, 'effect-main') ? itemsForTrack('effect', 'effect-main') : [];
-    const textItems = isTrackVisible(tracks, 'text-main') ? itemsForTrack('text', 'text-main') : [];
+    const visibleTextTrackIds = new Set(
+        model.tracks
+            .filter(track => track.type === 'text' && isTrackVisible(tracks, track.id))
+            .map(track => track.id)
+    );
+    const textItems = model.items
+        .filter(item => item.type === 'text' && visibleTextTrackIds.has(item.trackId))
+        .map(timelineItemToRenderSource);
     const clipAudioItems = isTrackVisible(tracks, 'audio-main') ? itemsForTrack('audio', 'audio-main') : [];
     const musicItems = isTrackVisible(tracks, 'music-main') && !isTrackMuted(tracks, 'music-main')
         ? itemsForTrack('audio', 'music-main')

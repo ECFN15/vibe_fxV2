@@ -20,6 +20,17 @@ const useVideoStore = create((set, get) => ({
     setTrackState: (id, updates) => set((s) => ({
         tracks: s.tracks.map(track => track.id === id ? { ...track, ...updates } : track),
     })),
+    addTextTrack: () => {
+        const state = get();
+        const tracks = Array.isArray(state.tracks) && state.tracks.length ? state.tracks : getDefaultTracks();
+        const nextTrack = makeNextTextTrack(getSortedTextTracks(tracks));
+        pushHistory(state);
+        set({
+            tracks: [...tracks, nextTrack],
+            timelineEditNotice: null,
+        });
+        return nextTrack.id;
+    },
     getTimelineModel: () => {
         const s = get();
         return buildTimelineModel({
@@ -487,8 +498,10 @@ const useVideoStore = create((set, get) => ({
 
     addTextOverlay: (text) => {
         const state = get();
-        const trackId = text.trackId || getTrackForItemType('text');
-        if (isTimelineTrackLocked(state.tracks, trackId)) {
+        const targetTrack = resolveTextTrackForOverlay(state, text);
+        const trackId = targetTrack.id;
+        const nextTracks = ensureTimelineTrack(state.tracks, targetTrack);
+        if (isTimelineTrackLocked(nextTracks, trackId)) {
             rejectTimelineEdit(set, 'track-locked', 'Piste texte verrouillee: ajout ignore.');
             return;
         }
@@ -499,12 +512,13 @@ const useVideoStore = create((set, get) => ({
             totalDuration: state.totalDuration,
         });
         const nextTextOverlays = [...state.textOverlays, nextText];
-        if (hasDisallowedItemOverlap(state.tracks, nextTextOverlays, trackId)) {
+        if (hasDisallowedItemOverlap(nextTracks, nextTextOverlays, trackId)) {
             rejectTimelineEdit(set, 'track-overlap', 'Overlap interdit sur cette piste: texte ignore.');
             return;
         }
         pushHistory(state);
         set(() => ({
+            tracks: nextTracks,
             textOverlays: nextTextOverlays,
             selectedTextId: id,
             timelineEditNotice: null,
@@ -758,6 +772,77 @@ function normalizeTextOverlay(text = {}, { id = text.id || uid(), trackId = text
         startTime,
         endTime,
     };
+}
+
+function resolveTextTrackForOverlay(state = {}, text = {}) {
+    const tracks = Array.isArray(state.tracks) && state.tracks.length ? state.tracks : getDefaultTracks();
+    const textTracks = getSortedTextTracks(tracks);
+    const requestedTrackId = text.trackId;
+    if (requestedTrackId) {
+        return tracks.find(track => track.id === requestedTrackId) || makeTextTrack(textTracks.length + 1, requestedTrackId);
+    }
+
+    const { startTime, endTime } = getTextOverlayRange(text, state.totalDuration);
+    const reusableTrack = textTracks
+        .filter(track => !isTimelineTrackLocked(tracks, track.id))
+        .find(track => !hasRangeOverlap(
+            (state.textOverlays || []).filter(overlay => (overlay.trackId || getTrackForItemType('text')) === track.id),
+            startTime,
+            endTime
+        ));
+
+    return reusableTrack || makeNextTextTrack(textTracks);
+}
+
+function ensureTimelineTrack(tracks = [], track = {}) {
+    if (!track?.id || tracks.some(existing => existing.id === track.id)) return tracks;
+    return [...tracks, track];
+}
+
+function getSortedTextTracks(tracks = []) {
+    const textTracks = tracks.filter(track => track?.type === 'text');
+    if (textTracks.length) {
+        return textTracks.sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+    }
+    return getDefaultTracks().filter(track => track.type === 'text');
+}
+
+function makeNextTextTrack(textTracks = []) {
+    const usedIds = new Set(textTracks.map(track => track.id));
+    let index = Math.max(2, textTracks.length + 1);
+    while (usedIds.has(`text-${index}`)) index += 1;
+    return makeTextTrack(index, `text-${index}`);
+}
+
+function makeTextTrack(index = 1, id = '') {
+    const normalizedIndex = Math.max(1, Number(index) || 1);
+    return {
+        id: id || (normalizedIndex === 1 ? 'text-main' : `text-${normalizedIndex}`),
+        type: 'text',
+        name: normalizedIndex === 1 ? 'Texte' : `Texte ${normalizedIndex}`,
+        locked: false,
+        muted: false,
+        visible: true,
+        allowOverlap: false,
+        order: 40 + (normalizedIndex - 1) * 0.1,
+    };
+}
+
+function getTextOverlayRange(text = {}, totalDuration = 0) {
+    const maxEnd = Math.max(0.1, totalDuration || text.endTime || 3);
+    const requestedStart = Number(text.startTime ?? text.start ?? 0);
+    const startTime = clamp(Number.isFinite(requestedStart) ? requestedStart : 0, 0, Math.max(0, maxEnd - 0.1));
+    const requestedEnd = Number(text.endTime ?? (startTime + Number(text.duration ?? 3)));
+    const endTime = Math.min(maxEnd, Math.max(startTime + 0.1, Number.isFinite(requestedEnd) ? requestedEnd : startTime + 0.1));
+    return { startTime, endTime };
+}
+
+function hasRangeOverlap(items = [], startTime = 0, endTime = 0) {
+    return items.some((item) => {
+        const start = Number(item.startTime ?? item.start ?? 0);
+        const end = Number(item.endTime ?? (start + Number(item.duration ?? 0)));
+        return start < endTime - 0.001 && end > startTime + 0.001;
+    });
 }
 
 function hasDisallowedItemOverlap(tracks = [], items = [], trackId = '') {

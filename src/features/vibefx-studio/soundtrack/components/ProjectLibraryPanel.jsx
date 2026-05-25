@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Archive, ArrowDown, ArrowUp, Film, Heart, Import, ListMusic, Loader2, Music2, Pause, Play, Plus, ShieldAlert, Sparkles, Square, Trash2, Upload, UploadCloud, X } from 'lucide-react';
-import AiMusicImportAssistant from './AiMusicImportAssistant';
+import { ArrowDown, ArrowUp, Download, Film, Heart, Import, ListMusic, Loader2, Music2, Pause, Play, Plus, ShieldAlert, Square, Trash2, Upload, UploadCloud } from 'lucide-react';
+import { downloadBlob, fetchAudioBlobForTrack } from '../services/soundtrackDownloads';
 import { getRightsLabel, getSoundtrackRightsAudit } from '../services/soundtrackRights';
 
 const formatDuration = (seconds = 0) => {
@@ -18,6 +18,15 @@ const getTrackCategory = (track = {}) => {
 const normalizeCategoryKey = (value = '') => (
     String(value || '').trim().toLowerCase()
 );
+
+const safeAudioFileName = (track = {}, fallbackName = '') => {
+    const sourceName = fallbackName || track.fileName || track.originalFileName || `${track.artist ? `${track.artist}-` : ''}${track.title || 'vibefx-audio'}`;
+    const cleanedName = String(sourceName || 'vibefx-audio')
+        .replace(/[<>:"/\\|?*\u0000-\u001F]+/g, '-')
+        .replace(/\s+/g, ' ')
+        .trim() || 'vibefx-audio';
+    return /\.[a-z0-9]{2,5}$/i.test(cleanedName) ? cleanedName : `${cleanedName}.mp3`;
+};
 
 const MiniWaveform = ({ track, active = false, levels = [], ratio = 0 }) => {
     const fallbackPeaks = Array.isArray(track.waveform?.peaks) && track.waveform.peaks.length
@@ -111,7 +120,7 @@ const TrackScrubPanel = ({ track, isSelected, player, onPlay, playableUrl, onRec
     );
 };
 
-const ProjectTrackRow = ({ track, projectLibrary, activePlaylist, isSelected, player, onSelect, onPlay, onUseInVideo, onReconnect, onForgetTrack }) => {
+const ProjectTrackRow = ({ track, projectLibrary, activePlaylist, isSelected, player, onSelect, onPlay, onDownload, onUseInVideo, onReconnect, onForgetTrack }) => {
     const audit = getSoundtrackRightsAudit(track);
     const usable = track.downloadUrl && !audit.blocked && track.rightsStatus !== 'blocked';
     const inActivePlaylist = activePlaylist?.trackIds?.includes(track.id);
@@ -143,12 +152,12 @@ const ProjectTrackRow = ({ track, projectLibrary, activePlaylist, isSelected, pl
                     </button>
                     <button
                         type="button"
-                        onClick={() => inActivePlaylist ? projectLibrary.removeFromPlaylist(track.id, activePlaylist.id) : projectLibrary.addToPlaylist(track, activePlaylist?.id)}
-                        disabled={!activePlaylist}
-                        title={activePlaylist ? (inActivePlaylist ? 'Retirer de la playlist projet' : 'Ajouter a la playlist projet') : 'Selectionner une playlist projet'}
-                        aria-label={`${inActivePlaylist ? 'Retirer' : 'Ajouter'} ${track.title} ${inActivePlaylist ? 'de' : 'a'} la playlist projet`}
+                        onClick={() => onDownload(track)}
+                        disabled={!playableUrl}
+                        title={playableUrl ? 'Telecharger la piste' : 'Fichier audio indisponible'}
+                        aria-label={`Telecharger ${track.title}`}
                     >
-                        {inActivePlaylist ? <X size={13} /> : <ListMusic size={13} />}
+                        <Download size={13} />
                     </button>
                     {activePlaylist && inActivePlaylist && (
                         <>
@@ -162,9 +171,6 @@ const ProjectTrackRow = ({ track, projectLibrary, activePlaylist, isSelected, pl
                     )}
                     <button type="button" onClick={() => onUseInVideo(track)} disabled={!usable} title={usable ? 'Utiliser dans Vibe_CUT' : 'Droits ou fichier indisponibles'}>
                         <Film size={13} />
-                    </button>
-                    <button type="button" onClick={() => projectLibrary.archiveTrack(track)} title="Archiver" aria-label={`Archiver ${track.title}`}>
-                        <Archive size={13} />
                     </button>
                     <button
                         type="button"
@@ -184,7 +190,7 @@ const ProjectTrackRow = ({ track, projectLibrary, activePlaylist, isSelected, pl
     );
 };
 
-const LocalTrackRow = ({ track, localLibrary, activePlaylist, inActivePlaylist, isSelected, player, onSelect, onPlay, onUseInVideo, onReconnect }) => {
+const LocalTrackRow = ({ track, localLibrary, isSelected, player, onSelect, onPlay, onDownload, onUseInVideo, onReconnect }) => {
     const audit = getSoundtrackRightsAudit(track);
     const usable = (track.localObjectUrl || track.downloadUrl || track.previewUrl) && !audit.blocked;
     const playableUrl = track.localObjectUrl || track.downloadUrl || track.previewUrl;
@@ -218,12 +224,12 @@ const LocalTrackRow = ({ track, localLibrary, activePlaylist, inActivePlaylist, 
                 </button>
                 <button
                     type="button"
-                    onClick={() => inActivePlaylist ? localLibrary.removeFromPlaylist(track.id, activePlaylist.id) : localLibrary.addToPlaylist(track, activePlaylist?.id)}
-                    disabled={!activePlaylist}
-                    title={activePlaylist ? (inActivePlaylist ? 'Retirer de la playlist' : 'Ajouter a la playlist') : 'Selectionner une playlist'}
-                    aria-label={`${inActivePlaylist ? 'Retirer' : 'Ajouter'} ${track.title} ${inActivePlaylist ? 'de' : 'a'} la playlist bibliotheque`}
+                    onClick={() => onDownload(track)}
+                    disabled={!playableUrl}
+                    title={playableUrl ? 'Telecharger la piste' : 'Fichier audio indisponible'}
+                    aria-label={`Telecharger ${track.title}`}
                 >
-                    {inActivePlaylist ? <X size={13} /> : <ListMusic size={13} />}
+                    <Download size={13} />
                 </button>
                 <button type="button" onClick={() => onUseInVideo(track)} disabled={!usable} title={usable ? 'Utiliser dans Vibe_CUT' : 'Fichier indisponible ou droits bloques'}>
                     <Film size={13} />
@@ -238,7 +244,7 @@ const LocalTrackRow = ({ track, localLibrary, activePlaylist, inActivePlaylist, 
     );
 };
 
-const StarterTrackRow = ({ track, isSelected, player, onSelect, onPlay, onImportProject, onUseInVideo, onRemove, busy, onReconnect }) => {
+const StarterTrackRow = ({ track, isSelected, player, onSelect, onPlay, onDownload, onImportProject, onUseInVideo, onRemove, busy, onReconnect }) => {
     const audit = getSoundtrackRightsAudit(track);
     const playableUrl = track.localObjectUrl || track.previewUrl || track.downloadUrl;
     return (
@@ -260,6 +266,9 @@ const StarterTrackRow = ({ track, isSelected, player, onSelect, onPlay, onImport
                 <button type="button" onClick={() => onImportProject(track)} disabled={busy || audit.blocked} title="Importer dans la bibliotheque projet">
                     <UploadCloud size={13} />
                 </button>
+                <button type="button" onClick={() => onDownload(track)} disabled={!playableUrl} title={playableUrl ? 'Telecharger la piste' : 'Fichier audio indisponible'} aria-label={`Telecharger ${track.title}`}>
+                    <Download size={13} />
+                </button>
                 <button type="button" onClick={() => onUseInVideo(track)} disabled={audit.blocked} title="Utiliser dans Vibe_CUT">
                     <Film size={13} />
                 </button>
@@ -280,12 +289,10 @@ const StarterTrackRow = ({ track, isSelected, player, onSelect, onPlay, onImport
 
 export default function ProjectLibraryPanel({ projectLibrary, localLibrary, starterTracks = [], selectedTrack, player, onSelectTrack, onPlayTrack, onRemoveStarterTrack, onUseInVideo, variant = 'panel' }) {
     const inputRef = useRef(null);
-    const [showArchived, setShowArchived] = useState(false);
     const [playlistName, setPlaylistName] = useState('');
     const [renameValue, setRenameValue] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('');
     const [draft, setDraft] = useState({ category: '', tags: '' });
-    const [showAiImport, setShowAiImport] = useState(false);
     const playlistLibrary = projectLibrary.capability?.ready ? projectLibrary : localLibrary;
     const playlistMode = projectLibrary.capability?.ready ? 'project' : 'local';
     const playlists = playlistLibrary?.playlists || [];
@@ -298,7 +305,7 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
     const categoryOptions = useMemo(() => {
         const categories = new Map();
         const visibleCategoryTracks = [
-            ...projectLibrary.tracks.filter((track) => showArchived || !track.archived),
+            ...projectLibrary.tracks,
             ...(localLibrary?.tracks || []),
             ...starterTracks.filter((track) => !projectTrackIds.has(track.id)),
         ];
@@ -311,7 +318,7 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
         });
         return Array.from(categories.values())
             .sort((categoryA, categoryB) => categoryA.label.localeCompare(categoryB.label));
-    }, [localLibrary?.tracks, projectLibrary.tracks, projectTrackIds, showArchived, starterTracks]);
+    }, [localLibrary?.tracks, projectLibrary.tracks, projectTrackIds, starterTracks]);
     const categoryTotalTracks = useMemo(() => (
         categoryOptions.reduce((total, category) => total + category.count, 0)
     ), [categoryOptions]);
@@ -319,11 +326,11 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
         !categoryFilter || normalizeCategoryKey(getTrackCategory(track)) === categoryFilter
     ), [categoryFilter]);
     const visibleTracks = useMemo(() => {
-        const baseTracks = projectLibrary.tracks.filter((track) => showArchived || !track.archived);
+        const baseTracks = projectLibrary.tracks;
         if (!activeProjectPlaylist) return baseTracks;
         const trackMap = new Map(baseTracks.map((track) => [track.id, track]));
         return activeProjectPlaylist.trackIds.map((trackId) => trackMap.get(trackId)).filter(Boolean);
-    }, [activeProjectPlaylist, projectLibrary.tracks, showArchived]);
+    }, [activeProjectPlaylist, projectLibrary.tracks]);
     const filteredProjectTracks = useMemo(() => (
         activeProjectPlaylist ? visibleTracks : visibleTracks.filter(categoryMatches)
     ), [activeProjectPlaylist, categoryMatches, visibleTracks]);
@@ -366,6 +373,29 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
     const reconnectLocalAudio = useCallback(() => {
         inputRef.current?.click();
     }, []);
+    const downloadTrack = useCallback(async (track) => {
+        if (!track) return;
+        try {
+            const localFile = await localLibrary?.getTrackFile?.(track).catch(() => null);
+            if (localFile) {
+                downloadBlob(localFile, safeAudioFileName(track, localFile.name));
+                return;
+            }
+
+            const playableUrl = track.localObjectUrl || track.downloadUrl || track.previewUrl || track.url;
+            if (playableUrl?.startsWith('blob:')) {
+                const response = await fetch(playableUrl);
+                if (!response.ok) throw new Error('Fichier audio local indisponible.');
+                downloadBlob(await response.blob(), safeAudioFileName(track));
+                return;
+            }
+
+            const result = await fetchAudioBlobForTrack(track);
+            downloadBlob(result.blob, safeAudioFileName(track, result.fileName));
+        } catch (error) {
+            console.warn('[soundtrack] download failed', error);
+        }
+    }, [localLibrary]);
     const saveMetadata = (event) => {
         event.preventDefault();
         if (!selectedTrack?.id) return;
@@ -399,14 +429,6 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
                     <Upload size={14} />
                     Importer fichier
                 </button>
-                <button type="button" onClick={() => setShowAiImport((value) => !value)} data-active={showAiImport}>
-                    <Sparkles size={14} />
-                    Musique IA
-                </button>
-                <button type="button" onClick={() => setShowArchived((value) => !value)} data-active={showArchived}>
-                    <Archive size={14} />
-                    Archives
-                </button>
                 <button
                     type="button"
                     onClick={() => {
@@ -418,20 +440,6 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
                     Vider locale
                 </button>
             </div>
-            {showAiImport && (
-                <div className="soundtrack-project-ai-import">
-                    <AiMusicImportAssistant
-                        compact
-                        localLibrary={localLibrary}
-                        projectLibrary={projectLibrary}
-                        onSelectTrack={onSelectTrack}
-                        onImportComplete={(track) => {
-                            onSelectTrack?.(track);
-                            setShowAiImport(false);
-                        }}
-                    />
-                </div>
-            )}
             <input
                 ref={inputRef}
                 type="file"
@@ -558,6 +566,7 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
                                     player={player}
                                     onSelect={onSelectTrack}
                                     onPlay={onPlayTrack}
+                                    onDownload={downloadTrack}
                                     onImportProject={projectLibrary.importTrackToProject}
                                     onUseInVideo={onUseInVideo}
                                     onRemove={onRemoveStarterTrack}
@@ -572,12 +581,11 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
                                     key={`local-${track.id}`}
                                     track={track}
                                     localLibrary={localLibrary}
-                                    activePlaylist={activeLocalPlaylist}
-                                    inActivePlaylist={Boolean(activeLocalPlaylist?.trackIds?.includes(track.id))}
                                     isSelected={selectedTrack?.id === track.id}
                                     player={player}
                                     onSelect={onSelectTrack}
                                     onPlay={onPlayTrack}
+                                    onDownload={downloadTrack}
                                     onUseInVideo={onUseInVideo}
                                     onReconnect={reconnectLocalAudio}
                                 />
@@ -593,6 +601,7 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
                                 player={player}
                                 onSelect={onSelectTrack}
                                 onPlay={onPlayTrack}
+                                onDownload={downloadTrack}
                                 onUseInVideo={onUseInVideo}
                                 onReconnect={reconnectLocalAudio}
                                 onForgetTrack={localLibrary?.ignorePixabayTrack}

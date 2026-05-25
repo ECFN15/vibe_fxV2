@@ -1,10 +1,10 @@
 {
   "provider": "pixabay",
-  "sourceUrl": "https://pixabay.com/music/search/motivation/",
-  "query": "motivation",
+  "sourceUrl": "https://pixabay.com/music/search/piano/",
+  "query": "piano",
   "startPage": 1,
   "dryRun": false,
-  "generatedAt": "2026-05-24T19:33:34.701Z",
+  "generatedAt": "2026-05-25T11:20:10.179Z",
   "licenseUrl": "https://pixabay.com/service/license-summary/",
   "stats": {
     "found": 1,
@@ -19,37 +19,37 @@
   ],
   "tracks": [
     {
-      "id": "pixabay-524156",
-      "title": "Motivation | Royalty-free Music",
-      "sourceUrl": "https://pixabay.com/music/rock-motivation-524156/",
-      "sourcePageUrl": "https://pixabay.com/music/rock-motivation-524156/",
+      "id": "pixabay-508963",
+      "title": "Piano - Piano Music | Royalty-free Music",
+      "sourceUrl": "https://pixabay.com/music/solo-piano-piano-piano-music-508963/",
+      "sourcePageUrl": "https://pixabay.com/music/solo-piano-piano-piano-music-508963/",
       "sourceName": "Pixabay Music",
       "provider": "pixabay",
       "license": "Pixabay Content License",
       "licenseUrl": "https://pixabay.com/service/license-summary/",
-      "attribution": "Motivation | Royalty-free Music",
+      "attribution": "Piano - Piano Music | Royalty-free Music",
       "rightsStatus": "needs-review",
       "socialUse": true,
       "commercialUse": true,
-      "image": "https://cdn.pixabay.com/audio/2026/04/24/13-20-10-453_200x200.jpg",
+      "image": "https://cdn.pixabay.com/audio/2026/03/26/12-01-08-424_200x200.png",
       "tags": [
         "pixabay",
-        "ai-generated"
+        "piano"
       ],
       "contentIdWarning": "Pixabay signale des droits tiers possibles et des risques Content ID. Conserver la page source et verifier avant publication.",
       "licenseSnapshotVersion": "pixabay-content-license-current",
       "audioUrls": [
-        "https://cdn.pixabay.com/download/audio/2026/04/24/audio_5c5558db18.mp3?filename=jonasblakewood-motivation-524156.mp3"
+        "https://cdn.pixabay.com/download/audio/2026/03/26/audio_67f68a854a.mp3?filename=paulyudin-piano-piano-music-508963.mp3"
       ],
       "importStatus": "importable",
-      "downloadUrl": "/music/pixabay-ai/Motivation-Royalty-free-Music-2.mp3",
-      "previewUrl": "/music/pixabay-ai/Motivation-Royalty-free-Music-2.mp3",
-      "originalDownloadUrl": "https://cdn.pixabay.com/download/audio/2026/04/24/audio_5c5558db18.mp3?filename=jonasblakewood-motivation-524156.mp3",
-      "fileName": "Motivation-Royalty-free-Music-2.mp3",
-      "filePath": "public/music/pixabay-ai/Motivation-Royalty-free-Music-2.mp3",
-      "bytes": 4590027,
+      "downloadUrl": "/music/pixabay-ai/Piano-Piano-Music-Royalty-free-Music.mp3",
+      "previewUrl": "/music/pixabay-ai/Piano-Piano-Music-Royalty-free-Music.mp3",
+      "originalDownloadUrl": "https://cdn.pixabay.com/download/audio/2026/03/26/audio_67f68a854a.mp3?filename=paulyudin-piano-piano-music-508963.mp3",
+      "fileName": "Piano-Piano-Music-Royalty-free-Music.mp3",
+      "filePath": "public/music/pixabay-ai/Piano-Piano-Music-Royalty-free-Music.mp3",
+      "bytes": 4189622,
       "contentType": "audio/mpeg",
-      "downloadedAt": "2026-05-24T19:33:34.696Z"
+      "downloadedAt": "2026-05-25T11:20:10.175Z"
     }
   ],
   "errors": []

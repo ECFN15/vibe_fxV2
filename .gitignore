@@ -16,6 +16,8 @@
 /playwright-report
 /test-fixtures/vision-corpus/*
 !/test-fixtures/vision-corpus/README.md
+/public/music/local-imports/*
+!/public/music/local-imports/.gitkeep
 
 # next.js
 /.next/
