@@ -1,8 +1,8 @@
 import React, { useSyncExternalStore } from 'react';
 import { Camera, Sun, Moon, Zap, Layers, LayoutTemplate, Aperture, Download, Library, Film, Send, Sparkles, Music2 } from 'lucide-react';
-import MusicPlayer from './MusicPlayer';
+import SoundtrackHeaderMiniPlayer from '../soundtrack/components/SoundtrackHeaderMiniPlayer';
 
-const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, onExport, onImportPublication, onOpenPublications, isAiRailOpen, onToggleAiRail, aiJobActive, aiInterfacesEnabled = false }) => {
+const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, onExport, onImportPublication, onOpenPublications, isAiRailOpen, onToggleAiRail, aiJobActive, aiInterfacesEnabled = false, soundtrack, onOpenSoundtrack }) => {
     const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
 
     // Helper simple pour les icônes conditionnelles
@@ -28,9 +28,10 @@ const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, 
                     >
                         {isDarkMode ? <Sun size={16} /> : <Moon size={16} />}
                     </button>
-                    <div className="hidden md:block">
-                        <MusicPlayer isDarkMode={isDarkMode} />
-                    </div>
+                    <SoundtrackHeaderMiniPlayer
+                        controller={soundtrack}
+                        onOpenSoundtrack={onOpenSoundtrack}
+                    />
                 </div>
 
                 <div className="vibefx-studio-header__tabs order-3 sm:order-2 w-full sm:w-auto flex-none sm:flex-1 min-w-0 flex h-12 sm:h-full items-center gap-1 overflow-x-auto scrollbar-hide md:justify-center">

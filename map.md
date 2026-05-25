@@ -235,22 +235,22 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |   |   |   `-- vibefx-tailwind.css
 |   |-- vibefx-studio/                 # Dossier reel : src/features/vibefx-studio/
 |   |   |-- ai/                         # Catalogue/actions/payload/client/hook du rail IA studio, gateway Functions uniquement
-|   |   |-- components/                 # Header, tabs Studio/Fusion/Layout/Library/Soundtrack/Vision/Video et panneaux source Vibe_fx
+|   |   |-- components/                 # Header, tabs Studio/Fusion/Layout/Library/Soundtrack/Vision/Video et panneaux source Vibe_fx ; le header embarque le mini-player Soundtrack global
 |   |   |   `-- ai/                     # Rail IA contextuel : actions, prompt, credits, trace job, outputs
 |   |   |-- data/                       # Constantes, presets et donnees UI importees
 |   |   |-- engine/                     # Rendu canvas/physics importes depuis Vibe_fx
 |   |   |-- hooks/                      # Hooks interaction, renderer, bibliotheque et assets
 |   |   |-- soundtrack/                 # Onglet Soundtrack full page V2 : page Import IA gratuit par defaut + bibliotheque Vibe_fx en popup desktop/fullscreen mobile, Firebase projet ou local-first
-|   |   |   |-- components/               # ProjectLibraryPanel popup avec import fichier, suppression/playlists/classement local/projet, AiMusicImportAssistant en pleine page Soundtrack, Search provider-specifique conserve pour composants legacy, results/rows/player
+|   |   |   |-- components/               # ProjectLibraryPanel popup avec import fichier, suppression/playlists/classement local/projet, AiMusicImportAssistant en pleine page Soundtrack, Search provider-specifique conserve pour composants legacy, results/rows/player et SoundtrackHeaderMiniPlayer global
 |   |   |   |-- data/                     # Providers/filtres/defaults Soundtrack reutilisant musicCatalog
-|   |   |   |-- hooks/                    # Recherche API, player preview, bibliotheque projet Firebase et bibliotheque locale IndexedDB/dossier
+|   |   |   |-- hooks/                    # Recherche API, player preview, controller global Soundtrack, bibliotheque projet Firebase et bibliotheque locale IndexedDB/dossier
 |   |   |   |-- services/                 # Modele/client Firestore/Storage projet (tracks + playlists), cache/search provider, IndexedDB, manifest, File System Access, import dev public/music/local-imports, downloads locaux et audit droits
-|   |   |   |-- SoundtrackPage.jsx        # Experience full page Soundtrack dans le studio, sans canvas/sidebar, import IA gratuit par defaut sans pistes starter injectees
-|   |   |   `-- soundtrack.css          # CSS dark-ui/technical-ui scope Soundtrack charge par /studio/layout
+|   |   |   |-- SoundtrackPage.jsx        # Experience full page Soundtrack dans le studio, sans canvas/sidebar, import IA gratuit par defaut sans pistes starter injectees, consomme le controller audio global
+|   |   |   `-- soundtrack.css          # CSS dark-ui/technical-ui scope Soundtrack charge par /studio/layout, incluant le player bas et le mini-player header
 |   |   |-- utils/                      # Utilitaires canvas/image + color science Vision (`visionColorScience.js`, `visionMetrics.js`)
 |   |   |-- video/                      # Module Vibe_CUT importe, dont `data/musicCatalog.js` pour catalogue/sources/licences, `data/musicRights.js` pour audit/manifeste droits musique, `services/exportRightsManifestClient.js` pour persistance Firestore owner-scoped, `model/timelineModel.js` pour le modele canonique tracks/items, et `utils/audioWaveform.js` pour l'extraction waveform client
 |   |   |-- index.js
-|   |   |-- VibeFxStudio.jsx            # Shell studio Vibe_fx + import publication V2 + vue Soundtrack full page
+|   |   |-- VibeFxStudio.jsx            # Shell studio Vibe_fx + import publication V2 + vue Soundtrack full page + controller audio global persistant entre onglets studio
 |   |   `-- VideoApp.jsx               # Surface video sans react-router
 |   |-- config/
 |   |   `-- aiLaunch.js                 # Flag de lancement IA, registre surfaces IA, localStorage/cookie override backoffice
@@ -405,6 +405,7 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 - Mise a jour 2026-05-25 : le bouton `Archives`, l'action d'archivage des pistes et le filtrage `archived` ont ete retires de la popup bibliotheque pour garder un flux importer/supprimer/vider locale explicite.
 - Mise a jour 2026-05-25 : l'action playlist sur les lignes de la popup bibliotheque Soundtrack a ete remplacee par un bouton `Telecharger` qui recupere le blob local/URL audio et garde les playlists uniquement dans la colonne de gauche.
 - Mise a jour 2026-05-25 : le player bas Soundtrack est remonte via tokens CSS `--soundtrack-player-bottom` / `--soundtrack-player-reserve` pour ne plus chevaucher la barre Next/devtools tout en restant proche du container d'import.
+- Mise a jour 2026-05-25 : le player Soundtrack est pilote par un controller global au niveau `VibeFxStudio`, ce qui permet a la musique de continuer pendant les changements d'onglets studio. Le header remplace l'ancien petit MusicPlayer par `SoundtrackHeaderMiniPlayer`, une miniature compacte synchronisee avec le player bas (play/pause, precedent/suivant, auto next/aleatoire et progression segmentee).
 - Mise a jour 2026-05-25 : le player Soundtrack gagne une barre de progression seekable, un bouton piste suivante, un mode `Auto next`/`Aleatoire` et l'autoplay de fin de piste. `/api/music/local-file-import` synchronise aussi les MP3 existants de `public/music` et `public/music/pixabay-ai` vers `public/music/local-imports` pour que toute la musique locale remonte dans la bibliotheque.
 - Mise a jour 2026-05-25 : le player Soundtrack retire le bouton stop droit, ajoute `Piste precedente` a gauche et remplace le range natif par un scrubber cyber segmente cliquable/drag avec tete lumineuse et progression animee.
 - Mise a jour 2026-05-25 : le scrubber Soundtrack est recentre avec FrontSymmetry via une grille player en trois zones symetriques gauche/centre/droite et un micro-ajustement vertical `translateY(-8px)`.

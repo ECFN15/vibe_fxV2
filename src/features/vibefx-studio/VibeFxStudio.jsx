@@ -22,6 +22,7 @@ import AssetLibraryModal from './components/modals/AssetLibraryModal';
 import VideoApp from './VideoApp';
 import StudioAiRail from './components/ai/StudioAiRail';
 import SoundtrackPage from './soundtrack/SoundtrackPage';
+import { useSoundtrackController } from './soundtrack/hooks/useSoundtrackController';
 import useVideoStore from './video/store/videoStore';
 import { buildTrackRightsManifest } from './video/data/musicRights';
 
@@ -152,6 +153,7 @@ const buildVisionDiagnosticWarnings = (delta, performanceInfo) => {
 function App({ onImportToPublication, onOpenPublications, initialView = 'studio' }) {
     const { aiInterfacesEnabled } = useAiLaunchSettings();
     const [view, setView] = useState(initialView);
+    const soundtrack = useSoundtrackController();
     const [images, setImages] = useState([]);
     const [activeCategory, setActiveCategory] = useState(null);
     const [selectedBrand, setSelectedBrand] = useState(null);
@@ -849,6 +851,8 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                 isAiRailOpen={aiInterfacesEnabled && isAiRailOpen}
                 onToggleAiRail={aiInterfacesEnabled ? () => setIsAiRailOpen(current => !current) : null}
                 aiInterfacesEnabled={aiInterfacesEnabled}
+                soundtrack={soundtrack}
+                onOpenSoundtrack={() => setView('soundtrack')}
             />
 
             <main className="flex-1 w-full flex overflow-hidden bg-grid-pattern">
@@ -858,7 +862,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                         onUseAsset={handleAssetImport}
                     />
                 ) : view === 'soundtrack' ? (
-                    <SoundtrackPage onUseInVideo={handleUseSoundtrackInVideo} />
+                    <SoundtrackPage controller={soundtrack} onUseInVideo={handleUseSoundtrackInVideo} />
                 ) : (
                     <div className="flex-1 w-full grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
                         {/* CANVAS AREA */}

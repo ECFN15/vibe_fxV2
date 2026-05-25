@@ -4,6 +4,7 @@
 
 .vibefx-studio-header__inner {
   min-width: 0;
+  position: relative;
 }
 
 .vibefx-studio-header__brand,

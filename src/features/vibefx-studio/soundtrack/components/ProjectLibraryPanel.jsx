@@ -19,6 +19,18 @@ const normalizeCategoryKey = (value = '') => (
     String(value || '').trim().toLowerCase()
 );
 
+const getTrackImportTime = (track = {}) => {
+    const rawDate = track.importedAt || track.addedAt || track.createdAt || track.acquiredAt || track.updatedAt || '';
+    const timestamp = Date.parse(rawDate);
+    return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const compareTracksByNewestImport = (trackA = {}, trackB = {}) => {
+    const timeCompare = getTrackImportTime(trackB) - getTrackImportTime(trackA);
+    if (timeCompare !== 0) return timeCompare;
+    return String(trackA.title || '').localeCompare(String(trackB.title || ''), undefined, { sensitivity: 'base' });
+};
+
 const safeAudioFileName = (track = {}, fallbackName = '') => {
     const sourceName = fallbackName || track.fileName || track.originalFileName || `${track.artist ? `${track.artist}-` : ''}${track.title || 'vibefx-audio'}`;
     const cleanedName = String(sourceName || 'vibefx-audio')
@@ -353,12 +365,15 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
             ...filteredProjectTracks.map((track) => ({ type: 'project', track })),
         ];
         if (activePlaylist) return rows;
+        if (!categoryFilter) {
+            return rows.sort((rowA, rowB) => compareTracksByNewestImport(rowA.track, rowB.track));
+        }
         return rows.sort((rowA, rowB) => {
             const categoryCompare = getTrackCategory(rowA.track).localeCompare(getTrackCategory(rowB.track), undefined, { sensitivity: 'base' });
             if (categoryCompare !== 0) return categoryCompare;
             return String(rowA.track.title || '').localeCompare(String(rowB.track.title || ''), undefined, { sensitivity: 'base' });
         });
-    }, [activePlaylist, filteredProjectTracks, visibleLocalTracks, visibleStarterTracks]);
+    }, [activePlaylist, categoryFilter, filteredProjectTracks, visibleLocalTracks, visibleStarterTracks]);
 
     useEffect(() => {
         setDraft({
