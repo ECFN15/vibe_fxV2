@@ -20,15 +20,49 @@ const normalizeCategoryKey = (value = '') => (
 );
 
 const getTrackImportTime = (track = {}) => {
-    const rawDate = track.importedAt || track.addedAt || track.createdAt || track.acquiredAt || track.updatedAt || '';
-    const timestamp = Date.parse(rawDate);
-    return Number.isFinite(timestamp) ? timestamp : 0;
+    const timestamps = [
+        track.importedAt,
+        track.updatedAt,
+        track.addedAt,
+        track.createdAt,
+        track.acquiredAt,
+    ].map((rawDate) => Date.parse(rawDate)).filter(Number.isFinite);
+    return timestamps.length ? Math.max(...timestamps) : 0;
 };
 
 const compareTracksByNewestImport = (trackA = {}, trackB = {}) => {
     const timeCompare = getTrackImportTime(trackB) - getTrackImportTime(trackA);
     if (timeCompare !== 0) return timeCompare;
     return String(trackA.title || '').localeCompare(String(trackB.title || ''), undefined, { sensitivity: 'base' });
+};
+
+const getCategoryHue = (category = '') => {
+    const key = normalizeCategoryKey(category) || 'sans-categorie';
+    let hash = 0;
+    for (let index = 0; index < key.length; index += 1) {
+        hash = (hash * 31 + key.charCodeAt(index)) % 360;
+    }
+    return (hash + 18) % 360;
+};
+
+const sortRowsByLatestImport = (rows = [], newImportIdSet = new Set()) => (
+    [...rows].sort((rowA, rowB) => {
+        const newCompare = Number(newImportIdSet.has(rowB.track.id)) - Number(newImportIdSet.has(rowA.track.id));
+        if (newCompare !== 0) return newCompare;
+        return compareTracksByNewestImport(rowA.track, rowB.track);
+    })
+);
+
+const CategoryBadge = ({ track }) => {
+    const category = getTrackCategory(track);
+    return (
+        <span
+            className="soundtrack-category-badge"
+            style={{ '--category-hue': getCategoryHue(category) }}
+        >
+            {category}
+        </span>
+    );
 };
 
 const safeAudioFileName = (track = {}, fallbackName = '') => {
@@ -132,14 +166,14 @@ const TrackScrubPanel = ({ track, isSelected, player, onPlay, playableUrl, onRec
     );
 };
 
-const ProjectTrackRow = ({ track, projectLibrary, activePlaylist, isSelected, player, onSelect, onPlay, onDownload, onUseInVideo, onReconnect, onForgetTrack }) => {
+const ProjectTrackRow = ({ track, projectLibrary, activePlaylist, isNew, isSelected, player, onSelect, onPlay, onDownload, onUseInVideo, onReconnect, onForgetTrack }) => {
     const audit = getSoundtrackRightsAudit(track);
     const usable = track.downloadUrl && !audit.blocked && track.rightsStatus !== 'blocked';
     const inActivePlaylist = activePlaylist?.trackIds?.includes(track.id);
     const playableUrl = track.localObjectUrl || track.previewUrl || track.downloadUrl;
     return (
         <>
-            <article className="soundtrack-project-row" data-selected={isSelected ? 'true' : 'false'} data-testid={`project-track-${track.id}`}>
+            <article className="soundtrack-project-row" data-new={isNew ? 'true' : 'false'} data-selected={isSelected ? 'true' : 'false'} data-testid={`project-track-${track.id}`}>
                 <button type="button" className="soundtrack-project-row__select" onClick={() => onPlay(track, playableUrl)} disabled={!playableUrl} title="Ecouter">
                     {player?.playingId === track.id && player?.status === 'playing' ? <Pause size={13} /> : <Play size={13} />}
                 </button>
@@ -148,8 +182,9 @@ const ProjectTrackRow = ({ track, projectLibrary, activePlaylist, isSelected, pl
                     <span>{track.artist || track.sourceName} / {formatDuration(track.duration)}</span>
                 </button>
                 <div className="soundtrack-project-row__meta">
+                    {isNew && <span data-state="new">new</span>}
                     <span>{track.sourceProvider}</span>
-                    <span>{getTrackCategory(track)}</span>
+                    <CategoryBadge track={track} />
                     <span data-state={track.rightsStatus === 'blocked' ? 'danger' : track.rightsStatus === 'needs-review' ? 'warning' : 'success'}>
                         {getRightsLabel(track.rightsStatus)}
                     </span>
@@ -202,13 +237,13 @@ const ProjectTrackRow = ({ track, projectLibrary, activePlaylist, isSelected, pl
     );
 };
 
-const LocalTrackRow = ({ track, localLibrary, isSelected, player, onSelect, onPlay, onDownload, onUseInVideo, onReconnect }) => {
+const LocalTrackRow = ({ track, localLibrary, isNew, isSelected, player, onSelect, onPlay, onDownload, onUseInVideo, onReconnect }) => {
     const audit = getSoundtrackRightsAudit(track);
     const usable = (track.localObjectUrl || track.downloadUrl || track.previewUrl) && !audit.blocked;
     const playableUrl = track.localObjectUrl || track.downloadUrl || track.previewUrl;
     return (
         <>
-        <article className="soundtrack-project-row soundtrack-project-row--local" data-selected={isSelected ? 'true' : 'false'} data-testid={`local-track-${track.id}`}>
+        <article className="soundtrack-project-row soundtrack-project-row--local" data-new={isNew ? 'true' : 'false'} data-selected={isSelected ? 'true' : 'false'} data-testid={`local-track-${track.id}`}>
             <button
                 type="button"
                 className="soundtrack-project-row__select"
@@ -223,8 +258,9 @@ const LocalTrackRow = ({ track, localLibrary, isSelected, player, onSelect, onPl
                 <span>{track.artist || track.sourceName} / {formatDuration(track.duration)}</span>
             </button>
             <div className="soundtrack-project-row__meta">
+                {isNew && <span data-state="new">new</span>}
                 <span>local</span>
-                <span>{getTrackCategory(track)}</span>
+                <CategoryBadge track={track} />
                 <span data-state={track.fileAvailable ? 'success' : 'warning'}>{track.fileAvailable ? 'fichier ok' : 'metadata'}</span>
                 <span data-state={audit.blocked ? 'danger' : track.rightsStatus === 'needs-review' ? 'warning' : 'success'}>
                     {getRightsLabel(track.rightsStatus)}
@@ -256,12 +292,12 @@ const LocalTrackRow = ({ track, localLibrary, isSelected, player, onSelect, onPl
     );
 };
 
-const StarterTrackRow = ({ track, isSelected, player, onSelect, onPlay, onDownload, onImportProject, onUseInVideo, onRemove, busy, onReconnect }) => {
+const StarterTrackRow = ({ track, isNew, isSelected, player, onSelect, onPlay, onDownload, onImportProject, onUseInVideo, onRemove, busy, onReconnect }) => {
     const audit = getSoundtrackRightsAudit(track);
     const playableUrl = track.localObjectUrl || track.previewUrl || track.downloadUrl;
     return (
         <>
-        <article className="soundtrack-project-row soundtrack-project-row--starter" data-selected={isSelected ? 'true' : 'false'} data-testid={`project-starter-track-${track.id}`}>
+        <article className="soundtrack-project-row soundtrack-project-row--starter" data-new={isNew ? 'true' : 'false'} data-selected={isSelected ? 'true' : 'false'} data-testid={`project-starter-track-${track.id}`}>
             <button type="button" className="soundtrack-project-row__select" onClick={() => onPlay(track)} title="Ecouter">
                 {player?.playingId === track.id && player?.status === 'playing' ? <Pause size={13} /> : <Play size={13} />}
             </button>
@@ -270,8 +306,9 @@ const StarterTrackRow = ({ track, isSelected, player, onSelect, onPlay, onDownlo
                 <span>{track.artist || track.sourceName} / {formatDuration(track.duration)}</span>
             </button>
             <div className="soundtrack-project-row__meta">
+                {isNew && <span data-state="new">new</span>}
                 <span>incluse</span>
-                <span>{track.genre || track.mood || 'Vibe_CUT'}</span>
+                <CategoryBadge track={track} />
                 <span data-state={audit.blocked ? 'danger' : 'warning'}>{getRightsLabel(track.rightsStatus)}</span>
             </div>
             <div className="soundtrack-project-row__actions">
@@ -299,7 +336,7 @@ const StarterTrackRow = ({ track, isSelected, player, onSelect, onPlay, onDownlo
     );
 };
 
-export default function ProjectLibraryPanel({ projectLibrary, localLibrary, starterTracks = [], selectedTrack, player, onSelectTrack, onPlayTrack, onRemoveStarterTrack, onUseInVideo, variant = 'panel' }) {
+export default function ProjectLibraryPanel({ projectLibrary, localLibrary, starterTracks = [], newImportTrackIds = [], selectedTrack, player, onSelectTrack, onPlayTrack, onRemoveStarterTrack, onImportComplete, onUseInVideo, variant = 'panel' }) {
     const inputRef = useRef(null);
     const [playlistName, setPlaylistName] = useState('');
     const [renameValue, setRenameValue] = useState('');
@@ -313,6 +350,7 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
     const activeProjectPlaylist = playlistMode === 'project' ? activePlaylist : null;
     const activeLocalPlaylist = playlistMode === 'local' ? activePlaylist : null;
     const playlistScopeLabel = playlistMode === 'project' ? 'Playlists projet' : 'Playlists bibliotheque';
+    const newImportIdSet = useMemo(() => new Set(newImportTrackIds), [newImportTrackIds]);
     const projectTrackIds = useMemo(() => new Set(projectLibrary.tracks.map((track) => track.sourceTrackId || track.id)), [projectLibrary.tracks]);
     const categoryOptions = useMemo(() => {
         const categories = new Map();
@@ -365,15 +403,8 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
             ...filteredProjectTracks.map((track) => ({ type: 'project', track })),
         ];
         if (activePlaylist) return rows;
-        if (!categoryFilter) {
-            return rows.sort((rowA, rowB) => compareTracksByNewestImport(rowA.track, rowB.track));
-        }
-        return rows.sort((rowA, rowB) => {
-            const categoryCompare = getTrackCategory(rowA.track).localeCompare(getTrackCategory(rowB.track), undefined, { sensitivity: 'base' });
-            if (categoryCompare !== 0) return categoryCompare;
-            return String(rowA.track.title || '').localeCompare(String(rowB.track.title || ''), undefined, { sensitivity: 'base' });
-        });
-    }, [activePlaylist, categoryFilter, filteredProjectTracks, visibleLocalTracks, visibleStarterTracks]);
+        return sortRowsByLatestImport(rows, newImportIdSet);
+    }, [activePlaylist, filteredProjectTracks, newImportIdSet, visibleLocalTracks, visibleStarterTracks]);
 
     useEffect(() => {
         setDraft({
@@ -460,16 +491,19 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
                 type="file"
                 accept="audio/*"
                 className="soundtrack-hidden-input"
-                onChange={(event) => {
+                onChange={async (event) => {
                     const [file] = Array.from(event.target.files || []);
+                    let importedTracks = [];
                     if (projectLibrary.capability?.ready) {
-                        projectLibrary.importFileToProject(file, {
+                        const imported = await projectLibrary.importFileToProject(file, {
                             socialUse: false,
                             commercialUse: false,
                         });
+                        importedTracks = imported ? [imported] : [];
                     } else {
-                        localLibrary?.importFiles?.(event.target.files);
+                        importedTracks = await localLibrary?.importFiles?.(event.target.files) || [];
                     }
+                    if (importedTracks.length) onImportComplete?.(importedTracks[0], importedTracks);
                     event.target.value = '';
                 }}
             />
@@ -577,6 +611,7 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
                                 <StarterTrackRow
                                     key={`starter-${track.id}`}
                                     track={track}
+                                    isNew={newImportIdSet.has(track.id)}
                                     isSelected={selectedTrack?.id === track.id}
                                     player={player}
                                     onSelect={onSelectTrack}
@@ -596,6 +631,7 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
                                     key={`local-${track.id}`}
                                     track={track}
                                     localLibrary={localLibrary}
+                                    isNew={newImportIdSet.has(track.id)}
                                     isSelected={selectedTrack?.id === track.id}
                                     player={player}
                                     onSelect={onSelectTrack}
@@ -612,6 +648,7 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
                                 track={track}
                                 projectLibrary={projectLibrary}
                                 activePlaylist={activeProjectPlaylist}
+                                isNew={newImportIdSet.has(track.id)}
                                 isSelected={selectedTrack?.id === track.id}
                                 player={player}
                                 onSelect={onSelectTrack}

@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { X, Upload, Trash2, Volume2, Library, ShieldCheck } from 'lucide-react';
 import useVideoStore from '../store/videoStore';
 import { RIGHTS_STATUS_LABELS, getTrackRightsIssues } from '../data/musicRights';
-import { isTrackLocked } from '../model/timelineModel';
+import { getTimelineTrackRole, isTrackLocked } from '../model/timelineModel';
 
 const AudioPanel = () => {
     const {
@@ -12,7 +12,17 @@ const AudioPanel = () => {
 
     const selectedClip = clips.find(c => c.id === selectedClipId) || clips[0];
     const videoLocked = isTrackLocked(tracks, 'video-main');
-    const musicLocked = isTrackLocked(tracks, 'music-main');
+    const musicTrackOptions = useMemo(() => (
+        tracks
+            .filter(track => getTimelineTrackRole(track) === 'music')
+            .sort((a, b) => Number(a.order || 0) - Number(b.order || 0))
+            .map((track, index) => ({
+                id: track.id,
+                label: track.name || (index === 0 ? 'Musique' : `Musique ${index + 1}`),
+                locked: track.locked === true,
+            }))
+    ), [tracks]);
+    const allMusicTracksLocked = musicTrackOptions.length > 0 && musicTrackOptions.every(track => track.locked);
 
     return (
         <div className="flex flex-col h-full">
@@ -46,7 +56,7 @@ const AudioPanel = () => {
                 {/* Music library button */}
                 <button
                     onClick={() => setActivePanel('music')}
-                    disabled={musicLocked}
+                    disabled={allMusicTracksLocked}
                     className="w-full flex items-center justify-center gap-2 py-3 border border-dashed border-emerald-800/50 hover:border-emerald-500/50 hover:bg-emerald-500/5 rounded-sm transition"
                 >
                     <Library size={14} className="text-emerald-500/60" />
@@ -59,7 +69,7 @@ const AudioPanel = () => {
                         <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest">Pistes audio</span>
                         <button
                             onClick={() => setActivePanel('music')}
-                            disabled={musicLocked}
+                            disabled={allMusicTracksLocked}
                             className="text-indigo-400 hover:text-indigo-300 transition"
                             aria-label="Importer une piste audio avec declaration de droits"
                         >
@@ -72,13 +82,14 @@ const AudioPanel = () => {
                     ) : (
                         audioTracks.map(track => {
                             const audit = getTrackRightsIssues(track);
+                            const trackLocked = isTrackLocked(tracks, track.trackId || 'music-main');
                             return (
                                 <div key={track.id} className="border border-neutral-800 rounded-sm p-3 space-y-2">
                                     <div className="flex items-center justify-between gap-2">
                                         <span className="min-w-0 truncate text-[10px] font-mono text-neutral-300">{track.name}</span>
                                         <button
                                             onClick={() => removeAudioTrack(track.id)}
-                                            disabled={musicLocked}
+                                            disabled={trackLocked}
                                             className="text-neutral-600 hover:text-red-400 transition disabled:opacity-40 disabled:hover:text-neutral-600"
                                         >
                                             <Trash2 size={12} />
@@ -90,11 +101,27 @@ const AudioPanel = () => {
                                             type="range" min={0} max={100}
                                             aria-label={`Volume de la piste ${track.name}`}
                                             value={track.volume}
-                                            disabled={musicLocked}
+                                            disabled={trackLocked}
                                             onChange={(e) => updateAudioTrack(track.id, { volume: parseInt(e.target.value) })}
                                             className="flex-1 h-2 bg-neutral-800 rounded-full appearance-none cursor-pointer accent-emerald-500 disabled:cursor-not-allowed disabled:opacity-45"
                                         />
                                         <span className="text-[9px] font-mono text-neutral-400 tabular-nums w-8 text-right">{track.volume}%</span>
+                                    </div>
+                                    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
+                                        <span className="text-[8px] font-mono uppercase tracking-widest text-neutral-500">Timeline</span>
+                                        <select
+                                            value={track.trackId || 'music-main'}
+                                            disabled={trackLocked}
+                                            onChange={(e) => updateAudioTrack(track.id, { trackId: e.target.value })}
+                                            className="w-full rounded-sm border border-neutral-800 bg-neutral-900 px-2 py-1 text-[10px] font-mono text-neutral-300 disabled:opacity-45"
+                                            aria-label={`Timeline de la piste ${track.name}`}
+                                        >
+                                            {musicTrackOptions.map(option => (
+                                                <option key={option.id} value={option.id} disabled={option.locked && option.id !== (track.trackId || 'music-main')}>
+                                                    {option.label}{option.locked ? ' - verrouillee' : ''}
+                                                </option>
+                                            ))}
+                                        </select>
                                     </div>
                                     <div className={`inline-flex max-w-full items-center gap-1 rounded-sm px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-widest ${
                                         audit.issues.length > 0 ? 'bg-red-500/10 text-red-300' : 'bg-emerald-500/10 text-emerald-300'

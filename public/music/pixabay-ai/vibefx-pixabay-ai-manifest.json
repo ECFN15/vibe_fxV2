@@ -1,14 +1,14 @@
 {
   "provider": "pixabay",
-  "sourceUrl": "https://pixabay.com/music/search/popular+music/",
-  "query": "popular music",
+  "sourceUrl": "https://pixabay.com/music/search/house+music/",
+  "query": "house music",
   "startPage": 1,
   "dryRun": false,
-  "generatedAt": "2026-05-25T12:33:40.234Z",
+  "generatedAt": "2026-05-25T14:27:13.203Z",
   "licenseUrl": "https://pixabay.com/service/license-summary/",
   "stats": {
-    "found": 1,
-    "imported": 1,
+    "found": 3,
+    "imported": 3,
     "metadataOnly": 0,
     "errors": 0
   },
@@ -19,37 +19,103 @@
   ],
   "tracks": [
     {
-      "id": "pixabay-482099",
-      "title": "Popular | Royalty-free Music",
-      "sourceUrl": "https://pixabay.com/music/electronic-popular-482099/",
-      "sourcePageUrl": "https://pixabay.com/music/electronic-popular-482099/",
+      "id": "pixabay-519279",
+      "title": "Techno House 2 | Royalty-free Music",
+      "sourceUrl": "https://pixabay.com/music/electro-techno-house-2-519279/",
+      "sourcePageUrl": "https://pixabay.com/music/electro-techno-house-2-519279/",
       "sourceName": "Pixabay Music",
       "provider": "pixabay",
       "license": "Pixabay Content License",
       "licenseUrl": "https://pixabay.com/service/license-summary/",
-      "attribution": "Popular | Royalty-free Music",
+      "attribution": "Techno House 2 | Royalty-free Music",
       "rightsStatus": "needs-review",
       "socialUse": true,
       "commercialUse": true,
-      "image": "https://cdn.pixabay.com/audio/2026/02/09/17-25-59-429_200x200.png",
+      "image": "https://cdn.pixabay.com/audio/2026/04/14/08-21-10-376_200x200.png",
       "tags": [
         "pixabay",
-        "popular music"
+        "house music"
       ],
       "contentIdWarning": "Pixabay signale des droits tiers possibles et des risques Content ID. Conserver la page source et verifier avant publication.",
       "licenseSnapshotVersion": "pixabay-content-license-current",
       "audioUrls": [
-        "https://cdn.pixabay.com/download/audio/2026/02/09/audio_15a0528f1b.mp3?filename=audiodollar-popular-482099.mp3"
+        "https://cdn.pixabay.com/download/audio/2026/04/21/audio_2429338329.mp3?filename=monume-techno-house-2-519279.mp3"
       ],
       "importStatus": "importable",
-      "downloadUrl": "/music/pixabay-ai/Popular-Royalty-free-Music.mp3",
-      "previewUrl": "/music/pixabay-ai/Popular-Royalty-free-Music.mp3",
-      "originalDownloadUrl": "https://cdn.pixabay.com/download/audio/2026/02/09/audio_15a0528f1b.mp3?filename=audiodollar-popular-482099.mp3",
-      "fileName": "Popular-Royalty-free-Music.mp3",
-      "filePath": "public/music/pixabay-ai/Popular-Royalty-free-Music.mp3",
-      "bytes": 4273214,
+      "downloadUrl": "/music/pixabay-ai/Techno-House-2-Royalty-free-Music.mp3",
+      "previewUrl": "/music/pixabay-ai/Techno-House-2-Royalty-free-Music.mp3",
+      "originalDownloadUrl": "https://cdn.pixabay.com/download/audio/2026/04/21/audio_2429338329.mp3?filename=monume-techno-house-2-519279.mp3",
+      "fileName": "Techno-House-2-Royalty-free-Music.mp3",
+      "filePath": "public/music/pixabay-ai/Techno-House-2-Royalty-free-Music.mp3",
+      "bytes": 3185684,
       "contentType": "audio/mpeg",
-      "downloadedAt": "2026-05-25T12:33:40.228Z"
+      "downloadedAt": "2026-05-25T14:27:08.247Z"
+    },
+    {
+      "id": "pixabay-509469",
+      "title": "House | Royalty-free Music",
+      "sourceUrl": "https://pixabay.com/music/house-house-509469/",
+      "sourcePageUrl": "https://pixabay.com/music/house-house-509469/",
+      "sourceName": "Pixabay Music",
+      "provider": "pixabay",
+      "license": "Pixabay Content License",
+      "licenseUrl": "https://pixabay.com/service/license-summary/",
+      "attribution": "House | Royalty-free Music",
+      "rightsStatus": "needs-review",
+      "socialUse": true,
+      "commercialUse": true,
+      "image": "https://cdn.pixabay.com/audio/2026/03/27/12-57-55-522_200x200.png",
+      "tags": [
+        "pixabay",
+        "house music"
+      ],
+      "contentIdWarning": "Pixabay signale des droits tiers possibles et des risques Content ID. Conserver la page source et verifier avant publication.",
+      "licenseSnapshotVersion": "pixabay-content-license-current",
+      "audioUrls": [
+        "https://cdn.pixabay.com/download/audio/2026/03/27/audio_8c38edb30a.mp3?filename=monume-house-509469.mp3"
+      ],
+      "importStatus": "importable",
+      "downloadUrl": "/music/pixabay-ai/House-Royalty-free-Music-4.mp3",
+      "previewUrl": "/music/pixabay-ai/House-Royalty-free-Music-4.mp3",
+      "originalDownloadUrl": "https://cdn.pixabay.com/download/audio/2026/03/27/audio_8c38edb30a.mp3?filename=monume-house-509469.mp3",
+      "fileName": "House-Royalty-free-Music-4.mp3",
+      "filePath": "public/music/pixabay-ai/House-Royalty-free-Music-4.mp3",
+      "bytes": 5185201,
+      "contentType": "audio/mpeg",
+      "downloadedAt": "2026-05-25T14:27:10.714Z"
+    },
+    {
+      "id": "pixabay-509467",
+      "title": "House | Royalty-free Music",
+      "sourceUrl": "https://pixabay.com/music/house-house-509467/",
+      "sourcePageUrl": "https://pixabay.com/music/house-house-509467/",
+      "sourceName": "Pixabay Music",
+      "provider": "pixabay",
+      "license": "Pixabay Content License",
+      "licenseUrl": "https://pixabay.com/service/license-summary/",
+      "attribution": "House | Royalty-free Music",
+      "rightsStatus": "needs-review",
+      "socialUse": true,
+      "commercialUse": true,
+      "image": "https://cdn.pixabay.com/audio/2026/03/27/12-58-04-95_200x200.png",
+      "tags": [
+        "pixabay",
+        "house music"
+      ],
+      "contentIdWarning": "Pixabay signale des droits tiers possibles et des risques Content ID. Conserver la page source et verifier avant publication.",
+      "licenseSnapshotVersion": "pixabay-content-license-current",
+      "audioUrls": [
+        "https://cdn.pixabay.com/download/audio/2026/03/27/audio_a3ac2867da.mp3?filename=monume-house-509467.mp3"
+      ],
+      "importStatus": "importable",
+      "downloadUrl": "/music/pixabay-ai/House-Royalty-free-Music-5.mp3",
+      "previewUrl": "/music/pixabay-ai/House-Royalty-free-Music-5.mp3",
+      "originalDownloadUrl": "https://cdn.pixabay.com/download/audio/2026/03/27/audio_a3ac2867da.mp3?filename=monume-house-509467.mp3",
+      "fileName": "House-Royalty-free-Music-5.mp3",
+      "filePath": "public/music/pixabay-ai/House-Royalty-free-Music-5.mp3",
+      "bytes": 4689502,
+      "contentType": "audio/mpeg",
+      "downloadedAt": "2026-05-25T14:27:13.196Z"
     }
   ],
   "errors": []

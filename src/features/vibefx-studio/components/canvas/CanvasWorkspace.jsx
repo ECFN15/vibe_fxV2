@@ -1,5 +1,5 @@
 import React from 'react';
-import { Upload, Loader2, Maximize, Columns, Smartphone, Move, Plus, X, Layers, RectangleHorizontal, Square } from 'lucide-react';
+import { Upload, Loader2, Maximize, Columns, Smartphone, Move, Plus, X, Layers, RectangleHorizontal, Square, Sparkles, Type, Palette, SlidersHorizontal, Image as ImageIcon } from 'lucide-react';
 import { CUSTOM_SHAPE_LIBRARY } from '../../data/constants';
 
 /**
@@ -41,6 +41,7 @@ export default function CanvasWorkspace({
     visionCompareSplit,
     customEditMode,
     onAddCustomZone,
+    layoutQuickActions,
 }) {
     // Show canvas if there are images OR if we are in Fusion mode (to see background image/gradient)
     const showCanvas = images.length > 0 || view === 'fusion' || (view === 'layout' && activeTemplate?.id === 'custom');
@@ -121,6 +122,12 @@ export default function CanvasWorkspace({
                 <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-indigo-500 z-10 pointer-events-none"></div>
                 <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-indigo-500 z-10 pointer-events-none"></div>
                 <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-indigo-500 z-10 pointer-events-none"></div>
+                {view === 'layout' && layoutQuickActions ? (
+                    <LayoutQuickRail
+                        isDarkMode={isDarkMode}
+                        actions={layoutQuickActions}
+                    />
+                ) : null}
 
                 {isProcessing && (<div className={`absolute inset-0 z-30 flex flex-col items-center justify-center backdrop-blur-md p-6 text-center ${isDarkMode ? 'bg-black/80 text-white' : 'bg-white/80 text-gray-900'}`}><Loader2 size={48} className="text-indigo-500 animate-spin mb-4" /><p className="font-mono text-lg mb-2 uppercase tracking-widest">{loadingStatus || "Processing..."}</p><div className={`w-full max-w-xs h-0.5 mb-2 overflow-hidden ${isDarkMode ? 'bg-neutral-800' : 'bg-gray-200'}`}><div className="bg-indigo-500 h-full transition-all duration-300" style={{ width: `${loadingProgress}%` }}></div></div><p className={`text-xs font-mono ${isDarkMode ? 'text-neutral-500' : 'text-gray-500'}`}>{loadingProgress}%</p></div>)}
 
@@ -276,5 +283,88 @@ export default function CanvasWorkspace({
                 )}
             </div>
         </div>
+    );
+}
+
+function LayoutQuickRail({ isDarkMode, actions }) {
+    const openAccordion = (accordion) => actions.onOpenAccordion?.(accordion);
+    const buttons = [
+        {
+            id: 'mesh',
+            label: 'Mesh',
+            title: 'Ouvrir Mesh Studio pour le fond',
+            icon: Sparkles,
+            active: actions.layoutBgGradient,
+            onClick: actions.onOpenMesh,
+            featured: true,
+        },
+        {
+            id: 'blur-pro',
+            label: 'Flou Pro',
+            title: 'Ouvrir le Flou lisse pro mode',
+            icon: Layers,
+            active: actions.smoothBlurEnabled,
+            onClick: actions.onOpenSmoothBlur,
+        },
+        {
+            id: 'bg-blur',
+            label: 'Flou fond',
+            title: 'Activer ou couper le flou d arriere-plan',
+            icon: ImageIcon,
+            active: actions.layoutBgBlur,
+            onClick: actions.onToggleBgBlur,
+        },
+        {
+            id: 'texts',
+            label: 'Texte',
+            title: 'Ouvrir Textes et Boutons',
+            icon: Type,
+            active: actions.activeAccordion === 'texts',
+            onClick: () => openAccordion('texts'),
+        },
+        {
+            id: 'background',
+            label: 'Fond',
+            title: 'Ouvrir Fond Global',
+            icon: Palette,
+            active: actions.activeAccordion === 'background',
+            onClick: () => openAccordion('background'),
+        },
+        {
+            id: 'geometry',
+            label: 'Marges',
+            title: 'Ouvrir Geometrie et Marges',
+            icon: SlidersHorizontal,
+            active: actions.activeAccordion === 'geometry',
+            onClick: () => openAccordion('geometry'),
+        },
+    ];
+
+    return (
+        <aside
+            className={`vibefx-layout-quick-rail ${isDarkMode ? 'is-dark' : 'is-light'}`}
+            aria-label="Raccourcis de mise en page"
+            onMouseDown={(event) => event.stopPropagation()}
+            onTouchStart={(event) => event.stopPropagation()}
+        >
+            <div className="vibefx-layout-quick-rail__label">Type de fond</div>
+            <div className="vibefx-layout-quick-rail__buttons">
+                {buttons.map(({ id, label, title, icon: Icon, active, featured, onClick }) => (
+                    <button
+                        key={id}
+                        type="button"
+                        className="vibefx-layout-quick-rail__button"
+                        data-active={active ? 'true' : 'false'}
+                        data-featured={featured ? 'true' : 'false'}
+                        onClick={onClick}
+                        title={title}
+                        aria-label={title}
+                    >
+                        <Icon size={15} />
+                        <span>{label}</span>
+                    </button>
+                ))}
+            </div>
+        </aside>
     );
 }

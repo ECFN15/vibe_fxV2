@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { X, Clock, Crosshair, Trash2 } from 'lucide-react';
 import useVideoStore from '../store/videoStore';
 import { TRANSITIONS, TRANSITION_CATEGORIES, formatTime } from '../engine/VideoEngine';
-import { isTrackLocked, normalizeTransitionItems } from '../model/timelineModel';
+import { getTimelineTrackRole, normalizeTransitionItems } from '../model/timelineModel';
 
 const TransitionPicker = () => {
     const {
@@ -25,7 +25,10 @@ const TransitionPicker = () => {
     const [duration, setDuration] = useState(selectedTransition?.duration || 0.5);
     const filteredTransitions = TRANSITIONS.filter(t => t.category === activeCategory);
     const hasClips = clips.length > 0;
-    const transitionsLocked = isTrackLocked(tracks, 'transition-main');
+    const transitionTrackOptions = useMemo(() => (
+        tracks.filter(track => getTimelineTrackRole(track) === 'transition')
+    ), [tracks]);
+    const transitionsLocked = transitionTrackOptions.length > 0 && transitionTrackOptions.every(track => track.locked);
 
     useEffect(() => {
         if (selectedTransition) setDuration(selectedTransition.duration || 0.5);

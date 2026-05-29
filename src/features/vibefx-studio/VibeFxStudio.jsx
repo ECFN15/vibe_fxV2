@@ -11,6 +11,8 @@ import { FORMATS, TEMPLATES, FONT_OPTIONS, PRESET_CATEGORIES, CAMERA_BRANDS } fr
 import VisionPanel from './components/panels/VisionPanel';
 import FusionPanel from './components/panels/FusionPanel';
 import StylePanel from './components/panels/StylePanel';
+import MeshGradientPro from './components/panels/MeshGradientPopup';
+import SmoothBlurPopup from './components/panels/SmoothBlurPopup';
 import Header from './components/Header';
 import CanvasWorkspace from './components/canvas/CanvasWorkspace';
 import LayoutSidebar from './components/sidebar/LayoutSidebar';
@@ -39,6 +41,7 @@ import { createCustomZone, normalizeCustomZones, updateCustomTemplateZones } fro
 const VISION_DIAGNOSTIC_SAMPLE_MAX_SIDE = 420;
 const VISION_DIAGNOSTIC_WARN_MS = 650;
 const VISION_DIAGNOSTIC_WARN_MEGAPIXELS = 20;
+const DEFAULT_LAYOUT_MESH_COLORS = ['#6366f1', '#a855f7', '#ec4899', '#050505'];
 
 const getPerfNow = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
 
@@ -187,9 +190,12 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
     const [activeTextureId, setActiveTextureId] = useState(null);
     const [layoutTextureOpacity, setLayoutTextureOpacity] = useState(70);
     const [layoutBgGradient, setLayoutBgGradient] = useState(false); // New Smart Background
+    const [layoutBgMeshColors, setLayoutBgMeshColors] = useState(DEFAULT_LAYOUT_MESH_COLORS);
     const [selectedSlotIndex, setSelectedSlotIndex] = useState(null);
     const [slotConfigs, setSlotConfigs] = useState({});
     const [customEditMode, setCustomEditMode] = useState(false);
+    const [isLayoutMeshPopupOpen, setIsLayoutMeshPopupOpen] = useState(false);
+    const [isLayoutSmoothBlurPopupOpen, setIsLayoutSmoothBlurPopupOpen] = useState(false);
 
     // Smooth Blur
     const [layoutSmoothBlur, setLayoutSmoothBlur] = useState({
@@ -317,7 +323,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         canvasRef, images, view,
         activeFormat, activeTemplate, overlayMode,
         padding, gap, radius,
-        layoutBgColor, layoutBgBlur, layoutBgTexture, layoutSmoothBlur,
+        layoutBgColor, layoutBgBlur, layoutBgGradient, layoutBgMeshColors, layoutBgTexture, layoutSmoothBlur,
         layoutTextures, activeTextureId, layoutTextureOpacity,
         selectedSlotIndex, slotConfigs,
         slotRects, bgCanvasRef,
@@ -610,6 +616,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                 activeTextureId,
                 layoutTextureOpacity,
                 layoutBgGradient,
+                layoutBgMeshColors,
                 layoutSmoothBlur,
                 texts,
                 assets,
@@ -632,6 +639,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         layoutBgBlur,
         layoutBgColor,
         layoutBgGradient,
+        layoutBgMeshColors,
         layoutBgTexture,
         layoutSmoothBlur,
         layoutTextureOpacity,
@@ -654,6 +662,8 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         setLayoutTextures([]);
         setActiveTextureId(null);
         setLayoutTextureOpacity(70);
+        setLayoutBgGradient(false);
+        setLayoutBgMeshColors(DEFAULT_LAYOUT_MESH_COLORS);
         setActiveTextId(null);
         setFilters({ ...DEFAULT_FILTERS });
         setVisionCompareSplit({ enabled: false, position: 50, beforeUrl: null });
@@ -680,6 +690,23 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
     };
 
     const isDraggable = (view === 'fusion') || (view === 'studio' && isCropping) || (view === 'layout');
+
+    const openLayoutAccordion = useCallback((accordion) => {
+        setView('layout');
+        setSelectedSlotIndex(null);
+        setActiveTextId(null);
+        setActiveAccordion(accordion);
+    }, []);
+
+    const applyLayoutMesh = useCallback((colors) => {
+        const nextColors = colors?.length ? colors : DEFAULT_LAYOUT_MESH_COLORS;
+        setLayoutBgMeshColors(nextColors);
+        setLayoutBgGradient(true);
+        setLayoutBgBlur(false);
+        setLayoutBgColor(nextColors[0] || '#000000');
+        openLayoutAccordion('background');
+        setIsLayoutMeshPopupOpen(false);
+    }, [openLayoutAccordion]);
 
     const handleAssetImport = useCallback((imageUrl, type) => {
         // Build a list of URLs to try in order of priority
@@ -901,6 +928,19 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                             visionCompareSplit={visionCompareSplit}
                             customEditMode={customEditMode}
                             onAddCustomZone={handleAddCustomZone}
+                            layoutQuickActions={{
+                                layoutBgBlur,
+                                layoutBgGradient,
+                                smoothBlurEnabled: Boolean(layoutSmoothBlur?.enabled),
+                                activeAccordion,
+                                onOpenMesh: () => setIsLayoutMeshPopupOpen(true),
+                                onOpenSmoothBlur: () => setIsLayoutSmoothBlurPopupOpen(true),
+                                onToggleBgBlur: () => {
+                                    setLayoutBgBlur(current => !current);
+                                    openLayoutAccordion('background');
+                                },
+                                onOpenAccordion: openLayoutAccordion,
+                            }}
                         />
 
                         {/* SIDEBAR */}
@@ -1030,6 +1070,24 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                     previewUrl={instaPreviewUrl}
                     onClose={() => setIsInstaPreviewOpen(false)}
                     activeFormat={activeFormat}
+                />
+                <MeshGradientPro
+                    isOpen={isLayoutMeshPopupOpen}
+                    onClose={() => setIsLayoutMeshPopupOpen(false)}
+                    isDarkMode={isDarkMode}
+                    initialColors={layoutBgMeshColors}
+                    onApply={applyLayoutMesh}
+                />
+                <SmoothBlurPopup
+                    images={images}
+                    isOpen={isLayoutSmoothBlurPopupOpen}
+                    onClose={() => setIsLayoutSmoothBlurPopupOpen(false)}
+                    isDarkMode={isDarkMode}
+                    initialConfig={layoutSmoothBlur}
+                    onApply={(newConfig) => {
+                        setLayoutSmoothBlur({ ...newConfig, enabled: true });
+                        openLayoutAccordion('background');
+                    }}
                 />
                 {aiInterfacesEnabled && <AssetLibraryModal
                     isDarkMode={isDarkMode}

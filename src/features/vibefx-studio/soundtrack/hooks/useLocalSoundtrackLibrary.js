@@ -198,8 +198,18 @@ export function useLocalSoundtrackLibrary() {
     const [lastEvent, setLastEvent] = useState('');
     const directoryHandleRef = useRef(null);
     const objectUrlsRef = useRef(new Set());
+    const tracksRef = useRef([]);
+    const playlistsRef = useRef([]);
 
     const library = useMemo(() => ({ tracks, playlists }), [playlists, tracks]);
+
+    useEffect(() => {
+        tracksRef.current = tracks;
+    }, [tracks]);
+
+    useEffect(() => {
+        playlistsRef.current = playlists;
+    }, [playlists]);
 
     const ignorePixabayTrack = useCallback((trackOrId) => {
         const fingerprint = typeof trackOrId === 'string'
@@ -231,6 +241,8 @@ export function useLocalSoundtrackLibrary() {
             waveform: track.waveform || null,
         }));
         const normalizedPlaylists = nextPlaylists.map(normalizeSoundtrackPlaylist);
+        tracksRef.current = normalizedTracks;
+        playlistsRef.current = normalizedPlaylists;
         setTracks(normalizedTracks);
         setPlaylists(normalizedPlaylists);
         const manifest = buildSoundtrackManifest({ tracks: normalizedTracks, playlists: normalizedPlaylists });
@@ -503,6 +515,7 @@ export function useLocalSoundtrackLibrary() {
                 waveform = buildUnavailableWaveform(error.message);
             }
             const remoteMetadata = Object.fromEntries(Object.entries(fetched.trackMetadata || {}).filter(([, value]) => value));
+            const importedAt = new Date().toISOString();
             const nextTrack = normalizeSoundtrackTrack({
                 ...track,
                 ...remoteMetadata,
@@ -514,15 +527,19 @@ export function useLocalSoundtrackLibrary() {
                 previewUrl: localProjectImport?.publicUrl || fetched.finalUrl,
                 audioUrl: localProjectImport?.publicUrl || fetched.finalUrl,
                 duration: duration || track.duration,
+                importedAt,
+                updatedAt: importedAt,
                 fileAvailable: true,
                 missingReason: '',
                 waveform,
             });
-            const nextTracks = tracks.some((item) => item.id === nextTrack.id)
-                ? tracks.map((item) => item.id === nextTrack.id ? { ...item, ...nextTrack } : item)
-                : [nextTrack, ...tracks];
+            const currentTracks = tracksRef.current;
+            const currentPlaylists = playlistsRef.current;
+            const nextTracks = currentTracks.some((item) => item.id === nextTrack.id)
+                ? currentTracks.map((item) => item.id === nextTrack.id ? { ...item, ...nextTrack } : item)
+                : [nextTrack, ...currentTracks];
             await saveIndexedSoundtrackAudio(nextTrack.id, fetched.blob, { fileName });
-            await commitLibrary(nextTracks, playlists);
+            await commitLibrary(nextTracks, currentPlaylists);
             setLastEvent(directoryHandleRef.current
                 ? 'Ajoute a la bibliotheque Vibe_fx et ecrit dans le dossier local.'
                 : localProjectImport?.publicUrl
@@ -535,7 +552,7 @@ export function useLocalSoundtrackLibrary() {
         } finally {
             setBusyTrackId('');
         }
-    }, [commitLibrary, playlists, tracks]);
+    }, [commitLibrary]);
 
     const importRemoteTrack = useCallback(async ({ audioUrl, metadata = {} }) => {
         if (!audioUrl?.trim()) return null;
@@ -591,6 +608,7 @@ export function useLocalSoundtrackLibrary() {
                 waveform = buildUnavailableWaveform(error.message);
             }
             const importedTitle = metadata.title || file.name.replace(/\.[a-z0-9]+$/i, '');
+            const importedAt = new Date().toISOString();
             const existingTrack = nextTracks.find((track) => (
                 (track.fileName && track.fileName === file.name)
                 || normalizeFileMatchKey(track.title) === normalizeFileMatchKey(importedTitle)
@@ -647,6 +665,8 @@ export function useLocalSoundtrackLibrary() {
                 audioUrl: publicAudioUrl || existingTrack?.audioUrl || existingTrack?.downloadUrl || '',
                 fileAvailable: true,
                 duration,
+                importedAt,
+                updatedAt: importedAt,
                 file,
                 waveform,
             });

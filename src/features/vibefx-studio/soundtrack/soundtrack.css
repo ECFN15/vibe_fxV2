@@ -1785,9 +1785,23 @@
     padding: 8px 10px;
 }
 
+.soundtrack-project-row[data-new="true"] {
+    background:
+        linear-gradient(90deg, rgba(55, 232, 198, .10), rgba(99, 102, 241, .08) 52%, transparent),
+        #08080d;
+    box-shadow: inset 2px 0 0 #37e8c6;
+}
+
 .soundtrack-project-row[data-selected="true"] {
     background: #101025;
     box-shadow: inset 2px 0 0 var(--st-action);
+}
+
+.soundtrack-project-row[data-new="true"][data-selected="true"] {
+    background:
+        linear-gradient(90deg, rgba(55, 232, 198, .13), rgba(99, 102, 241, .14) 55%, rgba(16, 16, 37, .96)),
+        #101025;
+    box-shadow: inset 2px 0 0 #37e8c6, inset 4px 0 0 var(--st-action);
 }
 
 .soundtrack-project-scrub {
@@ -1970,8 +1984,25 @@
     text-transform: uppercase;
 }
 
+.soundtrack-project-row__meta .soundtrack-category-badge {
+    --category-hue: 245;
+    border-color: hsl(var(--category-hue) 88% 62% / .44);
+    background:
+        linear-gradient(90deg, hsl(var(--category-hue) 92% 58% / .16), hsl(var(--category-hue) 92% 58% / .06)),
+        #0b0b10;
+    color: hsl(var(--category-hue) 92% 78%);
+    box-shadow: inset 2px 0 0 hsl(var(--category-hue) 92% 64% / .72);
+}
+
 .soundtrack-project-row__meta span[data-state="success"] {
     color: var(--st-signal);
+}
+
+.soundtrack-project-row__meta span[data-state="new"] {
+    border-color: rgba(55, 232, 198, .62);
+    background: rgba(55, 232, 198, .12);
+    color: #37e8c6;
+    box-shadow: 0 0 12px rgba(55, 232, 198, .12);
 }
 
 .soundtrack-project-row__meta span[data-state="warning"] {

@@ -2,7 +2,7 @@
 
 Tu travailles dans `C:\Users\matth\Travail\vibe_fxv2`.
 
-Ne modifie jamais `C:\Users\matth\Desktop\jardin de chawi`.
+Ne modifie jamais le projet source historique reference dans `AGENTS.md`.
 Ne touche pas a `node_modules/`, `.next/`, `.git/`, `dist/`.
 Lis avant toute modification :
 
@@ -304,4 +304,3 @@ Dans ta reponse finale, donne :
 - Tests executes et resultats.
 - Limitations restantes.
 - Prochaine meilleure amelioration.
-

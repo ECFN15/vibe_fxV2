@@ -29,11 +29,20 @@ export default function SoundtrackPage({ controller, onUseInVideo }) {
     const [activeMobileTab, setActiveMobileTab] = useState('ai-import');
     const [libraryOpen, setLibraryOpen] = useState(false);
     const [aiImportProviderId, setAiImportProviderId] = useState('aitra-free');
+    const [newImportTrackIds, setNewImportTrackIds] = useState([]);
 
     const openAiImport = (providerId = 'aitra-free') => {
         setAiImportProviderId(AI_AUDIO_PROVIDERS.includes(providerId) ? providerId : 'aitra-free');
         setActiveMobileTab('ai-import');
         setLibraryOpen(false);
+    };
+
+    const markLatestImportBatch = (primaryTrack, importedTracks = []) => {
+        const batch = Array.isArray(importedTracks) && importedTracks.length
+            ? importedTracks
+            : primaryTrack ? [primaryTrack] : [];
+        const ids = batch.map((track) => track?.id).filter(Boolean);
+        setNewImportTrackIds(Array.from(new Set(ids)));
     };
 
     const handleUseInVideo = async (track) => {
@@ -116,7 +125,8 @@ export default function SoundtrackPage({ controller, onUseInVideo }) {
                         localLibrary={library}
                         projectLibrary={projectLibrary}
                         onSelectTrack={(track) => setSelectedTrackId(track.id)}
-                        onImportComplete={(track) => {
+                        onImportComplete={(track, importedTracks) => {
+                            markLatestImportBatch(track, importedTracks);
                             setSelectedTrackId(track.id);
                             setLibraryOpen(true);
                         }}
@@ -147,10 +157,12 @@ export default function SoundtrackPage({ controller, onUseInVideo }) {
                             variant="modal"
                             projectLibrary={projectLibrary}
                             localLibrary={library}
+                            newImportTrackIds={newImportTrackIds}
                             selectedTrack={selectedTrack}
                             player={player}
                             onSelectTrack={(track) => setSelectedTrackId(track.id)}
                             onPlayTrack={playTrack}
+                            onImportComplete={markLatestImportBatch}
                             onUseInVideo={handleUseInVideo}
                         />
                     </section>

@@ -1,10 +1,10 @@
 const DEFAULT_TRACKS = [
-    { id: 'video-main', type: 'video', name: 'Video', locked: false, muted: false, visible: true, allowOverlap: false, order: 10 },
-    { id: 'transition-main', type: 'transition', name: 'Effets', locked: false, muted: false, visible: true, allowOverlap: false, order: 20 },
-    { id: 'effect-main', type: 'effect', name: 'Filtres', locked: false, muted: false, visible: true, allowOverlap: true, order: 30 },
-    { id: 'text-main', type: 'text', name: 'Texte', locked: false, muted: false, visible: true, allowOverlap: false, order: 40 },
-    { id: 'audio-main', type: 'audio', name: 'Audio clips', locked: false, muted: false, visible: true, allowOverlap: true, order: 50 },
-    { id: 'music-main', type: 'audio', name: 'Musique', locked: false, muted: false, visible: true, allowOverlap: false, order: 60 },
+    { id: 'video-main', type: 'video', laneRole: 'video', name: 'Video', locked: false, muted: false, visible: true, allowOverlap: false, order: 10 },
+    { id: 'transition-main', type: 'transition', laneRole: 'transition', name: 'Effets', locked: false, muted: false, visible: true, allowOverlap: false, order: 20 },
+    { id: 'effect-main', type: 'effect', laneRole: 'effect', name: 'Filtres', locked: false, muted: false, visible: true, allowOverlap: true, order: 30 },
+    { id: 'text-main', type: 'text', laneRole: 'text', name: 'Texte', locked: false, muted: false, visible: true, allowOverlap: false, order: 40 },
+    { id: 'audio-main', type: 'audio', laneRole: 'clip-audio', name: 'Audio clips', locked: false, muted: false, visible: true, allowOverlap: true, order: 50 },
+    { id: 'music-main', type: 'audio', laneRole: 'music', name: 'Musique', locked: false, muted: false, visible: true, allowOverlap: false, order: 60 },
 ];
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -46,6 +46,17 @@ export function getTrackForItemType(type) {
     if (type === 'audio') return 'music-main';
     if (type === 'effect') return 'effect-main';
     return 'video-main';
+}
+
+export function getTimelineTrackRole(track = {}) {
+    if (track.laneRole) return track.laneRole;
+    if (track.id === 'audio-main') return 'clip-audio';
+    if (track.id === 'music-main') return 'music';
+    if (track.type === 'transition') return 'transition';
+    if (track.type === 'effect') return 'effect';
+    if (track.type === 'text') return 'text';
+    if (track.type === 'video') return 'video';
+    return 'unknown';
 }
 
 function normalizeClipFilters(filters = {}) {
@@ -516,9 +527,23 @@ export function resolveTimelineRenderPlan({
             .map(timelineItemToRenderSource)
     );
     const videoClips = isTrackVisible(tracks, 'video-main') ? itemsForTrack('video', 'video-main') : [];
-    const timelineTransitions = isTrackVisible(tracks, 'transition-main') ? itemsForTrack('transition', 'transition-main') : [];
+    const visibleTransitionTrackIds = new Set(
+        model.tracks
+            .filter(track => track.type === 'transition' && isTrackVisible(tracks, track.id))
+            .map(track => track.id)
+    );
+    const timelineTransitions = model.items
+        .filter(item => item.type === 'transition' && visibleTransitionTrackIds.has(item.trackId))
+        .map(timelineItemToRenderSource);
     const editableTimelineTransitions = timelineTransitions.filter(item => item.params?.placement !== 'cut');
-    const effectItems = isTrackVisible(tracks, 'effect-main') ? itemsForTrack('effect', 'effect-main') : [];
+    const visibleEffectTrackIds = new Set(
+        model.tracks
+            .filter(track => track.type === 'effect' && isTrackVisible(tracks, track.id))
+            .map(track => track.id)
+    );
+    const effectItems = model.items
+        .filter(item => item.type === 'effect' && visibleEffectTrackIds.has(item.trackId))
+        .map(timelineItemToRenderSource);
     const visibleTextTrackIds = new Set(
         model.tracks
             .filter(track => track.type === 'text' && isTrackVisible(tracks, track.id))
@@ -527,13 +552,24 @@ export function resolveTimelineRenderPlan({
     const textItems = model.items
         .filter(item => item.type === 'text' && visibleTextTrackIds.has(item.trackId))
         .map(timelineItemToRenderSource);
-    const clipAudioItems = isTrackVisible(tracks, 'audio-main') ? itemsForTrack('audio', 'audio-main') : [];
-    const musicItems = isTrackVisible(tracks, 'music-main') && !isTrackMuted(tracks, 'music-main')
-        ? itemsForTrack('audio', 'music-main')
-        : [];
-    const allTransitions = isTrackVisible(tracks, 'transition-main')
-        ? resolveTimelineTransitions({ clips, transitions, transitionItems, totalDuration })
-        : [];
+    const clipAudioTrackIds = new Set(
+        model.tracks
+            .filter(track => getTimelineTrackRole(track) === 'clip-audio' && isTrackVisible(tracks, track.id))
+            .map(track => track.id)
+    );
+    const clipAudioItems = model.items
+        .filter(item => item.type === 'audio' && clipAudioTrackIds.has(item.trackId))
+        .map(timelineItemToRenderSource);
+    const musicTrackIds = new Set(
+        model.tracks
+            .filter(track => getTimelineTrackRole(track) === 'music' && isTrackVisible(tracks, track.id) && !isTrackMuted(tracks, track.id))
+            .map(track => track.id)
+    );
+    const musicItems = model.items
+        .filter(item => item.type === 'audio' && musicTrackIds.has(item.trackId))
+        .map(timelineItemToRenderSource);
+    const allTransitions = resolveTimelineTransitions({ clips, transitions, transitionItems, totalDuration })
+        .filter(item => visibleTransitionTrackIds.has(item.trackId));
     const playbackClips = isTrackMuted(tracks, 'audio-main')
         ? videoClips.map(clip => ({ ...clip, volume: 0 }))
         : videoClips;

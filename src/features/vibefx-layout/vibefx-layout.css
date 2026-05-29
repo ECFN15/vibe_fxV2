@@ -785,6 +785,123 @@
   max-width: 100%;
 }
 
+.vibefx-layout-quick-rail {
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  z-index: 42;
+  width: 112px;
+  transform: translateY(-50%);
+  padding: 8px;
+  border: 1px solid rgba(129, 140, 248, 0.28);
+  background:
+    linear-gradient(180deg, rgba(20, 20, 30, 0.92), rgba(2, 2, 6, 0.9)),
+    radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.18), transparent 64%);
+  box-shadow: 0 0 28px rgba(79, 70, 229, 0.18), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  pointer-events: auto;
+}
+
+.vibefx-layout-quick-rail__label {
+  margin-bottom: 8px;
+  color: rgba(199, 210, 254, 0.72);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.vibefx-layout-quick-rail__buttons {
+  display: grid;
+  gap: 6px;
+}
+
+.vibefx-layout-quick-rail__button {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 6px;
+  color: rgba(212, 212, 216, 0.76);
+  background: rgba(8, 8, 12, 0.78);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  text-align: left;
+  text-transform: uppercase;
+  transition: border-color 170ms ease, background 170ms ease, color 170ms ease, box-shadow 170ms ease;
+}
+
+.vibefx-layout-quick-rail__button svg {
+  color: rgba(129, 140, 248, 0.92);
+}
+
+.vibefx-layout-quick-rail__button:hover,
+.vibefx-layout-quick-rail__button:focus-visible {
+  border-color: rgba(129, 140, 248, 0.58);
+  color: #ffffff;
+  background: rgba(67, 56, 202, 0.2);
+  outline: none;
+}
+
+.vibefx-layout-quick-rail__button:focus-visible {
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.24);
+}
+
+.vibefx-layout-quick-rail__button[data-featured="true"] {
+  border-color: rgba(34, 211, 238, 0.34);
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.34), rgba(236, 72, 153, 0.16));
+}
+
+.vibefx-layout-quick-rail__button[data-active="true"] {
+  border-color: rgba(129, 140, 248, 0.9);
+  color: #ffffff;
+  background: rgba(79, 70, 229, 0.28);
+  box-shadow: inset 3px 0 0 rgba(34, 211, 238, 0.86), 0 0 18px rgba(79, 70, 229, 0.16);
+}
+
+@media (max-width: 1023px) {
+  .vibefx-layout-quick-rail {
+    left: 12px;
+    right: 12px;
+    top: auto;
+    bottom: 78px;
+    width: auto;
+    transform: none;
+  }
+
+  .vibefx-layout-quick-rail__label {
+    display: none;
+  }
+
+  .vibefx-layout-quick-rail__buttons {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 1px;
+    scrollbar-width: none;
+  }
+
+  .vibefx-layout-quick-rail__buttons::-webkit-scrollbar {
+    display: none;
+  }
+
+  .vibefx-layout-quick-rail__button {
+    grid-template-columns: 16px max-content;
+    flex: 0 0 auto;
+    min-height: 34px;
+  }
+}
+
 .vibefx-tutorial-layer {
   position: fixed;
   inset: 0;

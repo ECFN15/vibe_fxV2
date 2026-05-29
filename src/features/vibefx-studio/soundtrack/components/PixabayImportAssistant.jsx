@@ -75,7 +75,7 @@ export default function PixabayImportAssistant({
             }
             if (!imported.length) throw new Error('Aucun fichier audio importe.');
             onSelectTrack?.(imported[0]);
-            onImportComplete?.(imported[0]);
+            onImportComplete?.(imported[0], imported);
             setStatus('ready');
             setMessage(`${imported.length} piste${imported.length > 1 ? 's' : ''} ajoutee${imported.length > 1 ? 's' : ''} a la bibliotheque Vibe_fx.`);
         } catch (error) {

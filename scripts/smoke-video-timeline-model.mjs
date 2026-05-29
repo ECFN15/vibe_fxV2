@@ -151,6 +151,48 @@ try {
   assert.equal(plan.audioTracks.length, 1);
   assert.equal(plan.playbackClips[0].volume, 80);
 
+  const multiTimelinePlan = resolveTimelineRenderPlan({
+    clips,
+    transitions,
+    transitionItems: [
+      ...transitionItems,
+      { id: "tr-free-2", type: "glitch", start: 2.1, duration: 0.4, trackId: "transition-2" },
+    ],
+    textOverlays,
+    audioTracks: [
+      ...audioTracks,
+      { id: "music-2", name: "Music 2", url: "/music-2.mp3", startTime: 1, duration: 2, endTime: 3, volume: 60, trackId: "music-2" },
+    ],
+    tracks: [
+      ...getDefaultTracks(),
+      { id: "transition-2", type: "transition", laneRole: "transition", name: "Effets 2", locked: false, muted: false, visible: true, allowOverlap: false, order: 20.1 },
+      { id: "music-2", type: "audio", laneRole: "music", name: "Musique 2", locked: false, muted: false, visible: true, allowOverlap: false, order: 60.1 },
+    ],
+    totalDuration,
+  });
+  assert.equal(multiTimelinePlan.transitionItems.length, 2, "all visible transition timelines must render");
+  assert.ok(multiTimelinePlan.transitionItems.some((item) => item.trackId === "transition-2"));
+  assert.equal(multiTimelinePlan.audioTracks.length, 2, "all visible music timelines must render");
+  assert.ok(multiTimelinePlan.audioTracks.some((item) => item.trackId === "music-2"));
+
+  const mutedExtraMusicPlan = resolveTimelineRenderPlan({
+    clips,
+    transitions,
+    transitionItems,
+    textOverlays,
+    audioTracks: [
+      ...audioTracks,
+      { id: "music-2", name: "Music 2", url: "/music-2.mp3", startTime: 1, duration: 2, endTime: 3, volume: 60, trackId: "music-2" },
+    ],
+    tracks: [
+      ...getDefaultTracks(),
+      { id: "music-2", type: "audio", laneRole: "music", name: "Musique 2", locked: false, muted: true, visible: true, allowOverlap: false, order: 60.1 },
+    ],
+    totalDuration,
+  });
+  assert.equal(mutedExtraMusicPlan.audioTracks.length, 1, "muting one music timeline must not mute every music lane");
+  assert.equal(mutedExtraMusicPlan.audioTracks[0].trackId, "music-main");
+
   assert.equal(clampVolumePercent(-20), 0);
   assert.equal(clampVolumePercent(250), 100);
   const clampedVolumePlan = resolveTimelineRenderPlan({

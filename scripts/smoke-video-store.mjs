@@ -152,6 +152,25 @@ try {
   assert.equal(useVideoStore.getState().audioTracks.length, 2, "allowOverlap=true should accept overlapping music items");
 
   resetStore();
+  const manualTransitionTrackId = useVideoStore.getState().addTimelineTrack("transition");
+  assert.equal(manualTransitionTrackId, "transition-2", "manual transition timeline should create the next transition lane");
+  assert.ok(useVideoStore.getState().tracks.some((track) => track.id === "transition-2" && track.type === "transition"), "manual transition timeline must be registered");
+  assert.equal(useVideoStore.getState().removeTimelineTrack("transition-2"), true, "empty custom transition timeline should be removable");
+  assert.equal(useVideoStore.getState().tracks.some((track) => track.id === "transition-2"), false, "removed custom transition timeline must leave track registry");
+  assert.equal(useVideoStore.getState().removeTimelineTrack("transition-main"), false, "main transition timeline must be protected");
+  assert.equal(useVideoStore.getState().timelineEditNotice?.code, "track-system", "protected timeline deletion must expose an edit notice");
+
+  resetStore();
+  useVideoStore.getState().addAudioTrack({ id: "music-a", name: "Music A", url: "/a.mp3", startTime: 0, duration: 2, endTime: 2 });
+  useVideoStore.getState().addAudioTrack({ id: "music-b", name: "Music B", url: "/b.mp3", startTime: 1, duration: 2, endTime: 3 });
+  assert.equal(useVideoStore.getState().audioTracks.length, 2, "implicit overlapping music imports should be placed on separate timelines");
+  assert.equal(useVideoStore.getState().audioTracks[0].trackId, "music-main");
+  assert.equal(useVideoStore.getState().audioTracks[1].trackId, "music-2");
+  assert.ok(useVideoStore.getState().tracks.some((track) => track.id === "music-2" && track.laneRole === "music"), "implicit music lane must be registered");
+  assert.equal(useVideoStore.getState().removeTimelineTrack("music-2"), false, "custom non-empty music timeline should not be removed");
+  assert.equal(useVideoStore.getState().timelineEditNotice?.code, "track-not-empty", "non-empty timeline deletion must expose an edit notice");
+
+  resetStore();
   const manualTextTrackId = useVideoStore.getState().addTextTrack();
   assert.equal(manualTextTrackId, "text-2", "manual text timeline button should create the next text lane");
   assert.ok(useVideoStore.getState().tracks.some((track) => track.id === "text-2" && track.type === "text"), "manual text timeline must be registered");

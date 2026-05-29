@@ -3,9 +3,42 @@ import { NOISE_PATTERN_CANVAS } from '../utils/canvasUtils';
 /**
  * renderLayoutBackground — Dessine le fond du layout (couleur, blur, polaroid).
  */
-export function renderLayoutBackground(ctx, w, h, { images, layoutBgColor, layoutBgBlur, bgCanvas, activeTemplate }) {
-    ctx.fillStyle = layoutBgColor;
+function renderLayoutMeshBackground(ctx, w, h, colors) {
+    if (!colors || colors.length < 4) return false;
+
+    ctx.fillStyle = colors[0];
     ctx.fillRect(0, 0, w, h);
+
+    const g1 = ctx.createRadialGradient(w, 0, 0, w, 0, Math.max(w, h));
+    g1.addColorStop(0, colors[1]);
+    g1.addColorStop(1, 'transparent');
+    ctx.fillStyle = g1;
+    ctx.fillRect(0, 0, w, h);
+
+    const g2 = ctx.createRadialGradient(0, h, 0, 0, h, Math.max(w, h));
+    g2.addColorStop(0, colors[2]);
+    g2.addColorStop(1, 'transparent');
+    ctx.fillStyle = g2;
+    ctx.fillRect(0, 0, w, h);
+
+    const g3 = ctx.createRadialGradient(w, h, 0, w, h, Math.max(w, h));
+    g3.addColorStop(0, colors[3]);
+    g3.addColorStop(1, 'transparent');
+    ctx.fillStyle = g3;
+    ctx.fillRect(0, 0, w, h);
+
+    return true;
+}
+
+export function renderLayoutBackground(ctx, w, h, { images, layoutBgColor, layoutBgBlur, layoutBgGradient, layoutBgMeshColors, bgCanvas, activeTemplate }) {
+    const hasMeshBackground = activeTemplate.id !== 'polaroid'
+        && layoutBgGradient
+        && renderLayoutMeshBackground(ctx, w, h, layoutBgMeshColors);
+
+    if (!hasMeshBackground) {
+        ctx.fillStyle = layoutBgColor;
+        ctx.fillRect(0, 0, w, h);
+    }
 
     if (images.length > 0 && layoutBgBlur && bgCanvas && activeTemplate.id !== 'polaroid') {
         ctx.drawImage(bgCanvas, 0, 0, w, h);

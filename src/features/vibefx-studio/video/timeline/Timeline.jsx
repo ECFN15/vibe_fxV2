@@ -4,8 +4,8 @@ import Clip from './Clip';
 import Playhead from './Playhead';
 import Ruler from './Ruler';
 import TrackItem from './TrackItem';
-import { AlertTriangle, Eye, EyeOff, Film, Lock, Magnet, Music, Type, Plus, SlidersHorizontal, Sparkles, Volume2, VolumeX, Minus, Unlock, ZoomIn } from 'lucide-react';
-import { buildTimelineModel, buildTimelineSnapPoints, DEFAULT_SNAP_THRESHOLD_SECONDS } from '../model/timelineModel';
+import { AlertTriangle, Eye, EyeOff, Film, Lock, Magnet, Music, Type, Plus, SlidersHorizontal, Sparkles, Volume2, VolumeX, Minus, Unlock, ZoomIn, Trash2 } from 'lucide-react';
+import { buildTimelineModel, buildTimelineSnapPoints, DEFAULT_SNAP_THRESHOLD_SECONDS, getTimelineTrackRole } from '../model/timelineModel';
 
 export const PIXELS_PER_SECOND_BASE = 80;
 const TRACK_HEADER_WIDTH = 92;
@@ -13,6 +13,8 @@ const TIMELINE_MIN_ZOOM = 0.03;
 const TRIM_EDGE_HITBOX = 56;
 const TRACK_ACTION_BASE = 'inline-flex h-4 w-4 shrink-0 appearance-none items-center justify-center rounded-sm border border-transparent bg-neutral-900/60 p-0 text-neutral-500 leading-none transition hover:bg-neutral-800/80 hover:text-neutral-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-300/50';
 const TRACK_ACTION_STYLE = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center' };
+const TRACK_DIVIDER_STYLE = { borderColor: 'rgba(38, 38, 38, 0.58)' };
+const TRACK_ROW_STYLE = { borderBottomColor: 'rgba(38, 38, 38, 0.58)' };
 const TRACK_ICON_CLASS = {
     indigo: 'text-indigo-300/85',
     purple: 'text-purple-300/85',
@@ -36,6 +38,7 @@ const TRACK_CONFIG = {
     audio:  { id: 'audio-main', height: 48,  label: 'Audio',  icon: Volume2,  color: 'emerald', bgActive: 'bg-emerald-500/5', borderColor: 'border-emerald-500/20', canHide: false },
     music:  { id: 'music-main', height: 48,  label: 'Musique', icon: Music,   color: 'purple',  bgActive: 'bg-purple-500/5',  borderColor: 'border-purple-500/20', canHide: false },
 };
+const PROTECTED_TRACK_IDS = new Set(Object.values(TRACK_CONFIG).map(track => track.id));
 
 const Timeline = ({ onImportClick }) => {
     const {
@@ -47,7 +50,7 @@ const Timeline = ({ onImportClick }) => {
         selectedAudioTrackId, setSelectedAudioTrackId,
         currentTime, reorderClips, updateClip,
         updateTimelineItem,
-        tracks, setTrackState, addTextTrack, snapEnabled, setSnapEnabled,
+        tracks, setTrackState, addTimelineTrack, removeTimelineTrack, snapEnabled, setSnapEnabled,
         beginHistoryTransaction, commitHistoryTransaction,
         timelineEditNotice, clearTimelineEditNotice, notifyTimelineEditRejected
     } = useVideoStore();
@@ -145,10 +148,13 @@ const Timeline = ({ onImportClick }) => {
     ), [timelineModel]);
     const transitionLaneItems = useMemo(() => (
         timelineModel.items
-            .filter(item => item.type === 'transition' && item.trackId === TRACK_CONFIG.transitions.id)
+            .filter(item => item.type === 'transition')
             .filter(item => item.params?.placement !== 'cut')
             .map(hydrateTimelineItem)
     ), [timelineModel]);
+    const transitionLaneItemsByTrack = useMemo(() => (
+        groupTimelineItemsByTrack(transitionLaneItems, TRACK_CONFIG.transitions.id)
+    ), [transitionLaneItems]);
     const textLaneItems = useMemo(() => (
         timelineModel.items
             .filter(item => item.type === 'text')
@@ -165,14 +171,20 @@ const Timeline = ({ onImportClick }) => {
     ), [textLaneItems]);
     const effectLaneItems = useMemo(() => (
         timelineModel.items
-            .filter(item => item.type === 'effect' && item.trackId === TRACK_CONFIG.effects.id)
+            .filter(item => item.type === 'effect')
             .map(hydrateTimelineItem)
     ), [timelineModel]);
+    const effectLaneItemsByTrack = useMemo(() => (
+        groupTimelineItemsByTrack(effectLaneItems, TRACK_CONFIG.effects.id)
+    ), [effectLaneItems]);
     const musicLaneItems = useMemo(() => (
         timelineModel.items
-            .filter(item => item.type === 'audio' && item.trackId === TRACK_CONFIG.music.id)
+            .filter(item => item.type === 'audio' && getTimelineTrackRole(trackByIdFromTracks(timelineModel.tracks, item.trackId)) === 'music')
             .map(hydrateTimelineItem)
     ), [timelineModel]);
+    const musicLaneItemsByTrack = useMemo(() => (
+        groupTimelineItemsByTrack(musicLaneItems, TRACK_CONFIG.music.id)
+    ), [musicLaneItems]);
     const clipAudioLaneItems = useMemo(() => (
         timelineModel.items
             .filter(item => item.type === 'audio' && item.trackId === TRACK_CONFIG.audio.id)
@@ -219,6 +231,9 @@ const Timeline = ({ onImportClick }) => {
                 ];
             })
     ), [timelineModel.tracks]);
+    const transitionTrackEntries = useMemo(() => makeTrackEntriesForRole(timelineModel.tracks, 'transition', TRACK_CONFIG.transitions), [timelineModel.tracks]);
+    const effectTrackEntries = useMemo(() => makeTrackEntriesForRole(timelineModel.tracks, 'effect', TRACK_CONFIG.effects), [timelineModel.tracks]);
+    const musicTrackEntries = useMemo(() => makeTrackEntriesForRole(timelineModel.tracks, 'music', TRACK_CONFIG.music), [timelineModel.tracks]);
     const trackById = useMemo(() => Object.fromEntries(timelineModel.tracks.map(track => [track.id, track])), [timelineModel.tracks]);
     const trackOrderByKey = useMemo(() => Object.fromEntries(
         Object.entries(TRACK_CONFIG).map(([key, config], index) => {
@@ -229,15 +244,18 @@ const Timeline = ({ onImportClick }) => {
     const orderedTrackEntries = useMemo(() => (
         [
             ...Object.entries(TRACK_CONFIG)
-                .filter(([key]) => key !== 'text')
+                .filter(([key]) => !['transitions', 'effects', 'text', 'music'].includes(key))
                 .map(([key, config]) => {
                     const dataOrder = trackOrderByKey[key];
                     const order = key === 'audio' ? 1000 : key === 'music' ? 1010 : dataOrder;
                     return [key, { ...config, order, dataOrder, role: key }];
                 }),
+            ...transitionTrackEntries,
+            ...effectTrackEntries,
             ...textTrackEntries,
+            ...musicTrackEntries,
         ].sort(([, configA], [, configB]) => Number(configA.order || 0) - Number(configB.order || 0))
-    ), [textTrackEntries, trackOrderByKey]);
+    ), [effectTrackEntries, musicTrackEntries, textTrackEntries, trackOrderByKey, transitionTrackEntries]);
     const getTrackStateById = useCallback((id) => trackById[id] || {
         locked: false,
         muted: false,
@@ -470,8 +488,174 @@ const Timeline = ({ onImportClick }) => {
         updateTimelineItem(item.id, updates, { history: true });
     }, [isTrackLockedById, notifyTimelineEditRejected, selectedTimelineItem, totalDuration, updateTimelineItem]);
 
+    const renderTransitionLane = (key, config) => {
+        const laneItems = transitionLaneItemsByTrack[config.id] || [];
+        const locked = isTrackLockedById(config.id);
+        return (
+            <div
+                key={key}
+                className="relative border-b border-neutral-900/80 bg-purple-950/[0.035]"
+                style={{ height: `${config.height}px`, order: config.order, ...TRACK_ROW_STYLE }}
+                data-track-area={`transitions:${config.id}`}
+                data-track-order={config.dataOrder ?? config.order}
+                aria-label={`Timeline ${config.label}`}
+            >
+                <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(168,85,247,0.045)_1px,transparent_1px)] bg-[length:16px_100%]" data-track-bg="1" />
+                {laneItems.map(item => (
+                    <TrackItem
+                        key={item.id}
+                        item={item}
+                        type="transition"
+                        pps={pps}
+                        trackHeight={config.height}
+                        color="purple"
+                        label={`${item.icon || '*'} ${item.name}`}
+                        isSelected={item.id === selectedTransitionId}
+                        isLocked={locked}
+                        snapEnabled={snapEnabled}
+                        snapPoints={snapPoints}
+                        snapThreshold={snapThresholdSeconds}
+                        maxEnd={totalDuration}
+                        onSnapPreview={setSnapPreview}
+                        onSelect={() => {
+                            setSelectedClipId(null);
+                            setSelectedTextId(null);
+                            setSelectedAudioTrackId(null);
+                            setSelectedTransitionId(item.id);
+                            setActivePanel('transitions');
+                        }}
+                    />
+                ))}
+                {laneItems.length === 0 && (
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setActivePanel('transitions'); }}
+                        className="absolute inset-0 flex items-center justify-center group"
+                    >
+                        <span className={`flex items-center gap-1.5 text-[9px] font-mono transition ${locked ? 'text-neutral-800' : 'text-neutral-600 group-hover:text-purple-300/80'}`}>
+                            <Plus size={10} /> Ajouter une transition
+                        </span>
+                    </button>
+                )}
+            </div>
+        );
+    };
+
+    const renderEffectLane = (key, config) => {
+        const laneItems = effectLaneItemsByTrack[config.id] || [];
+        const locked = isTrackLockedById(config.id);
+        return (
+            <div
+                key={key}
+                className="relative border-b border-neutral-900/80 bg-cyan-950/[0.025]"
+                style={{ height: `${config.height}px`, order: config.order, ...TRACK_ROW_STYLE }}
+                data-track-area={`effects:${config.id}`}
+                data-track-order={config.dataOrder ?? config.order}
+                aria-label={`Timeline ${config.label}`}
+            >
+                <div className="absolute inset-0 bg-cyan-500/[0.018]" data-track-bg="1" />
+                {laneItems.map(effect => {
+                    const sourceClipId = effect.sourceId || effect.params?.clipId || effect.id;
+                    const filterValues = effect.params?.filters || {};
+                    const label = [
+                        filterValues.contrast !== undefined ? `C${filterValues.contrast}` : '',
+                        filterValues.saturation !== undefined ? `S${filterValues.saturation}` : '',
+                        filterValues.temperature ? `T${filterValues.temperature}` : '',
+                    ].filter(Boolean).join(' ');
+
+                    return (
+                        <button
+                            key={effect.id}
+                            type="button"
+                            data-track-item-type="effect"
+                            data-testid={`effect-track-item-${effect.id}`}
+                            data-track-item-start={Number(effect.startTime || 0).toFixed(3)}
+                            data-track-item-duration={Number(effect.duration || 0).toFixed(3)}
+                            className={`absolute top-1 bottom-1 rounded-sm border border-cyan-500/25 bg-cyan-500/10 px-2 text-left transition
+                                ${locked ? 'cursor-not-allowed opacity-60' : 'hover:border-cyan-300/45 hover:bg-cyan-500/15'}
+                                ${selectedClipId === sourceClipId ? 'ring-1 ring-cyan-400/60' : ''}`}
+                            style={{ left: `${effect.start * pps}px`, width: `${Math.max(30, effect.duration * pps)}px` }}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedClipId(sourceClipId);
+                                setSelectedTextId(null);
+                                setSelectedTransitionId(null);
+                                setSelectedAudioTrackId(null);
+                                setActivePanel('filters');
+                            }}
+                        >
+                            <span className="block truncate text-[8px] font-mono uppercase tracking-widest text-cyan-200/80">Filtres</span>
+                            <span className="block truncate text-[7px] font-mono text-cyan-300/55">{label || 'Ajustements'}</span>
+                        </button>
+                    );
+                })}
+                {laneItems.length === 0 && (
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setActivePanel('filters'); }}
+                        className="absolute inset-0 flex items-center justify-center group"
+                    >
+                        <span className={`flex items-center gap-1.5 text-[9px] font-mono transition ${locked ? 'text-neutral-800' : 'text-neutral-600 group-hover:text-cyan-300/80'}`}>
+                            <Plus size={10} /> Ajuster les filtres
+                        </span>
+                    </button>
+                )}
+            </div>
+        );
+    };
+
+    const renderMusicLane = (key, config) => {
+        const laneItems = musicLaneItemsByTrack[config.id] || [];
+        const locked = isTrackLockedById(config.id);
+        return (
+            <div
+                key={key}
+                className="relative border-b border-neutral-900/80 bg-purple-950/[0.025]"
+                style={{ height: `${config.height}px`, order: config.order, ...TRACK_ROW_STYLE }}
+                data-track-area={`music:${config.id}`}
+                data-track-order={config.dataOrder ?? config.order}
+                aria-label={`Timeline ${config.label}`}
+            >
+                <div className="absolute inset-0 bg-purple-500/[0.018]" data-track-bg="1" />
+                {laneItems.map(track => (
+                    <TrackItem
+                        key={track.id}
+                        item={track}
+                        type="audio"
+                        pps={pps}
+                        trackHeight={config.height}
+                        color="purple"
+                        label={track.name}
+                        isSelected={track.id === selectedAudioTrackId}
+                        isLocked={locked}
+                        snapEnabled={snapEnabled}
+                        snapPoints={snapPoints}
+                        snapThreshold={snapThresholdSeconds}
+                        maxEnd={totalDuration}
+                        onSnapPreview={setSnapPreview}
+                        onSelect={() => {
+                            setSelectedClipId(null);
+                            setSelectedTextId(null);
+                            setSelectedTransitionId(null);
+                            setSelectedAudioTrackId(track.id);
+                            setActivePanel('audio');
+                        }}
+                    />
+                ))}
+                {laneItems.length === 0 && (
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setActivePanel('music'); }}
+                        className="absolute inset-0 flex items-center justify-center group"
+                    >
+                        <span className={`flex items-center gap-1.5 text-[9px] font-mono transition ${locked ? 'text-neutral-800' : 'text-neutral-600 group-hover:text-purple-300/80'}`}>
+                            <Plus size={10} /> Ajouter de la musique
+                        </span>
+                    </button>
+                )}
+            </div>
+        );
+    };
+
     return (
-        <div className="flex flex-col bg-neutral-950 border-t border-neutral-800 select-none shrink-0">
+        <div className="flex flex-col bg-neutral-950 border-t border-neutral-800 select-none shrink-0" style={{ borderTopColor: TRACK_DIVIDER_STYLE.borderColor }}>
             {timelineEditNotice && (
                 <button
                     type="button"
@@ -488,11 +672,11 @@ const Timeline = ({ onImportClick }) => {
             )}
 
             {/* ── Ruler ── */}
-            <div className="flex h-7 border-b border-neutral-800">
+            <div className="flex h-7 border-b border-neutral-800" style={{ borderBottomColor: TRACK_DIVIDER_STYLE.borderColor }}>
                 {/* Header spacer */}
                 <div
                     className="shrink-0 bg-neutral-950 border-r border-neutral-800 flex items-center justify-center"
-                    style={{ width: `${TRACK_HEADER_WIDTH}px` }}
+                    style={{ width: `${TRACK_HEADER_WIDTH}px`, borderRightColor: TRACK_DIVIDER_STYLE.borderColor }}
                 >
                     <span className="text-[8px] font-mono text-neutral-500 uppercase tracking-widest">Time</span>
                 </div>
@@ -517,7 +701,7 @@ const Timeline = ({ onImportClick }) => {
                 {/* ── Fixed track headers (left column) ── */}
                 <div
                     className="shrink-0 flex flex-col z-20 bg-neutral-950 border-r border-neutral-800"
-                    style={{ width: `${TRACK_HEADER_WIDTH}px`, minHeight: `${totalTrackHeight}px` }}
+                    style={{ width: `${TRACK_HEADER_WIDTH}px`, minHeight: `${totalTrackHeight}px`, borderRightColor: TRACK_DIVIDER_STYLE.borderColor }}
                 >
                     {orderedTrackEntries.map(([key, config]) => {
                         const Icon = config.icon;
@@ -527,17 +711,19 @@ const Timeline = ({ onImportClick }) => {
                         const muted = track.muted === true;
                         const locked = track.locked === true;
                         const hasItems = role === 'video' ? videoLaneItems.length > 0
-                            : role === 'transitions' ? transitionLaneItems.length > 0
-                            : role === 'effects' ? effectLaneItems.length > 0
+                            : role === 'transitions' ? (transitionLaneItemsByTrack[config.id]?.length || 0) > 0
+                            : role === 'effects' ? (effectLaneItemsByTrack[config.id]?.length || 0) > 0
                             : role === 'text' ? (textLaneItemsByTrack[config.id]?.length || 0) > 0
-                            : role === 'audio' ? false
-                            : musicLaneItems.length > 0;
+                            : role === 'audio' ? clipAudioLaneItems.length > 0
+                            : (musicLaneItemsByTrack[config.id]?.length || 0) > 0;
+                        const canAddTimeline = ['transitions', 'effects', 'text', 'audio', 'music'].includes(role);
+                        const canDeleteTimeline = !PROTECTED_TRACK_IDS.has(config.id);
                         return (
                             <div
                                 key={key}
                                 className={`flex flex-col items-center justify-center gap-1 border-b border-neutral-800/60 cursor-pointer px-1
                                     hover:bg-neutral-900/70 transition ${hasItems ? '' : 'opacity-75'} ${!visible || muted ? 'bg-neutral-900/80' : ''}`}
-                                style={{ height: `${config.height}px` }}
+                                style={{ height: `${config.height}px`, ...TRACK_ROW_STYLE }}
                                 data-track-header={key}
                                 data-track-order={config.dataOrder ?? config.order}
                                 onClick={(e) => {
@@ -570,21 +756,41 @@ const Timeline = ({ onImportClick }) => {
                                             {visible ? <Eye size={10} /> : <EyeOff size={10} />}
                                         </button>
                                     )}
-                                    {role === 'text' && (
+                                    {canAddTimeline && (
                                         <button
                                             type="button"
-                                            aria-label="Ajouter une timeline texte"
-                                            title="Ajouter une timeline texte"
+                                            aria-label={`Ajouter une timeline ${config.label}`}
+                                            title={`Ajouter une timeline ${config.label}`}
                                             data-testid={`track-${config.id}-add-timeline`}
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                addTextTrack();
-                                                setActivePanel('text');
+                                                addTimelineTrack(config.createRole || (role === 'audio' ? 'music' : role));
+                                                if (role === 'text') setActivePanel('text');
+                                                else if (role === 'transitions') setActivePanel('transitions');
+                                                else if (role === 'effects') setActivePanel('filters');
+                                                else if (role === 'music' || role === 'audio') setActivePanel('music');
                                             }}
                                             style={TRACK_ACTION_STYLE}
-                                            className={`${TRACK_ACTION_BASE} text-amber-300/80 hover:bg-amber-500/10 hover:text-amber-200`}
+                                            className={`${TRACK_ACTION_BASE} ${TRACK_LABEL_CLASS[config.color] || 'text-neutral-300/80'} hover:bg-neutral-800/80 hover:text-white`}
                                         >
                                             <Plus size={10} />
+                                        </button>
+                                    )}
+                                    {canDeleteTimeline && (
+                                        <button
+                                            type="button"
+                                            aria-label={`Supprimer timeline ${config.label}`}
+                                            title={hasItems ? 'Supprimez les elements avant de retirer cette timeline' : `Supprimer timeline ${config.label}`}
+                                            data-testid={`track-${config.id}-delete`}
+                                            disabled={hasItems}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                removeTimelineTrack(config.id);
+                                            }}
+                                            style={TRACK_ACTION_STYLE}
+                                            className={`${TRACK_ACTION_BASE} hover:bg-red-500/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-neutral-900/60 disabled:hover:text-neutral-500`}
+                                        >
+                                            <Trash2 size={9} />
                                         </button>
                                     )}
                                     {config.canMute !== false && (
@@ -633,8 +839,8 @@ const Timeline = ({ onImportClick }) => {
                     >
                         {/* ═══ VIDEO TRACK ═══ */}
                         <div
-                            className="relative border-b border-neutral-800/50"
-                            style={{ height: `${TRACK_CONFIG.video.height}px`, order: trackOrderByKey.video }}
+                            className="relative border-b border-neutral-900/80"
+                            style={{ height: `${TRACK_CONFIG.video.height}px`, order: trackOrderByKey.video, ...TRACK_ROW_STYLE }}
                             data-track-area="video"
                             data-track-order={trackOrderByKey.video}
                         >
@@ -702,8 +908,8 @@ const Timeline = ({ onImportClick }) => {
 
                         {/* Effect track */}
                         <div
-                            className="relative border-y border-purple-500/20 bg-purple-950/[0.06] shadow-[inset_0_1px_0_rgba(168,85,247,0.12),inset_0_-1px_0_rgba(168,85,247,0.10)]"
-                            style={{ height: `${TRACK_CONFIG.transitions.height}px`, order: trackOrderByKey.transitions }}
+                            className="relative border-b border-neutral-900/80 bg-purple-950/[0.045]"
+                            style={{ height: `${TRACK_CONFIG.transitions.height}px`, order: trackOrderByKey.transitions, ...TRACK_ROW_STYLE }}
                             data-track-area="transitions"
                             data-track-order={trackOrderByKey.transitions}
                             aria-label="Timeline effets de transition"
@@ -713,7 +919,7 @@ const Timeline = ({ onImportClick }) => {
                                 Timeline Effets
                             </div>
 
-                            {transitionLaneItems.map(item => (
+                            {(transitionLaneItemsByTrack[TRACK_CONFIG.transitions.id] || []).map(item => (
                                 <TrackItem
                                     key={item.id}
                                     item={item}
@@ -739,7 +945,7 @@ const Timeline = ({ onImportClick }) => {
                                 />
                             ))}
 
-                            {transitionLaneItems.length === 0 && (
+                            {(transitionLaneItemsByTrack[TRACK_CONFIG.transitions.id] || []).length === 0 && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setActivePanel('transitions'); }}
                                     className="absolute inset-0 flex items-center justify-center group"
@@ -750,18 +956,21 @@ const Timeline = ({ onImportClick }) => {
                                 </button>
                             )}
                         </div>
+                        {transitionTrackEntries
+                            .filter(([, config]) => config.id !== TRACK_CONFIG.transitions.id)
+                            .map(([key, config]) => renderTransitionLane(key, config))}
 
                         {/* Effect track: clip filters are canonical items but remain attached to their source clips. */}
                         <div
-                            className="relative border-b border-cyan-500/15 bg-cyan-950/[0.04]"
-                            style={{ height: `${TRACK_CONFIG.effects.height}px`, order: trackOrderByKey.effects }}
+                            className="relative border-b border-neutral-900/80 bg-cyan-950/[0.03]"
+                            style={{ height: `${TRACK_CONFIG.effects.height}px`, order: trackOrderByKey.effects, ...TRACK_ROW_STYLE }}
                             data-track-area="effects"
                             data-track-order={trackOrderByKey.effects}
                             aria-label="Timeline filtres video"
                         >
                             <div className="absolute inset-0 bg-cyan-500/[0.02]" data-track-bg="1" />
 
-                            {effectLaneItems.map(effect => {
+                            {(effectLaneItemsByTrack[TRACK_CONFIG.effects.id] || []).map(effect => {
                                 const sourceClipId = effect.sourceId || effect.params?.clipId || effect.id;
                                 const filterValues = effect.params?.filters || {};
                                 const label = [
@@ -801,7 +1010,7 @@ const Timeline = ({ onImportClick }) => {
                                 );
                             })}
 
-                            {effectLaneItems.length === 0 && (
+                            {(effectLaneItemsByTrack[TRACK_CONFIG.effects.id] || []).length === 0 && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setActivePanel('filters'); }}
                                     className="absolute inset-0 flex items-center justify-center group"
@@ -812,6 +1021,9 @@ const Timeline = ({ onImportClick }) => {
                                 </button>
                             )}
                         </div>
+                        {effectTrackEntries
+                            .filter(([, config]) => config.id !== TRACK_CONFIG.effects.id)
+                            .map(([key, config]) => renderEffectLane(key, config))}
 
                         {/* Text tracks: overlapping text gets its own lane. */}
                         {textTrackEntries.map(([key, config], index) => {
@@ -822,8 +1034,8 @@ const Timeline = ({ onImportClick }) => {
                             return (
                                 <div
                                     key={key}
-                                    className="relative border-b border-amber-500/15 bg-amber-950/[0.035]"
-                                    style={{ height: `${config.height}px`, order: config.order }}
+                                    className="relative border-b border-neutral-900/80 bg-amber-950/[0.03]"
+                                    style={{ height: `${config.height}px`, order: config.order, ...TRACK_ROW_STYLE }}
                                     data-track-area={config.id === TRACK_CONFIG.text.id ? 'text' : `text:${config.id}`}
                                     data-track-order={config.dataOrder ?? config.order}
                                     aria-label={`Timeline ${config.label}`}
@@ -877,8 +1089,8 @@ const Timeline = ({ onImportClick }) => {
 
                         {/* ═══ AUDIO TRACK (clip audio) ═══ */}
                         <div
-                            className="relative border-b border-neutral-800/50"
-                            style={{ height: `${TRACK_CONFIG.audio.height}px`, order: 1000 }}
+                            className="relative border-b border-neutral-900/80"
+                            style={{ height: `${TRACK_CONFIG.audio.height}px`, order: 1000, ...TRACK_ROW_STYLE }}
                             data-track-area="audio"
                             data-track-order={trackOrderByKey.audio}
                         >
@@ -943,14 +1155,14 @@ const Timeline = ({ onImportClick }) => {
 
                         {/* ═══ MUSIC TRACK ═══ */}
                         <div
-                            className="relative"
-                            style={{ height: `${TRACK_CONFIG.music.height}px`, order: 1010 }}
+                            className="relative border-b border-neutral-900/80"
+                            style={{ height: `${TRACK_CONFIG.music.height}px`, order: 1010, ...TRACK_ROW_STYLE }}
                             data-track-area="music"
                             data-track-order={trackOrderByKey.music}
                         >
                             <div className="absolute inset-0 bg-purple-500/[0.02]" data-track-bg="1" />
 
-                            {musicLaneItems.map(track => (
+                            {(musicLaneItemsByTrack[TRACK_CONFIG.music.id] || []).map(track => (
                                 <TrackItem
                                     key={track.id}
                                     item={track}
@@ -976,7 +1188,7 @@ const Timeline = ({ onImportClick }) => {
                                 />
                             ))}
 
-                            {musicLaneItems.length === 0 && (
+                            {(musicLaneItemsByTrack[TRACK_CONFIG.music.id] || []).length === 0 && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setActivePanel('music'); }}
                                     className="absolute inset-0 flex items-center justify-center group"
@@ -987,6 +1199,9 @@ const Timeline = ({ onImportClick }) => {
                                 </button>
                             )}
                         </div>
+                        {musicTrackEntries
+                            .filter(([, config]) => config.id !== TRACK_CONFIG.music.id)
+                            .map(([key, config]) => renderMusicLane(key, config))}
 
                     </div>
 
@@ -1013,7 +1228,7 @@ const Timeline = ({ onImportClick }) => {
             </div>
 
             {/* ── Bottom bar: zoom + info ── */}
-            <div className="flex items-center justify-between gap-3 px-3 min-h-10 border-t border-neutral-800/50 bg-neutral-950">
+            <div className="flex items-center justify-between gap-3 px-3 min-h-10 border-t border-neutral-800/50 bg-neutral-950" style={{ borderTopColor: TRACK_DIVIDER_STYLE.borderColor }}>
                 <div className="flex items-center gap-2 min-w-0">
                     <span className="text-[8px] font-mono text-neutral-600 uppercase">
                         {clips.length} clip{clips.length !== 1 ? 's' : ''} / {transitionLaneItems.length} transition{transitionLaneItems.length !== 1 ? 's' : ''} / {textLaneItems.length} texte{textLaneItems.length !== 1 ? 's' : ''} / {musicLaneItems.length} piste{musicLaneItems.length !== 1 ? 's' : ''}
@@ -1135,6 +1350,44 @@ function getFallbackWaveformPeak(seed = '', index = 0, lane = 0) {
     const wave = Math.sin(index * 0.58 + lane * 0.9 + hash * 0.013);
     const detail = Math.sin(index * 1.31 + hash * 0.021) * 0.5 + 0.5;
     return Math.max(0.12, Math.min(1, 0.46 + wave * 0.26 + detail * 0.2));
+}
+
+function groupTimelineItemsByTrack(items = [], fallbackTrackId = '') {
+    return items.reduce((groups, item) => {
+        const trackId = item.trackId || fallbackTrackId;
+        return {
+            ...groups,
+            [trackId]: [...(groups[trackId] || []), item],
+        };
+    }, {});
+}
+
+function trackByIdFromTracks(tracks = [], id = '') {
+    return tracks.find(track => track.id === id) || null;
+}
+
+function makeTrackEntriesForRole(tracks = [], role = 'text', baseConfig = {}) {
+    return tracks
+        .filter(track => getTimelineTrackRole(track) === role)
+        .sort((a, b) => Number(a.order || 0) - Number(b.order || 0))
+        .map((track, index) => {
+            const isPrimary = track.id === baseConfig.id;
+            const dataOrder = Number(track.order ?? baseConfig.order ?? index);
+            const visualOrder = role === 'music' ? 1010 + index : dataOrder;
+            return [
+                track.id,
+                {
+                    ...baseConfig,
+                    id: track.id,
+                    label: track.name || (isPrimary ? baseConfig.label : `${baseConfig.label} ${index + 1}`),
+                    height: Number(track.height) || baseConfig.height,
+                    order: visualOrder,
+                    dataOrder,
+                    role: role === 'transition' ? 'transitions' : role === 'effect' ? 'effects' : role,
+                    createRole: role,
+                },
+            ];
+        });
 }
 
 function TimecodeInput({ value = 0, min = 0, max = Number.POSITIVE_INFINITY, step = 0.01, disabled = false, onCommit, ...props }) {

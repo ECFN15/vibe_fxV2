@@ -257,6 +257,136 @@ test("local imports remain playable after reload", async ({ page }) => {
   expect(playback.playCalls).toBeGreaterThanOrEqual(1);
 });
 
+test("Pixabay batch import keeps every requested local track", async ({ page }) => {
+  await installMockAudio(page);
+  await mockMusicSearch(page);
+  const dataAudio = "data:audio/mpeg;base64,SUQz";
+  let localPersistCount = 0;
+  let pixabayScanCount = 0;
+
+  await page.route("**/api/music/local-file-import", async (route) => {
+    if (route.request().method() === "POST") {
+      localPersistCount += 1;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          fileName: `pixabay-batch-${localPersistCount}.mp3`,
+          publicUrl: `/mock-audio/pixabay-batch-${localPersistCount}.mp3`,
+        }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        schemaVersion: 1,
+        app: "vibe_fx",
+        kind: "soundtrack-local-imports",
+        tracks: [],
+      }),
+    });
+  });
+  await page.route("**/api/music/pixabay-local-import", async (route) => {
+    pixabayScanCount += 1;
+    const tracks = pixabayScanCount === 1
+      ? [
+          {
+            id: "pixabay-1001",
+            provider: "pixabay",
+            providerTrackId: "pixabay-1001",
+            title: "Batch Pixabay One",
+            sourceName: "Pixabay Music",
+            sourceUrl: "https://pixabay.com/music/test-one/",
+            sourcePageUrl: "https://pixabay.com/music/test-one/",
+            license: "Pixabay Content License",
+            licenseUrl: "https://pixabay.com/service/license-summary/",
+            downloadUrl: dataAudio,
+            previewUrl: dataAudio,
+            audioUrl: dataAudio,
+            importStatus: "importable",
+            duration: 42,
+            tags: ["pixabay", "house"],
+          },
+          {
+            id: "pixabay-1002",
+            provider: "pixabay",
+            providerTrackId: "pixabay-1002",
+            title: "Batch Pixabay Two",
+            sourceName: "Pixabay Music",
+            sourceUrl: "https://pixabay.com/music/test-two/",
+            sourcePageUrl: "https://pixabay.com/music/test-two/",
+            license: "Pixabay Content License",
+            licenseUrl: "https://pixabay.com/service/license-summary/",
+            downloadUrl: dataAudio,
+            previewUrl: dataAudio,
+            audioUrl: dataAudio,
+            importStatus: "importable",
+            duration: 44,
+            tags: ["pixabay", "house"],
+          },
+        ]
+      : [
+          {
+            id: "pixabay-1003",
+            provider: "pixabay",
+            providerTrackId: "pixabay-1003",
+            title: "Batch Pixabay Three",
+            sourceName: "Pixabay Music",
+            sourceUrl: "https://pixabay.com/music/test-three/",
+            sourcePageUrl: "https://pixabay.com/music/test-three/",
+            license: "Pixabay Content License",
+            licenseUrl: "https://pixabay.com/service/license-summary/",
+            downloadUrl: dataAudio,
+            previewUrl: dataAudio,
+            audioUrl: dataAudio,
+            importStatus: "importable",
+            duration: 46,
+            tags: ["pixabay", "trap"],
+          },
+        ];
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        provider: "pixabay",
+        status: "ready",
+        tracks,
+      }),
+    });
+  });
+
+  await openSoundtrack(page);
+  const assistant = page.getByTestId("ai-music-import-assistant");
+  await assistant.getByLabel("Provider musique IA").selectOption("pixabay");
+  await assistant.getByLabel("Nombre de pistes a importer").fill("2");
+  await assistant.getByRole("button", { name: /Chercher \/ importer/i }).click();
+
+  await expect(page.getByText(/2 pistes Pixabay ajoutees/i)).toBeVisible({ timeout: 20000 });
+  await expect(page.getByRole("dialog", { name: "Bibliotheque projet Vibe_fx" })).toBeVisible();
+  await expect(page.getByTestId("local-track-pixabay-ai-pixabay-1001")).toBeVisible();
+  await expect(page.getByTestId("local-track-pixabay-ai-pixabay-1002")).toBeVisible();
+  await expect(page.locator('[data-testid^="local-track-pixabay-ai-pixabay-"]')).toHaveCount(2);
+  await expect(page.locator('[data-testid^="local-track-pixabay-ai-pixabay-"]').first()).toContainText("Batch Pixabay Two");
+  await expect(page.getByTestId("local-track-pixabay-ai-pixabay-1001").locator('[data-state="new"]')).toHaveText("new");
+  await expect(page.getByTestId("local-track-pixabay-ai-pixabay-1002").locator('[data-state="new"]')).toHaveText("new");
+  await expect(page.getByTestId("local-track-pixabay-ai-pixabay-1001").locator(".soundtrack-category-badge")).toHaveCSS("color", /rgb/);
+  expect(localPersistCount).toBe(2);
+
+  await page.getByRole("button", { name: "Fermer la bibliotheque" }).click();
+  await assistant.getByLabel("Nombre de pistes a importer").fill("1");
+  await assistant.getByRole("button", { name: /Chercher \/ importer/i }).click();
+  await expect(page.getByText(/1 piste Pixabay ajoutee/i)).toBeVisible({ timeout: 20000 });
+  await expect(page.getByTestId("local-track-pixabay-ai-pixabay-1003")).toBeVisible();
+  await expect(page.locator('[data-testid^="local-track-pixabay-ai-pixabay-"]')).toHaveCount(3);
+  await expect(page.locator('[data-testid^="local-track-pixabay-ai-pixabay-"]').first()).toContainText("Batch Pixabay Three");
+  await expect(page.locator('[data-testid^="local-track-pixabay-ai-pixabay-"] [data-state="new"]')).toHaveCount(1);
+  await expect(page.getByTestId("local-track-pixabay-ai-pixabay-1003").locator('[data-state="new"]')).toHaveText("new");
+  expect(localPersistCount).toBe(3);
+});
+
 test("Soundtrack opens full screen and keeps favorites/playlists local", async ({ page }) => {
   await installMockAudio(page);
   await page.addInitScript(() => {

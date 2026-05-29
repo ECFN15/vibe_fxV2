@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { buildTimelineModel, clampVolumePercent, doesTrackAllowOverlap, findTimelineItemOverlap, getDefaultTracks, getTrackForItemType, isTrackLocked as isTimelineTrackLocked } from '../model/timelineModel';
+import { buildTimelineModel, clampVolumePercent, doesTrackAllowOverlap, findTimelineItemOverlap, getDefaultTracks, getTimelineTrackRole, getTrackForItemType, isTrackLocked as isTimelineTrackLocked } from '../model/timelineModel';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -20,16 +20,47 @@ const useVideoStore = create((set, get) => ({
     setTrackState: (id, updates) => set((s) => ({
         tracks: s.tracks.map(track => track.id === id ? { ...track, ...updates } : track),
     })),
-    addTextTrack: () => {
+    addTimelineTrack: (role = 'text') => {
         const state = get();
         const tracks = Array.isArray(state.tracks) && state.tracks.length ? state.tracks : getDefaultTracks();
-        const nextTrack = makeNextTextTrack(getSortedTextTracks(tracks));
+        const nextTrack = makeNextTimelineTrack(tracks, role);
+        if (!nextTrack) {
+            rejectTimelineEdit(set, 'track-create-unsupported', 'Type de piste non supporte.');
+            return null;
+        }
         pushHistory(state);
         set({
             tracks: [...tracks, nextTrack],
             timelineEditNotice: null,
         });
         return nextTrack.id;
+    },
+    removeTimelineTrack: (id) => {
+        const state = get();
+        const tracks = Array.isArray(state.tracks) && state.tracks.length ? state.tracks : getDefaultTracks();
+        const target = tracks.find(track => track.id === id);
+        if (!target) return false;
+        if (isDefaultTimelineTrack(id)) {
+            rejectTimelineEdit(set, 'track-system', 'Piste principale protegee.');
+            return false;
+        }
+        const trackItems = state.getTimelineModel().items.filter(item => item.trackId === id);
+        if (trackItems.length > 0) {
+            rejectTimelineEdit(set, 'track-not-empty', 'Supprimez les elements de cette piste avant de retirer la timeline.');
+            return false;
+        }
+        pushHistory(state);
+        set((s) => ({
+            tracks: s.tracks.filter(track => track.id !== id),
+            selectedTextId: s.textOverlays.some(text => text.id === s.selectedTextId && text.trackId === id) ? null : s.selectedTextId,
+            selectedTransitionId: s.transitionItems.some(item => item.id === s.selectedTransitionId && item.trackId === id) ? null : s.selectedTransitionId,
+            selectedAudioTrackId: s.audioTracks.some(track => track.id === s.selectedAudioTrackId && track.trackId === id) ? null : s.selectedAudioTrackId,
+            timelineEditNotice: null,
+        }));
+        return true;
+    },
+    addTextTrack: () => {
+        return get().addTimelineTrack('text');
     },
     getTimelineModel: () => {
         const s = get();
@@ -300,8 +331,10 @@ const useVideoStore = create((set, get) => ({
 
     addTransitionItem: (transition) => {
         const state = get();
-        const trackId = transition.trackId || getTrackForItemType('transition');
-        if (isTimelineTrackLocked(state.tracks, trackId)) {
+        const explicitTrackId = transition.trackId;
+        const trackId = explicitTrackId || resolveTimelineTrackForRange(state, 'transition', transition);
+        const nextTracks = ensureTimelineTrack(state.tracks, trackId ? makeTimelineTrackFromRole('transition', state.tracks, trackId) : null);
+        if (isTimelineTrackLocked(nextTracks, trackId)) {
             rejectTimelineEdit(set, 'track-locked', 'Piste transition verrouillee: ajout ignore.');
             return;
         }
@@ -324,12 +357,13 @@ const useVideoStore = create((set, get) => ({
             endTime: startTime + duration,
             duration,
         };
-        if (hasDisallowedItemOverlap(state.tracks, [...state.transitionItems, nextItem], trackId)) {
+        if (hasDisallowedItemOverlap(nextTracks, [...state.transitionItems, nextItem], trackId)) {
             rejectTimelineEdit(set, 'track-overlap', 'Overlap interdit sur cette piste: transition ignoree.');
             return;
         }
         pushHistory(state);
         set((s) => ({
+            tracks: nextTracks,
             transitionItems: [...s.transitionItems, nextItem],
             selectedTransitionId: id,
             timelineEditNotice: null,
@@ -430,8 +464,10 @@ const useVideoStore = create((set, get) => ({
     setSelectedAudioTrackId: (id) => set({ selectedAudioTrackId: id }),
     addAudioTrack: (track) => {
         const state = get();
-        const trackId = track.trackId || getTrackForItemType('audio');
-        if (isTimelineTrackLocked(state.tracks, trackId)) {
+        const explicitTrackId = track.trackId;
+        const trackId = explicitTrackId || resolveTimelineTrackForRange(state, 'music', track);
+        const nextTracks = ensureTimelineTrack(state.tracks, trackId ? makeTimelineTrackFromRole('music', state.tracks, trackId) : null);
+        if (isTimelineTrackLocked(nextTracks, trackId)) {
             rejectTimelineEdit(set, 'track-locked', 'Piste audio verrouillee: ajout ignore.');
             return;
         }
@@ -442,12 +478,13 @@ const useVideoStore = create((set, get) => ({
             totalDuration: state.totalDuration,
         });
         const nextAudioTracks = [...state.audioTracks, nextTrack];
-        if (hasDisallowedItemOverlap(state.tracks, nextAudioTracks, trackId)) {
+        if (hasDisallowedItemOverlap(nextTracks, nextAudioTracks, trackId)) {
             rejectTimelineEdit(set, 'track-overlap', 'Overlap interdit sur cette piste: audio ignore.');
             return;
         }
         pushHistory(state);
         set(() => ({
+            tracks: nextTracks,
             audioTracks: nextAudioTracks,
             selectedAudioTrackId: id,
             timelineEditNotice: null,
@@ -799,8 +836,117 @@ function ensureTimelineTrack(tracks = [], track = {}) {
     return [...tracks, track];
 }
 
+const DEFAULT_TRACK_IDS = new Set(getDefaultTracks().map(track => track.id));
+const TIMELINE_TRACK_SPECS = {
+    transition: { type: 'transition', laneRole: 'transition', idPrefix: 'transition', baseName: 'Effets', order: 20, allowOverlap: false },
+    effect: { type: 'effect', laneRole: 'effect', idPrefix: 'effect', baseName: 'Filtres', order: 30, allowOverlap: true },
+    text: { type: 'text', laneRole: 'text', idPrefix: 'text', baseName: 'Texte', order: 40, allowOverlap: false },
+    music: { type: 'audio', laneRole: 'music', idPrefix: 'music', baseName: 'Musique', order: 60, allowOverlap: false },
+};
+
+function normalizeTrackRole(role = 'text') {
+    if (role === 'transitions') return 'transition';
+    if (role === 'effects') return 'effect';
+    if (role === 'audio') return 'music';
+    return TIMELINE_TRACK_SPECS[role] ? role : null;
+}
+
+function isDefaultTimelineTrack(id = '') {
+    return DEFAULT_TRACK_IDS.has(id);
+}
+
+function getTracksByRole(tracks = [], role = 'text') {
+    const normalizedRole = normalizeTrackRole(role);
+    return tracks
+        .filter(track => normalizeTrackRole(getTimelineTrackRole(track)) === normalizedRole)
+        .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+}
+
+function makeNextTimelineTrack(tracks = [], role = 'text') {
+    const normalizedRole = normalizeTrackRole(role);
+    if (!normalizedRole) return null;
+    const roleTracks = getTracksByRole(tracks, normalizedRole);
+    const usedIds = new Set(tracks.map(track => track.id));
+    const spec = TIMELINE_TRACK_SPECS[normalizedRole];
+    let index = Math.max(2, roleTracks.length + 1);
+    while (usedIds.has(`${spec.idPrefix}-${index}`)) index += 1;
+    return makeTimelineTrack(normalizedRole, index, `${spec.idPrefix}-${index}`);
+}
+
+function makeTimelineTrackFromRole(role = 'text', tracks = [], id = '') {
+    const existing = tracks.find(track => track.id === id);
+    if (existing) return existing;
+    const normalizedRole = normalizeTrackRole(role);
+    const roleTracks = getTracksByRole(tracks, normalizedRole);
+    const spec = TIMELINE_TRACK_SPECS[normalizedRole];
+    if (!spec) return null;
+    const explicitIndex = Number(String(id).match(/-(\d+)$/)?.[1]);
+    const index = Number.isFinite(explicitIndex) && explicitIndex > 0
+        ? explicitIndex
+        : Math.max(2, roleTracks.length + 1);
+    return makeTimelineTrack(normalizedRole, index, id || `${spec.idPrefix}-${index}`);
+}
+
+function makeTimelineTrack(role = 'text', index = 1, id = '') {
+    const spec = TIMELINE_TRACK_SPECS[role];
+    if (!spec) return null;
+    const normalizedIndex = Math.max(1, Number(index) || 1);
+    return {
+        id: id || (normalizedIndex === 1 ? `${spec.idPrefix}-main` : `${spec.idPrefix}-${normalizedIndex}`),
+        type: spec.type,
+        laneRole: spec.laneRole,
+        name: normalizedIndex === 1 ? spec.baseName : `${spec.baseName} ${normalizedIndex}`,
+        locked: false,
+        muted: false,
+        visible: true,
+        allowOverlap: spec.allowOverlap,
+        order: spec.order + (normalizedIndex - 1) * 0.1,
+    };
+}
+
+function resolveTimelineTrackForRange(state = {}, role = 'text', item = {}) {
+    const normalizedRole = normalizeTrackRole(role);
+    const tracks = Array.isArray(state.tracks) && state.tracks.length ? state.tracks : getDefaultTracks();
+    const roleTracks = getTracksByRole(tracks, normalizedRole);
+    const { startTime, endTime } = getTimelineItemRange(item, state.totalDuration);
+    const items = getTimelineItemsForRole(state, normalizedRole);
+    const reusableTrack = roleTracks
+        .filter(track => !isTimelineTrackLocked(tracks, track.id))
+        .find(track => doesTrackAllowOverlap(tracks, track.id) || !hasRangeOverlap(
+            items.filter(existing => (existing.trackId || getDefaultTrackIdForRole(normalizedRole)) === track.id),
+            startTime,
+            endTime
+        ));
+
+    return (reusableTrack || makeNextTimelineTrack(tracks, normalizedRole))?.id || null;
+}
+
+function getDefaultTrackIdForRole(role = 'text') {
+    if (role === 'transition') return 'transition-main';
+    if (role === 'effect') return 'effect-main';
+    if (role === 'music') return 'music-main';
+    if (role === 'text') return 'text-main';
+    return getTrackForItemType(role);
+}
+
+function getTimelineItemsForRole(state = {}, role = 'text') {
+    if (role === 'transition') return state.transitionItems || [];
+    if (role === 'music') return state.audioTracks || [];
+    if (role === 'text') return state.textOverlays || [];
+    return [];
+}
+
+function getTimelineItemRange(item = {}, totalDuration = 0) {
+    const maxEnd = Math.max(0.1, totalDuration || item.endTime || item.duration || 3);
+    const requestedStart = Number(item.startTime ?? item.start ?? 0);
+    const startTime = clamp(Number.isFinite(requestedStart) ? requestedStart : 0, 0, Math.max(0, maxEnd - 0.1));
+    const requestedEnd = Number(item.endTime ?? (startTime + Number(item.duration ?? item.defaultDuration ?? 3)));
+    const endTime = Math.min(maxEnd, Math.max(startTime + 0.1, Number.isFinite(requestedEnd) ? requestedEnd : startTime + 0.1));
+    return { startTime, endTime };
+}
+
 function getSortedTextTracks(tracks = []) {
-    const textTracks = tracks.filter(track => track?.type === 'text');
+    const textTracks = getTracksByRole(tracks, 'text');
     if (textTracks.length) {
         return textTracks.sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
     }
@@ -808,24 +954,11 @@ function getSortedTextTracks(tracks = []) {
 }
 
 function makeNextTextTrack(textTracks = []) {
-    const usedIds = new Set(textTracks.map(track => track.id));
-    let index = Math.max(2, textTracks.length + 1);
-    while (usedIds.has(`text-${index}`)) index += 1;
-    return makeTextTrack(index, `text-${index}`);
+    return makeNextTimelineTrack(textTracks, 'text');
 }
 
 function makeTextTrack(index = 1, id = '') {
-    const normalizedIndex = Math.max(1, Number(index) || 1);
-    return {
-        id: id || (normalizedIndex === 1 ? 'text-main' : `text-${normalizedIndex}`),
-        type: 'text',
-        name: normalizedIndex === 1 ? 'Texte' : `Texte ${normalizedIndex}`,
-        locked: false,
-        muted: false,
-        visible: true,
-        allowOverlap: false,
-        order: 40 + (normalizedIndex - 1) * 0.1,
-    };
+    return makeTimelineTrack('text', index, id);
 }
 
 function getTextOverlayRange(text = {}, totalDuration = 0) {

@@ -138,6 +138,7 @@ export function useProjectSoundLibrary() {
                 fileName: fetched.fileName,
                 track: normalizeProjectSoundTrack({
                     ...normalizedForImport,
+                    importedAt: new Date().toISOString(),
                     duration: facts.duration || track.duration,
                     waveform: facts.waveform,
                     downloadUrl: fetched.finalUrl || track.downloadUrl,
@@ -182,6 +183,7 @@ export function useProjectSoundLibrary() {
                     rightsStatus: metadata.rightsStatus || 'user-declared',
                     socialUse: metadata.socialUse === true,
                     commercialUse: metadata.commercialUse === true,
+                    importedAt: new Date().toISOString(),
                     duration: facts.duration,
                     waveform: facts.waveform,
                     tags: metadata.tags || ['local-upload'],

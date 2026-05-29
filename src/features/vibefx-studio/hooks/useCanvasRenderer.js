@@ -31,7 +31,7 @@ export default function useCanvasRenderer({
     // Layout
     activeFormat, activeTemplate, overlayMode,
     padding, gap, radius,
-    layoutBgColor, layoutBgBlur, layoutBgTexture, layoutSmoothBlur,
+    layoutBgColor, layoutBgBlur, layoutBgGradient, layoutBgMeshColors, layoutBgTexture, layoutSmoothBlur,
     layoutTextures, activeTextureId, layoutTextureOpacity,
     selectedSlotIndex, slotConfigs,
     slotRects, bgCanvasRef,
@@ -111,7 +111,7 @@ export default function useCanvasRenderer({
 
             // 1. Background
             renderLayoutBackground(ctx, w, h, {
-                images, layoutBgColor, layoutBgBlur,
+                images, layoutBgColor, layoutBgBlur, layoutBgGradient, layoutBgMeshColors,
                 bgCanvas: bgCanvasRef.current, activeTemplate,
             });
             renderLayoutImageTexture(ctx, w, h, {
@@ -273,7 +273,7 @@ export default function useCanvasRenderer({
             });
         }
     }, [images, filters, view, fusionConfig, activeFormat, activeTemplate, overlayMode, padding, gap, radius,
-        layoutBgColor, layoutBgBlur, layoutBgTexture, layoutSmoothBlur, layoutTextures, activeTextureId, layoutTextureOpacity, selectedSlotIndex, slotConfigs,
+        layoutBgColor, layoutBgBlur, layoutBgGradient, layoutBgMeshColors, layoutBgTexture, layoutSmoothBlur, layoutTextures, activeTextureId, layoutTextureOpacity, selectedSlotIndex, slotConfigs,
         texts, activeTextId, isDraggingText, activeGuides, assets, activeAssetId,
         cropRatio, cropPos, cropScale, isCropping, selectedImgIndex]);
 

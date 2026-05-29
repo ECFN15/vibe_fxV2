@@ -262,7 +262,7 @@ export default function AiMusicImportAssistant({
                 }
                 if (!imported.length) throw new Error('Import Pixabay refuse par la bibliotheque.');
                 onSelectTrack?.(imported[0]);
-                onImportComplete?.(imported[0]);
+                onImportComplete?.(imported[0], imported);
                 setStatus('ready');
                 setMessage(`${imported.length} piste${imported.length > 1 ? 's' : ''} Pixabay ajoutee${imported.length > 1 ? 's' : ''}.`);
             } catch (error) {
@@ -315,7 +315,7 @@ export default function AiMusicImportAssistant({
             }
             if (!imported.length) throw new Error('Aucune piste Aitra Free importee.');
             onSelectTrack?.(imported[0]);
-            onImportComplete?.(imported[0]);
+            onImportComplete?.(imported[0], imported);
             setStatus('ready');
             setMessage(`${imported.length} piste${imported.length > 1 ? 's' : ''} Aitra ajoutee${imported.length > 1 ? 's' : ''}.`);
         } catch (error) {
@@ -354,7 +354,7 @@ export default function AiMusicImportAssistant({
                 : await localLibrary.importRemoteTrack({ audioUrl, metadata: draftTrack });
             if (!imported) throw new Error('Import URL IA refuse.');
             onSelectTrack?.(imported);
-            onImportComplete?.(imported);
+            onImportComplete?.(imported, [imported]);
             setStatus('ready');
             setMessage('URL audio IA importee dans la bibliotheque Vibe_fx.');
         } catch (error) {
