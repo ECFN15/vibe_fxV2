@@ -610,7 +610,6 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
     cropScale: 1,
     isCropping: false,
     filters: {},
-    fusionConfig: {},
     selectedImgIndex,
     isDragging,
     requestRef,
@@ -643,10 +642,7 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
     dragOffset,
     textMetrics,
     isCropping: false,
-    setOverlayPos: () => {},
     setCropPos: () => {},
-    fusionConfig: {},
-    setFusionConfig: () => {},
     selectedImgIndex,
     setSelectedImgIndex,
   });
@@ -923,7 +919,6 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
           isDraggingText={isDraggingText}
           isCropping={false}
           setImages={setImages}
-          fusionConfig={{}}
           selectedImgIndex={selectedImgIndex}
           setSelectedImgIndex={setSelectedImgIndex}
           activeFormat={activeFormat}

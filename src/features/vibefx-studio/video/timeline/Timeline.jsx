@@ -4,39 +4,40 @@ import Clip from './Clip';
 import Playhead from './Playhead';
 import Ruler from './Ruler';
 import TrackItem from './TrackItem';
-import { AlertTriangle, Eye, EyeOff, Film, Lock, Magnet, Music, Type, Plus, SlidersHorizontal, Sparkles, Volume2, VolumeX, Minus, Unlock, ZoomIn, Trash2 } from 'lucide-react';
+import { AlertTriangle, Eye, EyeOff, Lock, Magnet, Plus, Volume2, VolumeX, Minus, Unlock, ZoomIn, Trash2, RotateCcw, RotateCw } from 'lucide-react';
 import { buildTimelineModel, buildTimelineSnapPoints, DEFAULT_SNAP_THRESHOLD_SECONDS, getTimelineTrackRole } from '../model/timelineModel';
+import { applyQuickToolToTimeline, parseQuickToolPayload, QUICK_TOOL_TRANSFER_TYPE } from '../utils/quickTools';
 
 export const PIXELS_PER_SECOND_BASE = 80;
 const TRACK_HEADER_WIDTH = 92;
 const TIMELINE_MIN_ZOOM = 0.03;
 const TRIM_EDGE_HITBOX = 56;
-const TRACK_ACTION_BASE = 'inline-flex h-4 w-4 shrink-0 appearance-none items-center justify-center rounded-sm border border-transparent bg-neutral-900/60 p-0 text-neutral-500 leading-none transition hover:bg-neutral-800/80 hover:text-neutral-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-300/50';
+const TRACK_ACTION_BASE = 'inline-flex h-5 w-5 shrink-0 appearance-none items-center justify-center rounded-sm border border-transparent bg-neutral-900/55 p-0 text-neutral-400 leading-none transition hover:bg-neutral-800/90 hover:text-neutral-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cyan-300/45';
 const TRACK_ACTION_STYLE = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center' };
 const TRACK_DIVIDER_STYLE = { borderColor: 'rgba(38, 38, 38, 0.58)' };
 const TRACK_ROW_STYLE = { borderBottomColor: 'rgba(38, 38, 38, 0.58)' };
-const TRACK_ICON_CLASS = {
-    indigo: 'text-indigo-300/85',
-    purple: 'text-purple-300/85',
-    cyan: 'text-cyan-300/85',
-    amber: 'text-amber-300/85',
-    emerald: 'text-emerald-300/85',
-};
 const TRACK_LABEL_CLASS = {
-    indigo: 'text-indigo-300/75',
-    purple: 'text-purple-300/75',
-    cyan: 'text-cyan-300/75',
-    amber: 'text-amber-300/75',
-    emerald: 'text-emerald-300/75',
+    indigo: 'text-indigo-200',
+    purple: 'text-purple-200',
+    cyan: 'text-cyan-200',
+    amber: 'text-amber-200',
+    emerald: 'text-emerald-200',
+};
+const TRACK_ACCENT_CLASS = {
+    indigo: 'bg-indigo-300/80',
+    purple: 'bg-purple-300/80',
+    cyan: 'bg-cyan-300/80',
+    amber: 'bg-amber-300/80',
+    emerald: 'bg-emerald-300/80',
 };
 
 const TRACK_CONFIG = {
-    video:  { id: 'video-main', height: 64,  label: 'Video',  icon: Film,     color: 'indigo',  bgActive: 'bg-indigo-500/5',  borderColor: 'border-indigo-500/20', canMute: false },
-    transitions: { id: 'transition-main', height: 52, label: 'Effet', icon: Sparkles, color: 'purple', bgActive: 'bg-purple-500/5', borderColor: 'border-purple-500/20', canMute: false },
-    effects: { id: 'effect-main', height: 40, label: 'Filtres', icon: SlidersHorizontal, color: 'cyan', bgActive: 'bg-cyan-500/5', borderColor: 'border-cyan-500/20', canMute: false },
-    text:   { id: 'text-main', height: 48,  label: 'Texte',  icon: Type,     color: 'amber',   bgActive: 'bg-amber-500/5',   borderColor: 'border-amber-500/20', canMute: false, role: 'text' },
-    audio:  { id: 'audio-main', height: 48,  label: 'Audio',  icon: Volume2,  color: 'emerald', bgActive: 'bg-emerald-500/5', borderColor: 'border-emerald-500/20', canHide: false },
-    music:  { id: 'music-main', height: 48,  label: 'Musique', icon: Music,   color: 'purple',  bgActive: 'bg-purple-500/5',  borderColor: 'border-purple-500/20', canHide: false },
+    video:  { id: 'video-main', height: 64,  label: 'Video', color: 'indigo', bgActive: 'bg-indigo-500/5', borderColor: 'border-indigo-500/20', canMute: false },
+    transitions: { id: 'transition-main', height: 52, label: 'Effet', color: 'purple', bgActive: 'bg-purple-500/5', borderColor: 'border-purple-500/20', canMute: false },
+    effects: { id: 'effect-main', height: 40, label: 'Filtres', color: 'cyan', bgActive: 'bg-cyan-500/5', borderColor: 'border-cyan-500/20', canMute: false },
+    text:   { id: 'text-main', height: 48,  label: 'Texte', color: 'amber', bgActive: 'bg-amber-500/5', borderColor: 'border-amber-500/20', canMute: false, role: 'text' },
+    audio:  { id: 'audio-main', height: 48,  label: 'Audio', color: 'emerald', bgActive: 'bg-emerald-500/5', borderColor: 'border-emerald-500/20', canHide: false },
+    music:  { id: 'music-main', height: 48,  label: 'Musique', color: 'purple', bgActive: 'bg-purple-500/5', borderColor: 'border-purple-500/20', canHide: false },
 };
 const PROTECTED_TRACK_IDS = new Set(Object.values(TRACK_CONFIG).map(track => track.id));
 
@@ -49,6 +50,7 @@ const Timeline = ({ onImportClick }) => {
         selectedTransitionId, setSelectedTransitionId,
         selectedAudioTrackId, setSelectedAudioTrackId,
         currentTime, reorderClips, updateClip,
+        removeClip, removeTransitionItem, removeTextOverlay, removeAudioTrack,
         updateTimelineItem,
         tracks, setTrackState, addTimelineTrack, removeTimelineTrack, snapEnabled, setSnapEnabled,
         beginHistoryTransaction, commitHistoryTransaction,
@@ -132,6 +134,7 @@ const Timeline = ({ onImportClick }) => {
     const [activeTrim, setActiveTrim] = useState(null);
     const [dropIndicatorIndex, setDropIndicatorIndex] = useState(null);
     const [snapPreview, setSnapPreview] = useState(null);
+    const [quickDropPreview, setQuickDropPreview] = useState(null);
     const timelineModel = useMemo(() => buildTimelineModel({
         clips,
         transitions,
@@ -200,6 +203,11 @@ const Timeline = ({ onImportClick }) => {
         if (selectedAudioTrack) return { kind: 'audio', item: selectedAudioTrack, label: 'Musique' };
         return null;
     }, [selectedAudioTrack, selectedText, selectedTransition]);
+    const selectedDeleteTarget = useMemo(() => {
+        if (selectedTimelineItem) return selectedTimelineItem;
+        if (selectedClip) return { kind: 'clip', item: selectedClip, label: 'Clip' };
+        return null;
+    }, [selectedClip, selectedTimelineItem]);
     const snapPoints = useMemo(() => buildTimelineSnapPoints({
         clips,
         transitions,
@@ -433,6 +441,78 @@ const Timeline = ({ onImportClick }) => {
     const handlePanEnd = useCallback((e) => {
         panRef.current = null;
     }, []);
+
+    const getTimelineDropTime = useCallback((event) => {
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return currentTime;
+        const x = event.clientX - rect.left - TRACK_HEADER_WIDTH + scrollX;
+        return Math.max(0, Math.min(totalDuration, x / pps));
+    }, [currentTime, pps, scrollX, totalDuration]);
+
+    const handleQuickToolDragOver = useCallback((event) => {
+        if (!Array.from(event.dataTransfer?.types || []).includes(QUICK_TOOL_TRANSFER_TYPE)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = 'copy';
+        const startTime = getTimelineDropTime(event);
+        const trackArea = event.target.closest('[data-track-area]')?.dataset.trackArea || 'timeline';
+        setQuickDropPreview({ time: startTime, label: trackArea.split(':')[0] });
+    }, [getTimelineDropTime]);
+
+    const handleQuickToolDrop = useCallback((event) => {
+        if (!Array.from(event.dataTransfer?.types || []).includes(QUICK_TOOL_TRANSFER_TYPE)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const tool = parseQuickToolPayload(event.dataTransfer.getData(QUICK_TOOL_TRANSFER_TYPE));
+        const startTime = getTimelineDropTime(event);
+        applyQuickToolToTimeline(useVideoStore, tool, { startTime });
+        setQuickDropPreview(null);
+    }, [getTimelineDropTime]);
+
+    const handleQuickToolDragLeave = useCallback((event) => {
+        if (containerRef.current?.contains(event.relatedTarget)) return;
+        setQuickDropPreview(null);
+    }, []);
+
+    const handleDeleteSelected = useCallback(() => {
+        if (selectedTimelineItem?.kind === 'transition') {
+            removeTransitionItem(selectedTimelineItem.item.id);
+            return;
+        }
+        if (selectedTimelineItem?.kind === 'text') {
+            removeTextOverlay(selectedTimelineItem.item.id);
+            return;
+        }
+        if (selectedTimelineItem?.kind === 'audio') {
+            removeAudioTrack(selectedTimelineItem.item.id);
+            return;
+        }
+        if (selectedClip?.id) {
+            removeClip(selectedClip.id);
+        }
+    }, [removeAudioTrack, removeClip, removeTextOverlay, removeTransitionItem, selectedClip, selectedTimelineItem]);
+
+    const handleSelectedClipSpeed = useCallback((speed) => {
+        if (!selectedClip?.id) return;
+        if (isTrackLocked('video')) {
+            notifyTimelineEditRejected('track-locked', 'Piste video verrouillee: ralenti ignore.');
+            return;
+        }
+        updateClip(selectedClip.id, { speed }, { history: true });
+    }, [isTrackLocked, notifyTimelineEditRejected, selectedClip, updateClip]);
+
+    const handleSelectedClipRotation = useCallback((delta) => {
+        if (!selectedClip?.id) return;
+        if (isTrackLocked('video')) {
+            notifyTimelineEditRejected('track-locked', 'Piste video verrouillee: rotation ignoree.');
+            return;
+        }
+        const currentRotation = Number.isFinite(Number(selectedClip.orientationRotation))
+            ? Number(selectedClip.orientationRotation)
+            : 0;
+        const orientationRotation = ((currentRotation + delta) % 360 + 360) % 360;
+        updateClip(selectedClip.id, { orientationRotation, orientationSource: 'manual' }, { history: true });
+    }, [isTrackLocked, notifyTimelineEditRejected, selectedClip, updateClip]);
 
     const updateSelectedClipTimecode = useCallback((field, value) => {
         if (!selectedClip) return;
@@ -671,6 +751,77 @@ const Timeline = ({ onImportClick }) => {
                 </button>
             )}
 
+            <div className="flex min-h-9 items-center justify-between gap-3 border-b border-neutral-800 bg-neutral-950 px-3" style={{ borderBottomColor: TRACK_DIVIDER_STYLE.borderColor }}>
+                <div className="flex min-w-0 items-center gap-2">
+                    <span className="text-[8px] font-mono uppercase tracking-widest text-neutral-600">Timeline VibeCut</span>
+                    <span className="h-3 w-px bg-neutral-800" />
+                    <span className="truncate text-[9px] font-mono uppercase tracking-widest text-neutral-400">
+                        {selectedDeleteTarget ? `${selectedDeleteTarget.label}: ${selectedDeleteTarget.item.name || selectedDeleteTarget.item.content || selectedDeleteTarget.item.id}` : 'Aucune selection'}
+                    </span>
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                    <span className="hidden text-[8px] font-mono uppercase tracking-widest text-neutral-600 md:inline">Rotation</span>
+                    <button
+                        type="button"
+                        data-testid="timeline-rotate-left"
+                        disabled={!selectedClip}
+                        onClick={() => handleSelectedClipRotation(-90)}
+                        aria-label="Tourner le clip selectionne vers la gauche"
+                        title="Tourner a gauche"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-sm border border-neutral-800 bg-neutral-900/50 text-neutral-400 transition hover:border-cyan-400/35 hover:text-cyan-200 disabled:cursor-not-allowed disabled:border-neutral-800 disabled:bg-neutral-900/40 disabled:text-neutral-600"
+                    >
+                        <RotateCcw size={12} />
+                    </button>
+                    <button
+                        type="button"
+                        data-testid="timeline-rotate-right"
+                        disabled={!selectedClip}
+                        onClick={() => handleSelectedClipRotation(90)}
+                        aria-label="Tourner le clip selectionne vers la droite"
+                        title="Tourner a droite"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-sm border border-neutral-800 bg-neutral-900/50 text-neutral-400 transition hover:border-cyan-400/35 hover:text-cyan-200 disabled:cursor-not-allowed disabled:border-neutral-800 disabled:bg-neutral-900/40 disabled:text-neutral-600"
+                    >
+                        <RotateCw size={12} />
+                    </button>
+                    <span className="h-4 w-px bg-neutral-800" />
+                    <span className="hidden text-[8px] font-mono uppercase tracking-widest text-neutral-600 sm:inline">Ralenti</span>
+                    {[
+                        { speed: 0.25, label: '25%', testId: 'timeline-speed-0-25' },
+                        { speed: 0.5, label: '50%', testId: 'timeline-speed-0-5' },
+                        { speed: 1, label: 'Normal', testId: 'timeline-speed-1' },
+                    ].map((preset) => {
+                        const active = selectedClip && Math.abs((selectedClip.speed || 1) - preset.speed) < 0.001;
+                        return (
+                            <button
+                                key={preset.speed}
+                                type="button"
+                                data-testid={preset.testId}
+                                disabled={!selectedClip}
+                                aria-pressed={Boolean(active)}
+                                onClick={() => handleSelectedClipSpeed(preset.speed)}
+                                className={`inline-flex h-7 items-center rounded-sm border px-2 text-[8px] font-mono uppercase tracking-widest transition disabled:cursor-not-allowed disabled:border-neutral-800 disabled:bg-neutral-900/40 disabled:text-neutral-600 ${
+                                    active
+                                        ? 'border-indigo-400/45 bg-indigo-500/15 text-indigo-200'
+                                        : 'border-neutral-800 bg-neutral-900/50 text-neutral-400 hover:border-indigo-400/35 hover:text-indigo-200'
+                                }`}
+                            >
+                                {preset.label}
+                            </button>
+                        );
+                    })}
+                    <button
+                        type="button"
+                        data-testid="timeline-delete-selected"
+                        disabled={!selectedDeleteTarget}
+                        onClick={handleDeleteSelected}
+                        className="inline-flex h-7 items-center gap-1.5 rounded-sm border border-red-500/25 bg-red-500/[0.06] px-2.5 text-[8px] font-mono uppercase tracking-widest text-red-200 transition hover:border-red-400/45 hover:bg-red-500/[0.11] disabled:cursor-not-allowed disabled:border-neutral-800 disabled:bg-neutral-900/40 disabled:text-neutral-600"
+                    >
+                        <Trash2 size={11} />
+                        Supprimer
+                    </button>
+                </div>
+            </div>
+
             {/* ── Ruler ── */}
             <div className="flex h-7 border-b border-neutral-800" style={{ borderBottomColor: TRACK_DIVIDER_STYLE.borderColor }}>
                 {/* Header spacer */}
@@ -697,6 +848,9 @@ const Timeline = ({ onImportClick }) => {
                 onPointerMove={handlePanMove}
                 onPointerUp={handlePanEnd}
                 onPointerLeave={handlePanEnd}
+                onDragOver={handleQuickToolDragOver}
+                onDrop={handleQuickToolDrop}
+                onDragLeave={handleQuickToolDragLeave}
             >
                 {/* ── Fixed track headers (left column) ── */}
                 <div
@@ -704,7 +858,6 @@ const Timeline = ({ onImportClick }) => {
                     style={{ width: `${TRACK_HEADER_WIDTH}px`, minHeight: `${totalTrackHeight}px`, borderRightColor: TRACK_DIVIDER_STYLE.borderColor }}
                 >
                     {orderedTrackEntries.map(([key, config]) => {
-                        const Icon = config.icon;
                         const role = config.role || key;
                         const track = getTrackStateById(config.id);
                         const visible = track.visible !== false;
@@ -721,8 +874,8 @@ const Timeline = ({ onImportClick }) => {
                         return (
                             <div
                                 key={key}
-                                className={`flex flex-col items-center justify-center gap-1 border-b border-neutral-800/60 cursor-pointer px-1
-                                    hover:bg-neutral-900/70 transition ${hasItems ? '' : 'opacity-75'} ${!visible || muted ? 'bg-neutral-900/80' : ''}`}
+                                className={`relative flex flex-col items-stretch justify-center gap-1.5 border-b border-neutral-800/60 cursor-pointer px-2
+                                    hover:bg-neutral-900/75 transition ${hasItems ? '' : 'opacity-90'} ${!visible || muted ? 'bg-neutral-900/85' : ''}`}
                                 style={{ height: `${config.height}px`, ...TRACK_ROW_STYLE }}
                                 data-track-header={key}
                                 data-track-order={config.dataOrder ?? config.order}
@@ -736,24 +889,30 @@ const Timeline = ({ onImportClick }) => {
                                     else if (role === 'video') onImportClick?.();
                                 }}
                             >
-                                <Icon size={14} className={TRACK_ICON_CLASS[config.color] || 'text-neutral-300/85'} />
-                                <span className={`max-w-full truncate text-[8px] font-mono uppercase tracking-wide ${TRACK_LABEL_CLASS[config.color] || 'text-neutral-300/75'}`}>
-                                    {config.label}
-                                </span>
-                                <div className="mt-0.5 flex h-4 items-center justify-center gap-0.5">
+                                <span
+                                    aria-hidden="true"
+                                    className={`absolute left-1.5 top-1/2 h-7 w-px -translate-y-1/2 rounded-full ${TRACK_ACCENT_CLASS[config.color] || 'bg-neutral-500/70'} ${!visible || muted ? 'opacity-35' : 'opacity-80'}`}
+                                />
+                                <div className="flex min-w-0 items-center justify-center">
+                                    <span className={`block w-full truncate text-center text-[9px] font-mono font-semibold uppercase leading-none tracking-wide ${TRACK_LABEL_CLASS[config.color] || 'text-neutral-100'} ${!visible || muted ? 'opacity-60' : ''}`}>
+                                        {config.label}
+                                    </span>
+                                </div>
+                                <div className="flex h-5 w-full items-center justify-center gap-1.5">
                                     {config.canHide !== false && (
                                         <button
                                             type="button"
                                             aria-label={`${visible ? 'Masquer' : 'Afficher'} piste ${config.label}`}
+                                            title={`${visible ? 'Masquer' : 'Afficher'} piste ${config.label}`}
                                             data-testid={`track-${config.id}-visible`}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 setTrackState(config.id, { visible: !visible });
                                             }}
                                             style={TRACK_ACTION_STYLE}
-                                            className={`${TRACK_ACTION_BASE} ${visible ? '' : 'bg-red-500/10 text-red-300 hover:bg-red-500/15 hover:text-red-200'}`}
+                                            className={`${TRACK_ACTION_BASE} ${visible ? '' : 'bg-red-500/15 text-red-200 hover:bg-red-500/20 hover:text-red-100'}`}
                                         >
-                                            {visible ? <Eye size={10} /> : <EyeOff size={10} />}
+                                            {visible ? <Eye size={11} /> : <EyeOff size={11} />}
                                         </button>
                                     )}
                                     {canAddTimeline && (
@@ -773,7 +932,7 @@ const Timeline = ({ onImportClick }) => {
                                             style={TRACK_ACTION_STYLE}
                                             className={`${TRACK_ACTION_BASE} ${TRACK_LABEL_CLASS[config.color] || 'text-neutral-300/80'} hover:bg-neutral-800/80 hover:text-white`}
                                         >
-                                            <Plus size={10} />
+                                            <Plus size={11} />
                                         </button>
                                     )}
                                     {canDeleteTimeline && (
@@ -788,38 +947,40 @@ const Timeline = ({ onImportClick }) => {
                                                 removeTimelineTrack(config.id);
                                             }}
                                             style={TRACK_ACTION_STYLE}
-                                            className={`${TRACK_ACTION_BASE} hover:bg-red-500/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-neutral-900/60 disabled:hover:text-neutral-500`}
+                                            className={`${TRACK_ACTION_BASE} hover:bg-red-500/12 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-neutral-900/45 disabled:hover:text-neutral-500`}
                                         >
-                                            <Trash2 size={9} />
+                                            <Trash2 size={10} />
                                         </button>
                                     )}
                                     {config.canMute !== false && (
                                         <button
                                             type="button"
                                             aria-label={`${muted ? 'Activer le son' : 'Muter'} piste ${config.label}`}
+                                            title={`${muted ? 'Activer le son' : 'Muter'} piste ${config.label}`}
                                             data-testid={`track-${config.id}-mute`}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 setTrackState(config.id, { muted: !muted });
                                             }}
                                             style={TRACK_ACTION_STYLE}
-                                            className={`${TRACK_ACTION_BASE} ${muted ? 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/15 hover:text-amber-200' : ''}`}
+                                            className={`${TRACK_ACTION_BASE} ${muted ? 'bg-amber-500/15 text-amber-200 hover:bg-amber-500/20 hover:text-amber-100' : ''}`}
                                         >
-                                            {muted ? <VolumeX size={10} /> : <Volume2 size={10} />}
+                                            {muted ? <VolumeX size={11} /> : <Volume2 size={11} />}
                                         </button>
                                     )}
                                     <button
                                         type="button"
                                         aria-label={`${locked ? 'Deverrouiller' : 'Verrouiller'} piste ${config.label}`}
+                                        title={`${locked ? 'Deverrouiller' : 'Verrouiller'} piste ${config.label}`}
                                         data-testid={`track-${config.id}-lock`}
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             setTrackState(config.id, { locked: !locked });
                                         }}
                                         style={TRACK_ACTION_STYLE}
-                                        className={`${TRACK_ACTION_BASE} ${locked ? 'bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/15 hover:text-cyan-200' : ''}`}
+                                        className={`${TRACK_ACTION_BASE} ${locked ? 'bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/20 hover:text-cyan-100' : ''}`}
                                     >
-                                        {locked ? <Lock size={10} /> : <Unlock size={10} />}
+                                        {locked ? <Lock size={11} /> : <Unlock size={11} />}
                                     </button>
                                 </div>
                             </div>
@@ -1221,6 +1382,17 @@ const Timeline = ({ onImportClick }) => {
                         >
                             <span className="absolute top-1 left-1.5 rounded-sm border border-cyan-400/35 bg-neutral-950/95 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-widest text-cyan-200 whitespace-nowrap">
                                 Snap {snapPreview.label}
+                            </span>
+                        </div>
+                    )}
+                    {quickDropPreview && (
+                        <div
+                            data-testid="timeline-quick-drop-indicator"
+                            className="absolute top-0 bottom-0 z-30 w-px bg-fuchsia-300/90 shadow-[0_0_12px_rgba(240,171,252,0.72)] pointer-events-none"
+                            style={{ left: `${quickDropPreview.time * pps - scrollX}px` }}
+                        >
+                            <span className="absolute top-8 left-1.5 rounded-sm border border-fuchsia-400/35 bg-neutral-950/95 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-widest text-fuchsia-100 whitespace-nowrap">
+                                Drop {quickDropPreview.label}
                             </span>
                         </div>
                     )}

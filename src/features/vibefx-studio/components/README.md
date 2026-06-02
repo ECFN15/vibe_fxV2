@@ -4,7 +4,7 @@ Ce dossier contient les composants React réutilisables et les panneaux d'interf
 
 ## Structure
 
-*   `CanvasArea.jsx`: La zone principale de rendu (Canvas). Gère l'affichage des images, du texte, des assets et les interactions souris (drag & drop).
+*   `canvas/CanvasWorkspace.jsx`: La zone principale de rendu (Canvas). Gere l affichage des images, du texte, des assets et les interactions souris (drag & drop).
 *   `Header.jsx`: Barre de navigation supérieure (Logo, Tabs, Mode Sombre, Export).
 *   `Sidebar.jsx`: Conteneur principal de la barre latérale. Intègre les panneaux spécifiques.
 

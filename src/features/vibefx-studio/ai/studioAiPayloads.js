@@ -1,6 +1,5 @@
 const VIEW_LABELS = Object.freeze({
   studio: 'Studio',
-  fusion: 'Fusion',
   layout: 'Layout',
   library: 'Library',
   'vision-pro': 'Vision',

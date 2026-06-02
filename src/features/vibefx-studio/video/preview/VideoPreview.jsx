@@ -15,6 +15,40 @@ export function loadGoogleFont(fontName) {
     document.head.appendChild(link);
 }
 
+function clamp01(value) {
+    return Math.max(0, Math.min(1, value));
+}
+
+function easeOutCubic(value) {
+    return 1 - Math.pow(1 - clamp01(value), 3);
+}
+
+function resolvePreviewFrameRate(presetFps, sourceFpsMax, requestedFrameRate) {
+    if (requestedFrameRate === 'auto') return null;
+    const requested = Number(requestedFrameRate);
+    if (Number.isFinite(requested) && requested > 0) return Math.min(60, Math.max(1, Math.round(requested)));
+    const base = Number.isFinite(Number(presetFps)) ? Number(presetFps) : 30;
+    const source = Number.isFinite(Number(sourceFpsMax)) ? Number(sourceFpsMax) : 0;
+    return Math.min(60, Math.max(base, source || base));
+}
+
+function drawTrackedText(ctx, text, x, y, tracking = 0) {
+    if (!tracking) {
+        ctx.fillText(text, x, y);
+        return;
+    }
+    const chars = Array.from(text);
+    const widths = chars.map(char => ctx.measureText(char).width);
+    const totalWidth = widths.reduce((sum, width) => sum + width, 0) + Math.max(0, chars.length - 1) * tracking;
+    let cursor = x - totalWidth / 2;
+    ctx.textAlign = 'left';
+    chars.forEach((char, index) => {
+        ctx.fillText(char, cursor, y);
+        cursor += widths[index] + tracking;
+    });
+    ctx.textAlign = 'center';
+}
+
 // Draw text overlays on canvas
 export function drawTextOverlays(canvas, textOverlays, currentTime, selectedTextId) {
     if (!canvas || !textOverlays || textOverlays.length === 0) return;
@@ -31,24 +65,30 @@ export function drawTextOverlays(canvas, textOverlays, currentTime, selectedText
         // Animation alpha (in)
         let alpha = 1;
         const fadeLen = 0.15;
+        const introProgress = clamp01(progress / fadeLen);
+        const outroProgress = clamp01((progress - (1 - fadeLen)) / fadeLen);
+        const introEase = easeOutCubic(introProgress);
+        const outroEase = easeOutCubic(outroProgress);
         if (text.animation === 'fade' || text.animation === 'none') {
             if (text.animation === 'fade') {
-                if (progress < fadeLen) alpha = progress / fadeLen;
+                if (progress < fadeLen) alpha = introProgress;
             }
         } else if (text.animation === 'scale') {
-            if (progress < fadeLen) alpha = progress / fadeLen;
-        } else if (text.animation === 'slide-up' || text.animation === 'slide-down') {
-            if (progress < fadeLen) alpha = progress / fadeLen;
+            if (progress < fadeLen) alpha = introProgress;
+        } else if (['slide-up', 'slide-down', 'reveal-up', 'wipe-mask', 'neon-scan', 'tracking-in', 'letter-pop'].includes(text.animation)) {
+            if (progress < fadeLen) alpha = introProgress;
         } else if (text.animation === 'typewriter') {
             // typewriter: reveal chars progressively in first 30%
             alpha = 1;
         } else if (text.animation === 'blur-in') {
-            if (progress < fadeLen) alpha = progress / fadeLen;
+            if (progress < fadeLen) alpha = introProgress;
         }
 
         // Animation alpha (out)
         if (text.animationOut === 'fade' || !text.animationOut) {
             if (progress > 1 - fadeLen) alpha = Math.min(alpha, (1 - progress) / fadeLen);
+        } else if (text.animationOut !== 'none' && progress > 1 - fadeLen) {
+            alpha = Math.min(alpha, 1 - outroProgress);
         }
 
         const fontSize = Math.round((text.fontSize || 48) * (w / 1920));
@@ -65,15 +105,50 @@ export function drawTextOverlays(canvas, textOverlays, currentTime, selectedText
         let px = (text.x ?? 0.5) * w;
         let py = (text.y ?? 0.5) * h;
         let scale = 1;
+        let rotation = 0;
+        let tracking = 0;
+        let clipMask = null;
+        let glitchOffset = 0;
 
         if (text.animation === 'scale' && progress < 0.2) {
-            scale = 0.5 + (progress / 0.2) * 0.5;
+            scale = 0.5 + easeOutCubic(progress / 0.2) * 0.5;
         }
         if (text.animation === 'slide-up' && progress < 0.15) {
-            py += (1 - progress / 0.15) * fontSize * 2;
+            py += (1 - introEase) * fontSize * 2;
         }
         if (text.animation === 'slide-down' && progress < 0.15) {
-            py -= (1 - progress / 0.15) * fontSize * 2;
+            py -= (1 - introEase) * fontSize * 2;
+        }
+        if (text.animation === 'reveal-up' && progress < 0.2) {
+            py += (1 - easeOutCubic(progress / 0.2)) * fontSize * 1.25;
+            clipMask = { x: px - fontSize * 8, y: py - fontSize * 0.72, width: fontSize * 16, height: fontSize * 1.7 };
+        }
+        if (text.animation === 'wipe-mask' && progress < 0.22) {
+            const reveal = easeOutCubic(progress / 0.22);
+            clipMask = { x: px - fontSize * 8, y: py - fontSize, width: fontSize * 16 * reveal, height: fontSize * 2 };
+        }
+        if (text.animation === 'neon-scan' && progress < 0.24) {
+            tracking = (1 - easeOutCubic(progress / 0.24)) * fontSize * 0.18;
+        }
+        if (text.animation === 'tracking-in' && progress < 0.3) {
+            tracking = (1 - easeOutCubic(progress / 0.3)) * fontSize * 0.42;
+        }
+        if (text.animation === 'letter-pop' && progress < 0.18) {
+            scale = 0.72 + easeOutCubic(progress / 0.18) * 0.28;
+            rotation = (1 - easeOutCubic(progress / 0.18)) * -0.05;
+        }
+
+        if (progress > 1 - fadeLen) {
+            if (text.animationOut === 'slide-up') py -= outroEase * fontSize * 2;
+            if (text.animationOut === 'slide-down') py += outroEase * fontSize * 2;
+            if (text.animationOut === 'scale') scale = Math.max(0.2, 1 - outroEase * 0.45);
+            if (text.animationOut === 'wipe-out') {
+                clipMask = { x: px - fontSize * 8, y: py - fontSize, width: fontSize * 16 * (1 - outroEase), height: fontSize * 2 };
+            }
+            if (text.animationOut === 'glitch-out') {
+                glitchOffset = Math.sin(outroEase * Math.PI * 10) * fontSize * 0.16;
+                rotation = Math.sin(outroEase * Math.PI * 6) * 0.015;
+            }
         }
 
         ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px "${fontFamily}", sans-serif`;
@@ -84,9 +159,19 @@ export function drawTextOverlays(canvas, textOverlays, currentTime, selectedText
         ctx.shadowColor = 'rgba(0,0,0,0.8)';
         ctx.shadowBlur = Math.round(fontSize * 0.15);
         ctx.shadowOffsetY = Math.round(fontSize * 0.05);
+        if (text.animation === 'blur-in' && progress < 0.2) {
+            ctx.filter = `blur(${Math.round((1 - easeOutCubic(progress / 0.2)) * 10)}px)`;
+        }
 
-        if (scale !== 1) {
+        if (clipMask) {
+            ctx.beginPath();
+            ctx.rect(clipMask.x, clipMask.y, clipMask.width, clipMask.height);
+            ctx.clip();
+        }
+
+        if (scale !== 1 || rotation !== 0) {
             ctx.translate(px, py);
+            ctx.rotate(rotation);
             ctx.scale(scale, scale);
             px = 0;
             py = 0;
@@ -98,7 +183,33 @@ export function drawTextOverlays(canvas, textOverlays, currentTime, selectedText
             displayText = displayText.slice(0, charCount);
         }
 
-        ctx.fillText(displayText, px, py);
+        drawTrackedText(ctx, displayText, px + glitchOffset, py, tracking);
+
+        if (text.animation === 'neon-scan' && progress < 0.35) {
+            const scan = easeOutCubic(progress / 0.35);
+            ctx.save();
+            ctx.globalCompositeOperation = 'screen';
+            ctx.shadowColor = '#00e5ff';
+            ctx.shadowBlur = Math.round(fontSize * 0.5);
+            ctx.strokeStyle = `rgba(0,229,255,${1 - scan})`;
+            ctx.lineWidth = Math.max(2, fontSize * 0.04);
+            ctx.beginPath();
+            ctx.moveTo(px - fontSize * 6 + fontSize * 12 * scan, py - fontSize);
+            ctx.lineTo(px - fontSize * 6 + fontSize * 12 * scan, py + fontSize);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        if (text.animationOut === 'glitch-out' && progress > 1 - fadeLen) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'screen';
+            ctx.globalAlpha = Math.max(0, 1 - outroProgress) * 0.45;
+            ctx.fillStyle = '#00e5ff';
+            drawTrackedText(ctx, displayText, px - glitchOffset * 1.6, py, tracking);
+            ctx.fillStyle = '#ff315f';
+            drawTrackedText(ctx, displayText, px + glitchOffset * 1.6, py, tracking);
+            ctx.restore();
+        }
 
         // Selection indicator
         if (text.id === selectedTextId) {
@@ -173,13 +284,14 @@ const VideoPreview = () => {
     const [canvasCssSize, setCanvasCssSize] = useState({ width: 0, height: 0 });
     const dragRef = useRef(null);
     const renderRequestRef = useRef(0);
+    const lastPlaybackStoreUpdateRef = useRef(0);
 
     const {
         clips, transitions, transitionItems, isPlaying, totalDuration,
         playbackSpeed, setCurrentTime, textOverlays,
         selectedTextId, setSelectedTextId, updateTextOverlay,
         audioTracks, tracks, setPreviewCanvas, setPreviewEngine, sequencePreset,
-        filterPreviewBypassClipId
+        filterPreviewBypassClipId, exportFrameRate
     } = useVideoStore();
     const preset = EXPORT_PRESETS[sequencePreset] || EXPORT_PRESETS.youtube;
     const renderPlan = useMemo(() => resolveTimelineRenderPlan({
@@ -196,6 +308,15 @@ const VideoPreview = () => {
     const renderTextOverlays = renderPlan.textOverlays;
     const renderAudioTracks = renderPlan.audioTracks;
     const playbackClips = useMemo(() => applyFilterPreviewBypass(renderPlan.playbackClips, filterPreviewBypassClipId), [filterPreviewBypassClipId, renderPlan.playbackClips]);
+    const sourceFpsMax = useMemo(() => {
+        const fpsValues = renderClips
+            .map((clip) => Number(clip.sourceFrameRate || clip.importFrameRate || 0))
+            .filter((fps) => Number.isFinite(fps) && fps > 0);
+        return fpsValues.length ? Math.min(60, Math.max(...fpsValues.map((fps) => Math.round(fps)))) : 0;
+    }, [renderClips]);
+    const previewFrameRate = useMemo(() => (
+        resolvePreviewFrameRate(preset.fps, sourceFpsMax, exportFrameRate)
+    ), [exportFrameRate, preset.fps, sourceFpsMax]);
 
     // Init PlaybackEngine
     useEffect(() => {
@@ -247,8 +368,12 @@ const VideoPreview = () => {
             engineRef.current.startPlayback(
                 playbackClips, transitions,
                 () => useVideoStore.getState().currentTime,
-                (t) => {
-                    setCurrentTime(t);
+                (t, options = {}) => {
+                    const now = performance.now();
+                    if (options.force || now - lastPlaybackStoreUpdateRef.current >= 90) {
+                        lastPlaybackStoreUpdateRef.current = now;
+                        setCurrentTime(t);
+                    }
                     if (canvasRef.current) {
                         const state = useVideoStore.getState();
                         const plan = resolveTimelineRenderPlan(state);
@@ -258,13 +383,14 @@ const VideoPreview = () => {
                 totalDuration,
                 playbackSpeed,
                 renderAudioTracks,
-                renderTransitions
+                renderTransitions,
+                { previewFrameRate }
             );
         } else {
             engineRef.current.stopPlayback();
         }
         return () => { engineRef.current?.stopPlayback(); };
-    }, [isPlaying, renderClips.length, playbackClips, transitions, renderTransitions, totalDuration, playbackSpeed, renderAudioTracks, setCurrentTime]);
+    }, [isPlaying, renderClips.length, playbackClips, transitions, renderTransitions, totalDuration, playbackSpeed, renderAudioTracks, previewFrameRate, setCurrentTime]);
 
     // Render on seek
     useEffect(() => {
@@ -311,8 +437,8 @@ const VideoPreview = () => {
             let w = rect.width;
             let h = w / aspect;
             if (h > rect.height) { h = rect.height; w = h * aspect; }
-            canvasRef.current.width = Math.round(w * window.devicePixelRatio);
-            canvasRef.current.height = Math.round(h * window.devicePixelRatio);
+            canvasRef.current.width = Math.round(preset.width);
+            canvasRef.current.height = Math.round(preset.height);
             canvasRef.current.style.width = `${Math.round(w)}px`;
             canvasRef.current.style.height = `${Math.round(h)}px`;
             setCanvasCssSize({ width: Math.round(w), height: Math.round(h) });
@@ -421,10 +547,11 @@ const VideoPreview = () => {
         <div ref={containerRef} className="relative flex-1 flex items-center justify-center bg-black overflow-hidden group">
             <canvas
                 ref={canvasRef}
-                className={`max-w-full max-h-full transition-opacity duration-300 ${!hasContent ? 'opacity-0' : 'opacity-100'} ring-1 ring-neutral-800/30 shadow-2xl bg-black rounded-sm`}
+                className={`max-w-full max-h-full transition-opacity duration-300 ${!hasContent ? 'opacity-0' : 'opacity-100'} bg-black`}
                 style={{
                     aspectRatio: `${preset.width} / ${preset.height}`,
                     cursor: isDraggingText ? 'grabbing' : (selectedTextId ? 'grab' : 'default'),
+                    imageRendering: 'auto',
                 }}
                 onPointerDown={handleCanvasPointerDown}
                 onPointerMove={handleCanvasPointerMove}
@@ -435,7 +562,7 @@ const VideoPreview = () => {
             {hasContent && showSafeArea && canvasCssSize.width > 0 && (
                 <div
                     data-testid="video-safe-area-overlay"
-                    className="absolute pointer-events-none rounded-sm border border-cyan-300/35"
+                    className="absolute pointer-events-none"
                     style={{
                         width: `${canvasCssSize.width}px`,
                         height: `${canvasCssSize.height}px`,

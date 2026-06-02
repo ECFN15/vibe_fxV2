@@ -6,7 +6,7 @@ import { formatTimeFull } from '../engine/VideoEngine';
 const PreviewControls = () => {
     const {
         isPlaying, togglePlay, currentTime, totalDuration,
-        seekTo, playbackSpeed, setPlaybackSpeed, clips
+        seekTo, playbackSpeed, setPlaybackSpeed, clips, previewCanvas
     } = useVideoStore();
 
     const hasClips = clips.length > 0;
@@ -26,6 +26,14 @@ const PreviewControls = () => {
         const idx = speeds.indexOf(playbackSpeed);
         const next = speeds[(idx + 1) % speeds.length];
         setPlaybackSpeed(next);
+    };
+
+    const openFullscreenPreview = () => {
+        const target = previewCanvas?.closest?.('[data-vibecut-preview-shell]') || previewCanvas?.parentElement || previewCanvas;
+        if (!target?.requestFullscreen) return;
+        target.requestFullscreen().catch((error) => {
+            console.warn('Preview fullscreen failed:', error);
+        });
     };
 
     return (
@@ -98,6 +106,15 @@ const PreviewControls = () => {
                         className="h-11 min-w-[48px] px-2 text-[10px] font-mono text-neutral-500 hover:text-white transition border border-neutral-800 hover:border-neutral-600"
                     >
                         {playbackSpeed}x
+                    </button>
+                    <button
+                        onClick={openFullscreenPreview}
+                        disabled={!hasClips || !previewCanvas}
+                        className="h-11 w-11 flex items-center justify-center text-neutral-400 hover:text-white transition disabled:opacity-30"
+                        aria-label="Agrandir la preview"
+                        title="Agrandir la preview"
+                    >
+                        <Maximize2 size={14} />
                     </button>
                     <button className="h-11 w-11 flex items-center justify-center text-neutral-400 hover:text-white transition" aria-label="Volume preview">
                         <Volume2 size={14} />

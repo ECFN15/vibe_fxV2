@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
     Smartphone, LayoutTemplate, Square, RectangleHorizontal, Sparkles,
     ChevronDown, MousePointer2, Scaling, Palette, Type, Images, Trash2
@@ -130,6 +130,8 @@ export default function LayoutSidebar({
     customEditMode, setCustomEditMode,
     onUpdateCustomZone, onDeleteCustomZone,
 }) {
+    const scrollRef = useRef(null);
+    const accordionRefs = useRef({});
     const isCustomTemplate = activeTemplate.id === 'custom';
     const customPresetId = activeTemplate.customLayout?.presetId;
     const customZonesCount = (activeTemplate.customLayout?.zones || []).filter(zone => !zone.hidden).length;
@@ -174,8 +176,32 @@ export default function LayoutSidebar({
         event.target.value = '';
     };
 
+    useEffect(() => {
+        if (!activeAccordion) return;
+        const scrollNode = scrollRef.current;
+        const targetNode = accordionRefs.current[activeAccordion];
+        if (!scrollNode || !targetNode) return;
+
+        const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        const scrollToActiveAccordion = () => {
+            const scrollRect = scrollNode.getBoundingClientRect();
+            const targetRect = targetNode.getBoundingClientRect();
+            scrollNode.scrollTo({
+                top: scrollNode.scrollTop + targetRect.top - scrollRect.top - 12,
+                behavior: prefersReducedMotion ? 'auto' : 'smooth',
+            });
+        };
+
+        const frame = window.requestAnimationFrame(scrollToActiveAccordion);
+        const timer = window.setTimeout(scrollToActiveAccordion, 340);
+        return () => {
+            window.cancelAnimationFrame(frame);
+            window.clearTimeout(timer);
+        };
+    }, [activeAccordion]);
+
     return (
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-5 animate-in slide-in-from-right-4">
+        <div ref={scrollRef} className="vibefx-sidebar-scroll flex-1 overflow-y-auto custom-scrollbar p-5 animate-in slide-in-from-right-4">
             {/* 1. SELECTION PANEL */}
             {selectedSlotIndex !== null && activeConfig ? (
                 <div className="animate-in slide-in-from-right-4 fade-in duration-200 mb-6">
@@ -315,7 +341,7 @@ export default function LayoutSidebar({
             <div className="flex flex-col gap-3">
 
                 {/* TEXTES ACCORDION */}
-                <div className={`rounded-2xl border overflow-hidden transition-colors ${isDarkMode ? 'border-neutral-800 bg-neutral-900/20' : 'border-gray-200 bg-gray-50/50'}`}>
+                <div ref={(node) => { accordionRefs.current.texts = node; }} className={`rounded-2xl border overflow-hidden transition-colors ${isDarkMode ? 'border-neutral-800 bg-neutral-900/20' : 'border-gray-200 bg-gray-50/50'}`}>
                     <button
                         onClick={() => setActiveAccordion(activeAccordion === 'texts' ? null : 'texts')}
                         className={`w-full flex items-center justify-between p-4 focus:outline-none transition-colors ${activeAccordion === 'texts' ? (isDarkMode ? 'bg-neutral-800/50' : 'bg-gray-100') : 'hover:bg-black/5 dark:hover:bg-white/5'}`}
@@ -350,7 +376,7 @@ export default function LayoutSidebar({
                 </div>
 
                 {/* GEOMETRY ACCORDION */}
-                <div className={`rounded-2xl border overflow-hidden transition-colors ${isDarkMode ? 'border-neutral-800 bg-neutral-900/20' : 'border-gray-200 bg-gray-50/50'}`}>
+                <div ref={(node) => { accordionRefs.current.geometry = node; }} className={`rounded-2xl border overflow-hidden transition-colors ${isDarkMode ? 'border-neutral-800 bg-neutral-900/20' : 'border-gray-200 bg-gray-50/50'}`}>
                     <button
                         onClick={() => setActiveAccordion(activeAccordion === 'geometry' ? null : 'geometry')}
                         className={`w-full flex items-center justify-between p-4 focus:outline-none transition-colors ${activeAccordion === 'geometry' ? (isDarkMode ? 'bg-neutral-800/50' : 'bg-gray-100') : 'hover:bg-black/5 dark:hover:bg-white/5'}`}
@@ -380,7 +406,7 @@ export default function LayoutSidebar({
                 </div>
 
                 {/* TEXTURE ACCORDION */}
-                <div className={`rounded-2xl border overflow-hidden transition-colors ${isDarkMode ? 'border-neutral-800 bg-neutral-900/20' : 'border-gray-200 bg-gray-50/50'}`}>
+                <div ref={(node) => { accordionRefs.current.texture = node; }} className={`rounded-2xl border overflow-hidden transition-colors ${isDarkMode ? 'border-neutral-800 bg-neutral-900/20' : 'border-gray-200 bg-gray-50/50'}`}>
                     <button
                         onClick={() => setActiveAccordion(activeAccordion === 'texture' ? null : 'texture')}
                         className={`w-full flex items-center justify-between p-4 focus:outline-none transition-colors ${activeAccordion === 'texture' ? (isDarkMode ? 'bg-neutral-800/50' : 'bg-gray-100') : 'hover:bg-black/5 dark:hover:bg-white/5'}`}
@@ -409,7 +435,7 @@ export default function LayoutSidebar({
                 </div>
 
                 {/* BACKGROUND ACCORDION */}
-                <div className={`rounded-2xl border overflow-hidden transition-colors ${isDarkMode ? 'border-neutral-800 bg-neutral-900/20' : 'border-gray-200 bg-gray-50/50'}`}>
+                <div ref={(node) => { accordionRefs.current.background = node; }} className={`rounded-2xl border overflow-hidden transition-colors ${isDarkMode ? 'border-neutral-800 bg-neutral-900/20' : 'border-gray-200 bg-gray-50/50'}`}>
                     <button
                         onClick={() => setActiveAccordion(activeAccordion === 'background' ? null : 'background')}
                         className={`w-full flex items-center justify-between p-4 focus:outline-none transition-colors ${activeAccordion === 'background' ? (isDarkMode ? 'bg-neutral-800/50' : 'bg-gray-100') : 'hover:bg-black/5 dark:hover:bg-white/5'}`}

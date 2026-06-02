@@ -9,7 +9,6 @@ import { FORMATS, TEMPLATES, FONT_OPTIONS, PRESET_CATEGORIES, CAMERA_BRANDS } fr
 
 // --- COMPOSANTS ---
 import VisionPanel from './components/panels/VisionPanel';
-import FusionPanel from './components/panels/FusionPanel';
 import StylePanel from './components/panels/StylePanel';
 import MeshGradientPro from './components/panels/MeshGradientPopup';
 import SmoothBlurPopup from './components/panels/SmoothBlurPopup';
@@ -166,7 +165,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
     const [activeFormat, setActiveFormat] = useState(FORMATS[0]);
     const [activeTemplate, setActiveTemplate] = useState(TEMPLATES[0]);
     const [overlayMode, setOverlayMode] = useState('landscape');
-    const [activeAccordion, setActiveAccordion] = useState('texts'); // 'texts', 'geometry', 'texture', 'background'
+    const [activeAccordion, setActiveAccordion] = useState(null); // 'texts', 'geometry', 'texture', 'background'
 
     // Texts & Assets
     const [texts, setTexts] = useState([
@@ -209,28 +208,12 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         reverse: false
     });
 
-    // Studio & Fusion State
+    // Studio State
     const [cropPos, setCropPos] = useState({ x: 0, y: 0 });
     const [cropScale, setCropScale] = useState(1.0);
     const [isCropping, setIsCropping] = useState(false);
     const [cropRatio, setCropRatio] = useState('original');
-    const [overlayImage, setOverlayImage] = useState(null);
-    const [blendMode, setBlendMode] = useState('screen');
-    const [overlayOpacity, setOverlayOpacity] = useState(70);
-    const [overlayPos, setOverlayPos] = useState({ x: 0, y: 0 });
-    const [overlayScale, setOverlayScale] = useState(100);
     const [showGuidelines, setShowGuidelines] = useState(true);
-
-    const [fusionConfig, setFusionConfig] = useState({
-        colors: ['#6366f1', '#a855f7', '#ec4899', '#f43f5e'],
-        noise: 40,
-        maskShape: 'blob1',
-        imageScale: 100,
-        imagePos: { x: 0, y: 0 },
-        blendMode: 'normal',
-        perImageConfigs: {}
-    });
-    const [selectedImgIndex, setSelectedImgIndex] = useState(null);
 
     // System
     const [isDragging, setIsDragging] = useState(false);
@@ -246,7 +229,6 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
     const [instaPreviewUrl, setInstaPreviewUrl] = useState(null);
     const [fileInfo, setFileInfo] = useState(null);
     const [isLibraryModalOpen, setIsLibraryModalOpen] = useState(false);
-    const [libraryModalTarget, setLibraryModalTarget] = useState('foreground'); // 'foreground' | 'background'
     const [isAiRailOpen, setIsAiRailOpen] = useState(false);
 
     // Filtres (Studio)
@@ -313,9 +295,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         activeGuides, setActiveGuides,
         lastMousePos, dragOffset, textMetrics,
         isCropping,
-        setOverlayPos, setCropPos,
-        fusionConfig, setFusionConfig,
-        selectedImgIndex, setSelectedImgIndex,
+        setCropPos,
     });
 
     // --- HOOKS: CANVAS RENDERER ---
@@ -332,8 +312,6 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         cropRatio, cropPos, cropScale, isCropping,
         filters,
         isDragging, requestRef,
-        fusionConfig,
-        selectedImgIndex,
     });
 
 
@@ -348,7 +326,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         performExport,
     } = useExport({ images, canvasRef, getCanvasDimensions, renderPipeline, activeFormat });
 
-    const { handleImageUpload } = useImageUpload({
+    const { handleImageUpload, handleReplaceImageUpload } = useImageUpload({
         images, setImages, view, setView,
         setIsProcessing, setLoadingProgress,
         setExportName
@@ -622,7 +600,6 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                 assets,
                 slotConfigs: serializeSlotConfigs(slotConfigs),
                 filters,
-                fusionConfig,
             },
             createdAt: new Date().toISOString(),
         });
@@ -633,7 +610,6 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         assets,
         exportName,
         filters,
-        fusionConfig,
         gap,
         images.length,
         layoutBgBlur,
@@ -657,7 +633,6 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
     const resetImages = () => {
         // Ne pas vider le tableau images pour garder l'image à l'écran
         // setImages([]); 
-        setOverlayImage(null);
         setTexts([]);
         setLayoutTextures([]);
         setActiveTextureId(null);
@@ -678,18 +653,9 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         setIsCropping(false);
         setCropRatio('original');
 
-        // Réinitialiser Fusion
-        setFusionConfig({
-            colors: ['#6366f1', '#a855f7', '#ec4899', '#f43f5e'],
-            noise: 40,
-            maskShape: 'blob1',
-            imageScale: 100,
-            imagePos: { x: 0, y: 0 },
-            blendMode: 'normal'
-        });
     };
 
-    const isDraggable = (view === 'fusion') || (view === 'studio' && isCropping) || (view === 'layout');
+    const isDraggable = (view === 'studio' && isCropping) || (view === 'layout');
 
     const openLayoutAccordion = useCallback((accordion) => {
         setView('layout');
@@ -750,8 +716,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                     setImages([img]);
                     setView('studio');
                 } else if (type === 'overlay') {
-                    setOverlayImage(img);
-                    setView('fusion');
+                    setView('studio');
                 } else if (type === 'slot') {
                     setImages(prev => [...prev, img]);
                     setView('layout');
@@ -782,7 +747,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         };
 
         tryNext();
-    }, [setImages, setView, setOverlayImage, setLayoutTextures, setActiveTextureId, setActiveAccordion]);
+    }, [setImages, setView, setLayoutTextures, setActiveTextureId, setActiveAccordion]);
 
     const handleUseSoundtrackInVideo = useCallback((track, fileOrBlob) => {
         if (!track || !fileOrBlob) return;
@@ -904,13 +869,13 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                             loadingStatus={loadingStatus}
                             loadingProgress={loadingProgress}
                             onOpenLibrarySelector={aiInterfacesEnabled ? () => {
-                                setLibraryModalTarget('foreground');
                                 setIsLibraryModalOpen(true);
                             } : null}
                             handlePointerDown={handlePointerDown}
                             handlePointerMove={handlePointerMove}
                             handlePointerUp={handlePointerUp}
                             handleImageUpload={handleImageUpload}
+                            handleReplaceImageUpload={handleReplaceImageUpload}
                             handleFullscreen={handleFullscreen}
                             onCompareOpen={() => setIsCompareModalOpen(true)}
                             onInstaPreview={() => { setInstaPreviewUrl(canvasRef.current.toDataURL()); setIsInstaPreviewOpen(true); }}
@@ -920,9 +885,6 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                             isDraggingText={isDraggingText}
                             isCropping={isCropping}
                             setImages={setImages}
-                            fusionConfig={fusionConfig}
-                            selectedImgIndex={selectedImgIndex}
-                            setSelectedImgIndex={setSelectedImgIndex}
                             activeFormat={activeFormat}
                             showGuidelines={showGuidelines}
                             visionCompareSplit={visionCompareSplit}
@@ -958,23 +920,6 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                                         images={images}
                                     />
                                 </div>
-                            )}
-
-                            {view === 'fusion' && (
-                                <FusionPanel
-                                    isDarkMode={isDarkMode}
-                                    config={fusionConfig}
-                                    setConfig={setFusionConfig}
-                                    activeFormat={activeFormat}
-                                    setActiveFormat={setActiveFormat}
-                                    images={images}
-                                    onOpenLibrarySelector={aiInterfacesEnabled ? () => {
-                                        setLibraryModalTarget('background');
-                                        setIsLibraryModalOpen(true);
-                                    } : null}
-                                    selectedImgIndex={selectedImgIndex}
-                                    setSelectedImgIndex={setSelectedImgIndex}
-                                />
                             )}
 
                             {/* VIEW: LAYOUT */}
@@ -1104,11 +1049,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                             const img = new Image();
                             img.onload = () => {
                                 // URL.revokeObjectURL(blobUrl);
-                                if (libraryModalTarget === 'foreground') {
-                                    setImages(prev => [...prev, img]);
-                                } else if (libraryModalTarget === 'background') {
-                                    setFusionConfig(prev => ({ ...prev, bgMode: 'image', bgImage: img }));
-                                }
+                                setImages(prev => [...prev, img]);
                             };
                             img.onerror = () => {
                                 // URL.revokeObjectURL(blobUrl);
@@ -1121,11 +1062,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                             const img = new Image();
                             img.crossOrigin = "anonymous";
                             img.onload = () => {
-                                if (libraryModalTarget === 'foreground') {
-                                    setImages(prev => [...prev, img]);
-                                } else if (libraryModalTarget === 'background') {
-                                    setFusionConfig(prev => ({ ...prev, bgMode: 'image', bgImage: img }));
-                                }
+                                setImages(prev => [...prev, img]);
                             };
                             img.src = asset.src;
                         }

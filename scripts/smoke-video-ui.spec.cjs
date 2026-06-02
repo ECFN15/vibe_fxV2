@@ -52,7 +52,7 @@ async function openVideoEditor(page) {
   if (await openPreferred.count()) await openPreferred.click();
   else if (await openFallback.count()) await openFallback.click();
 
-  const videoTab = page.getByRole("button", { name: /^video$/i });
+  const videoTab = page.getByRole("button", { name: /^(video|vibecut)$/i });
   await expect(videoTab).toBeVisible({ timeout: 15000 });
   await videoTab.click();
 }

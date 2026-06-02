@@ -35,6 +35,9 @@
     "check:vision-corpus": "node scripts/check-vision-corpus.mjs",
     "test:vision-corpus": "node scripts/check-vision-corpus.mjs && node scripts/run-vision-corpus-test.mjs",
     "test:video-ui": "node scripts/smoke-video-timeline-model.mjs && node scripts/smoke-video-store.mjs && node scripts/run-video-ui-test.mjs",
+    "test:vibecut-tools": "playwright test scripts/smoke-vibecut-quick-tools.spec.cjs --reporter=line --workers=1",
+    "test:vibecut-slowmo": "playwright test scripts/smoke-vibecut-slowmo-samples.spec.cjs --reporter=line --workers=1",
+    "test:vibecut-orientation": "playwright test scripts/smoke-vibecut-desktop-video-orientation.spec.cjs --reporter=line --workers=1",
     "functions:lint": "npm --prefix functions run lint",
     "firebase:deploy:backend": "node scripts/firebase-deploy.mjs backend",
     "firebase:deploy:functions": "node scripts/firebase-deploy.mjs functions"

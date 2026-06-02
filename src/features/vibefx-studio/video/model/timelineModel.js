@@ -16,6 +16,25 @@ export function clampVolumePercent(volume = 100) {
     return clamp(finiteNumber(volume, 100), 0, 100);
 }
 
+export function getSequencePlacement(item = {}) {
+    const placement = item?.params?.placement;
+    if (placement === 'intro' || placement === 'outro') return placement;
+    const category = item?.category || item?.params?.sequenceSlot;
+    if (category === 'intro' || String(item?.type || '').startsWith('intro-')) return 'intro';
+    if (category === 'outro' || String(item?.type || '').startsWith('outro-')) return 'outro';
+    return null;
+}
+
+export function isSequenceTransition(item = {}) {
+    return Boolean(getSequencePlacement(item));
+}
+
+export function getIntroOffset(transitionItems = []) {
+    const intro = transitionItems.find(item => getSequencePlacement(item) === 'intro');
+    if (!intro) return 0;
+    return Math.max(0, finiteNumber(intro.duration ?? ((intro.endTime ?? 0) - (intro.startTime ?? intro.start ?? 0)), 0));
+}
+
 export function getDefaultTracks() {
     return DEFAULT_TRACKS.map(track => ({ ...track }));
 }
@@ -123,7 +142,7 @@ function getCutTransitionForPair({ transitions = {}, transitionItems = [], curre
 
 export function resolveTimelineTransitions({ clips = [], transitions = {}, transitionItems = [], totalDuration = 0 } = {}) {
     const resolved = [];
-    let cursor = 0;
+    let cursor = getIntroOffset(transitionItems);
 
     clips.forEach((clip, index) => {
         const speed = finiteNumber(clip.speed, 1) || 1;
@@ -160,6 +179,33 @@ export function resolveTimelineTransitions({ clips = [], transitions = {}, trans
 
     normalizeTransitionItems(transitionItems, totalDuration).forEach((item) => {
         if (isCutTransitionItem(item)) return;
+        const sequencePlacement = getSequencePlacement(item);
+        if (sequencePlacement === 'intro') {
+            resolved.push({
+                ...item,
+                start: 0,
+                params: {
+                    ...(item.params || {}),
+                    placement: 'intro',
+                    sequenceSlot: 'intro',
+                },
+            });
+            return;
+        }
+        if (sequencePlacement === 'outro') {
+            const duration = Math.max(0.1, finiteNumber(item.duration, 0.5));
+            const start = Math.max(0, (totalDuration || item.start + duration) - duration);
+            resolved.push({
+                ...item,
+                start,
+                params: {
+                    ...(item.params || {}),
+                    placement: 'outro',
+                    sequenceSlot: 'outro',
+                },
+            });
+            return;
+        }
         resolved.push({
             ...item,
             params: {
@@ -206,7 +252,7 @@ export function buildTimelineSnapPoints({
     if (totalDuration > 0) addPoint(totalDuration, 'end', 'Timeline end');
     if (currentTime > 0 && currentTime < totalDuration) addPoint(currentTime, 'playhead', 'Playhead');
 
-    let cursor = 0;
+    let cursor = getIntroOffset(transitionItems);
     clips.forEach((clip, index) => {
         const speed = finiteNumber(clip.speed, 1) || 1;
         const trimStart = finiteNumber(clip.trimStart, 0);
@@ -347,7 +393,7 @@ export function buildTimelineModel({
     }));
 
     const items = [];
-    let cursor = 0;
+    let cursor = getIntroOffset(transitionItems);
 
     clips.forEach((clip, index) => {
         const speed = finiteNumber(clip.speed, 1) || 1;
@@ -794,7 +840,8 @@ export function validateTimelineRenderPlan({ plan = null, totalDuration = 0, fra
 
     if (clips.length > 0) {
         const firstStart = finiteNumber(clips[0].start ?? clips[0].startTime, 0);
-        if (firstStart > tolerance) errors.push(`Trou video avant le premier clip: ${firstStart.toFixed(2)}s.`);
+        const introOffset = getIntroOffset(plan?.allTransitions || plan?.transitionItems || []);
+        if (firstStart > introOffset + tolerance) errors.push(`Trou video avant le premier clip: ${firstStart.toFixed(2)}s.`);
 
         for (let index = 0; index < clips.length - 1; index += 1) {
             const current = clips[index];
@@ -831,7 +878,7 @@ export function validateTimelineRenderPlan({ plan = null, totalDuration = 0, fra
         const label = transition.name || transition.id || transition.type || 'transition';
         if (durationValue <= 0) errors.push(`Duree transition invalide: ${label}.`);
         if (start < -tolerance || end > duration + tolerance) errors.push(`Transition hors timeline: ${label}.`);
-        if (clips.length > 0 && !hasClipAtTime(clips, start + durationValue / 2)) {
+        if (!isSequenceTransition(transition) && clips.length > 0 && !hasClipAtTime(clips, start + durationValue / 2)) {
             warnings.push(`Transition sans clip actif a son timestamp: ${label}.`);
         }
     });

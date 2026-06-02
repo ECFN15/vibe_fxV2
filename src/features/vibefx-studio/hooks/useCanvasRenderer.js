@@ -38,11 +38,9 @@ export default function useCanvasRenderer({
     // Text & Assets
     texts, assets, activeTextId, activeAssetId,
     isDraggingText, activeGuides,
-    // Studio/Fusion
+    // Studio
     cropRatio, cropPos, cropScale, isCropping,
     filters,
-    fusionConfig,
-    selectedImgIndex,
     // Animation
     isDragging, requestRef,
 }) {
@@ -72,7 +70,7 @@ export default function useCanvasRenderer({
     }, [images, activeFormat, layoutBgBlur, view]);
 
     const getCanvasDimensions = useCallback(() => {
-        if (view === 'layout' || view === 'fusion') return { width: activeFormat.w, height: activeFormat.h };
+        if (view === 'layout') return { width: activeFormat.w, height: activeFormat.h };
         if (!images.length) return { width: 0, height: 0 };
 
         const img = images[0];
@@ -266,20 +264,20 @@ export default function useCanvasRenderer({
             slotRects.current = slotRectsArray;
 
         } else {
-            // Studio / Fusion
+            // Studio
             renderStudio(ctx, targetCanvas, w, h, isPreview, quality, {
                 images, cropRatio, cropPos, cropScale, isCropping,
-                filters: overrides.filters || filters, view, fusionConfig, selectedImgIndex
+                filters: overrides.filters || filters, view
             });
         }
-    }, [images, filters, view, fusionConfig, activeFormat, activeTemplate, overlayMode, padding, gap, radius,
+    }, [images, filters, view, activeFormat, activeTemplate, overlayMode, padding, gap, radius,
         layoutBgColor, layoutBgBlur, layoutBgGradient, layoutBgMeshColors, layoutBgTexture, layoutSmoothBlur, layoutTextures, activeTextureId, layoutTextureOpacity, selectedSlotIndex, slotConfigs,
         texts, activeTextId, isDraggingText, activeGuides, assets, activeAssetId,
-        cropRatio, cropPos, cropScale, isCropping, selectedImgIndex]);
+        cropRatio, cropPos, cropScale, isCropping]);
 
     const renderCanvas = useCallback(() => {
         const canRenderEmptyCustomLayout = view === 'layout' && activeTemplate.id === 'custom';
-        if ((!images.length && view !== 'fusion' && !canRenderEmptyCustomLayout) || !canvasRef.current) return;
+        if ((!images.length && !canRenderEmptyCustomLayout) || !canvasRef.current) return;
         const canvas = canvasRef.current;
         const { width, height } = getPreviewCanvasDimensions();
         if (width === 0 || height === 0) return;

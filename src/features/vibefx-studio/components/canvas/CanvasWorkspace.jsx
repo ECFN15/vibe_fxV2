@@ -1,5 +1,5 @@
 import React from 'react';
-import { Upload, Loader2, Maximize, Columns, Smartphone, Move, Plus, X, Layers, RectangleHorizontal, Square, Sparkles, Type, Palette, SlidersHorizontal, Image as ImageIcon } from 'lucide-react';
+import { Upload, Loader2, Maximize, Columns, Smartphone, Move, Plus, X, Layers, RectangleHorizontal, Square, Sparkles, Type, Palette, SlidersHorizontal, Image as ImageIcon, ImagePlus, RefreshCw } from 'lucide-react';
 import { CUSTOM_SHAPE_LIBRARY } from '../../data/constants';
 
 /**
@@ -22,6 +22,7 @@ export default function CanvasWorkspace({
     handlePointerUp,
     // Upload
     handleImageUpload,
+    handleReplaceImageUpload,
     // Canvas actions
     handleFullscreen,
     onCompareOpen,
@@ -31,11 +32,8 @@ export default function CanvasWorkspace({
     activeTextId,
     activeTemplate,
     isDraggingText,
-    overlayImage,
     isCropping,
     setImages,
-    fusionConfig,
-    setSelectedImgIndex,
     activeFormat,
     showGuidelines,
     visionCompareSplit,
@@ -43,8 +41,7 @@ export default function CanvasWorkspace({
     onAddCustomZone,
     layoutQuickActions,
 }) {
-    // Show canvas if there are images OR if we are in Fusion mode (to see background image/gradient)
-    const showCanvas = images.length > 0 || view === 'fusion' || (view === 'layout' && activeTemplate?.id === 'custom');
+    const showCanvas = images.length > 0 || (view === 'layout' && activeTemplate?.id === 'custom');
     const showCustomShapePalette = view === 'layout' && activeTemplate?.id === 'custom' && customEditMode;
 
     const getShapeDropPosition = (event, shape) => {
@@ -91,7 +88,7 @@ export default function CanvasWorkspace({
             else if (activeFormat.id === 'insta-land' || activeFormat.ratio > 1.5) maxWidth = '800px';
         }
 
-        if (activeFormat && (view === 'layout' || view === 'fusion' || view === 'vision')) {
+        if (activeFormat && (view === 'layout' || view === 'vision')) {
             return {
                 width: '100%',
                 maxWidth: maxWidth,
@@ -254,21 +251,37 @@ export default function CanvasWorkspace({
                             </div>
                         )}
 
-                        {view === 'fusion' && overlayImage && (<div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none text-white/50 text-sm bg-black/30 p-2 rounded backdrop-blur border border-white/20 px-3 py-1 flex items-center gap-2"><Move size={14} /> Glissez pour bouger</div>)}
                         {isCropping && view === 'studio' && (<div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none text-white/50 text-sm bg-black/30 p-2 rounded backdrop-blur border border-white/20 px-3 py-1 flex items-center gap-2 animate-pulse"><Move size={14} /> Glissez pour déplacer</div>)}
 
                         <button onClick={handleFullscreen} className={`absolute top-4 right-4 p-2.5 rounded-full shadow-lg transition-all active:scale-95 border z-20 pointer-events-auto ${isDarkMode ? 'bg-neutral-900/90 border-white/10 text-white hover:bg-black' : 'bg-white/90 border-gray-200 text-gray-700 hover:bg-gray-50'}`}><Maximize size={18} /></button>
-                        {(view === 'layout' || view === 'fusion') && (
-                            <div className="absolute bottom-4 left-6 right-6 flex gap-3 overflow-x-auto pb-2 pointer-events-auto no-scrollbar">
+                        {view === 'layout' && (
+                            <div className={`vibefx-thumb-rail vibefx-source-dock absolute bottom-4 left-6 right-6 flex gap-3 overflow-x-auto pb-2 pointer-events-auto no-scrollbar ${isDarkMode ? 'is-dark' : 'is-light'}`}>
+                                <label className="vibefx-source-add" title="Ajouter une image depuis le PC">
+                                    <ImagePlus size={18} />
+                                    <span>Ajouter image</span>
+                                    <small>PC local</small>
+                                    <input type="file" multiple className="hidden" accept="image/*" onChange={handleImageUpload} />
+                                </label>
                                 {images.map((img, i) => (
-                                    <div key={i} className={`relative group flex-shrink-0 w-16 h-16 cursor-pointer border rounded-sm overflow-hidden transition-all active:scale-95 ${isDarkMode ? 'border-neutral-700' : 'border-gray-300'}`} onClick={() => setSelectedImgIndex(i)}>
-                                        <img src={img.src} alt="" className="w-full h-full object-cover" />
-                                        <button onClick={(e) => { e.stopPropagation(); const filtered = images.filter((_, idx) => idx !== i); setImages(filtered); }} className={`absolute top-0 right-0 w-6 h-6 flex items-center justify-center backdrop-blur-md text-white border-b border-l transition-colors z-10 bg-red-600 lg:bg-black/80 lg:hover:bg-red-600 ${isDarkMode ? 'border-neutral-700' : 'border-gray-400'}`} title="Supprimer">
+                                    <div key={i} className="vibefx-source-card">
+                                        <img src={img.src} alt={img.name || `Image source ${i + 1}`} className="vibefx-source-card__image" />
+                                        <label className="vibefx-source-card__replace" title="Changer cette image" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+                                            <RefreshCw size={11} />
+                                            <span>Changer</span>
+                                            <input type="file" className="hidden" accept="image/*" onChange={(event) => handleReplaceImageUpload?.(event, i)} />
+                                        </label>
+                                        <button onClick={(e) => { e.stopPropagation(); const filtered = images.filter((_, idx) => idx !== i); setImages(filtered); }} className="vibefx-source-card__delete" title="Supprimer">
                                             <X size={12} strokeWidth={2.5} />
                                         </button>
                                     </div>
                                 ))}
-                                <div className="flex flex-col gap-1 items-stretch">
+                                {onOpenLibrarySelector && (
+                                    <button type="button" onClick={onOpenLibrarySelector} className="vibefx-source-library" title="Ajouter depuis la bibliotheque">
+                                        <Layers size={14} />
+                                        <span>Bibliotheque</span>
+                                    </button>
+                                )}
+                                <div className="hidden">
                                     <label className={`flex-shrink-0 w-16 h-7 rounded-sm border border-dashed flex items-center justify-center cursor-pointer transition uppercase font-mono text-[8px] tracking-widest ${isDarkMode ? 'border-neutral-700 hover:border-indigo-500 text-neutral-500 hover:text-indigo-400' : 'border-gray-300 hover:border-indigo-500 text-gray-500 hover:text-indigo-500'}`} title="Ajouter depuis le PC">
                                         PC
                                         <input type="file" multiple className="hidden" accept="image/*" onChange={handleImageUpload} />
@@ -294,7 +307,9 @@ function LayoutQuickRail({ isDarkMode, actions }) {
             label: 'Mesh',
             title: 'Ouvrir Mesh Studio pour le fond',
             icon: Sparkles,
-            active: actions.layoutBgGradient,
+            active: false,
+            enabled: actions.layoutBgGradient,
+            status: actions.layoutBgGradient ? 'On' : 'Studio',
             onClick: actions.onOpenMesh,
             featured: true,
         },
@@ -303,15 +318,20 @@ function LayoutQuickRail({ isDarkMode, actions }) {
             label: 'Flou Pro',
             title: 'Ouvrir le Flou lisse pro mode',
             icon: Layers,
-            active: actions.smoothBlurEnabled,
+            active: false,
+            enabled: actions.smoothBlurEnabled,
+            status: actions.smoothBlurEnabled ? 'On' : null,
             onClick: actions.onOpenSmoothBlur,
+            featured: true,
         },
         {
             id: 'bg-blur',
             label: 'Flou fond',
             title: 'Activer ou couper le flou d arriere-plan',
             icon: ImageIcon,
-            active: actions.layoutBgBlur,
+            active: false,
+            enabled: actions.layoutBgBlur,
+            status: actions.layoutBgBlur ? 'On' : 'Off',
             onClick: actions.onToggleBgBlur,
         },
         {
@@ -320,6 +340,7 @@ function LayoutQuickRail({ isDarkMode, actions }) {
             title: 'Ouvrir Textes et Boutons',
             icon: Type,
             active: actions.activeAccordion === 'texts',
+            status: actions.activeAccordion === 'texts' ? 'Ouvert' : null,
             onClick: () => openAccordion('texts'),
         },
         {
@@ -328,6 +349,7 @@ function LayoutQuickRail({ isDarkMode, actions }) {
             title: 'Ouvrir Fond Global',
             icon: Palette,
             active: actions.activeAccordion === 'background',
+            status: actions.activeAccordion === 'background' ? 'Ouvert' : null,
             onClick: () => openAccordion('background'),
         },
         {
@@ -336,6 +358,7 @@ function LayoutQuickRail({ isDarkMode, actions }) {
             title: 'Ouvrir Geometrie et Marges',
             icon: SlidersHorizontal,
             active: actions.activeAccordion === 'geometry',
+            status: actions.activeAccordion === 'geometry' ? 'Ouvert' : null,
             onClick: () => openAccordion('geometry'),
         },
     ];
@@ -347,21 +370,24 @@ function LayoutQuickRail({ isDarkMode, actions }) {
             onMouseDown={(event) => event.stopPropagation()}
             onTouchStart={(event) => event.stopPropagation()}
         >
-            <div className="vibefx-layout-quick-rail__label">Type de fond</div>
+            <div className="vibefx-layout-quick-rail__label">Acces rapides</div>
             <div className="vibefx-layout-quick-rail__buttons">
-                {buttons.map(({ id, label, title, icon: Icon, active, featured, onClick }) => (
+                {buttons.map(({ id, label, title, icon: Icon, active, enabled, status, featured, onClick }) => (
                     <button
                         key={id}
                         type="button"
                         className="vibefx-layout-quick-rail__button"
                         data-active={active ? 'true' : 'false'}
+                        data-enabled={enabled ? 'true' : 'false'}
                         data-featured={featured ? 'true' : 'false'}
                         onClick={onClick}
                         title={title}
                         aria-label={title}
+                        aria-pressed={enabled ? 'true' : active ? 'true' : 'false'}
                     >
                         <Icon size={15} />
                         <span>{label}</span>
+                        {status ? <em>{status}</em> : null}
                     </button>
                 ))}
             </div>

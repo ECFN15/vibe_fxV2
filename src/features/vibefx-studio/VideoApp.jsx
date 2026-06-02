@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ChevronDown, Film, Monitor, Smartphone, Sparkles, Undo2, Redo2 } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, ChevronDown, Film, Monitor, Smartphone, Sparkles, Undo2, Redo2, RotateCcw, RotateCw } from 'lucide-react';
 import { useAiLaunchSettings } from '@/hooks/useAiLaunchSettings';
 import VideoEditor from './video/VideoEditor';
 import useVideoStore from './video/store/videoStore';
 import { EXPORT_PRESETS } from './video/engine/VideoEngine';
+import { EXPORT_FRAME_RATE_OPTIONS, resolveExportFps } from './video/panels/ExportVideoPanel';
 import StudioAiRail from './components/ai/StudioAiRail';
 
 function VideoApp({ onBack }) {
@@ -13,8 +14,23 @@ function VideoApp({ onBack }) {
     const [isSequenceMenuOpen, setIsSequenceMenuOpen] = useState(false);
     const [isAiRailOpen, setIsAiRailOpen] = useState(false);
     const menuRef = useRef(null);
-    const { clips, undo, redo, canUndo, canRedo, sequencePreset, setSequencePreset } = useVideoStore();
+    const {
+        clips, undo, redo, canUndo, canRedo,
+        sequencePreset, setSequencePreset,
+        selectedClipId, updateClip,
+        exportFrameRate, setExportFrameRate,
+    } = useVideoStore();
     const activePreset = EXPORT_PRESETS[sequencePreset] || EXPORT_PRESETS.youtube;
+    const selectedClip = clips.find((clip) => clip.id === selectedClipId) || null;
+    const sourceFpsMax = useMemo(() => {
+        const fpsValues = clips
+            .map((clip) => Number(clip.sourceFrameRate || clip.importFrameRate || 0))
+            .filter((fps) => Number.isFinite(fps) && fps > 0);
+        return fpsValues.length ? Math.min(60, Math.max(...fpsValues.map((fps) => Math.round(fps)))) : 0;
+    }, [clips]);
+    const exportFps = useMemo(() => (
+        resolveExportFps(activePreset.fps, sourceFpsMax, exportFrameRate)
+    ), [activePreset.fps, exportFrameRate, sourceFpsMax]);
     const aiContext = useMemo(() => ({
         view: 'video',
         hasImage: false,
@@ -40,6 +56,15 @@ function VideoApp({ onBack }) {
         window.addEventListener('pointerdown', handlePointerDown);
         return () => window.removeEventListener('pointerdown', handlePointerDown);
     }, [isSequenceMenuOpen]);
+
+    const rotateSelectedClip = useCallback((delta) => {
+        if (!selectedClip?.id) return;
+        const currentRotation = Number.isFinite(Number(selectedClip.orientationRotation))
+            ? Number(selectedClip.orientationRotation)
+            : 0;
+        const orientationRotation = ((currentRotation + delta) % 360 + 360) % 360;
+        updateClip(selectedClip.id, { orientationRotation, orientationSource: 'manual' }, { history: true });
+    }, [selectedClip, updateClip]);
 
     return (
         <div className="min-h-screen flex flex-col h-screen overflow-hidden font-sans bg-black text-gray-300">
@@ -147,6 +172,43 @@ function VideoApp({ onBack }) {
                         </button>
                         {clips.length > 0 && (
                             <>
+                                <div className="h-4 w-px bg-neutral-800 mx-1" />
+                                <button
+                                    type="button"
+                                    data-testid="header-rotate-left"
+                                    disabled={!selectedClip}
+                                    onClick={() => rotateSelectedClip(-90)}
+                                    className="inline-flex h-7 w-7 items-center justify-center rounded-sm border border-neutral-800 bg-neutral-900/70 text-neutral-400 transition hover:border-cyan-400/35 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-30"
+                                    title="Tourner le clip selectionne a gauche"
+                                    aria-label="Tourner le clip selectionne a gauche"
+                                >
+                                    <RotateCcw size={12} />
+                                </button>
+                                <button
+                                    type="button"
+                                    data-testid="header-rotate-right"
+                                    disabled={!selectedClip}
+                                    onClick={() => rotateSelectedClip(90)}
+                                    className="inline-flex h-7 w-7 items-center justify-center rounded-sm border border-neutral-800 bg-neutral-900/70 text-neutral-400 transition hover:border-cyan-400/35 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-30"
+                                    title="Tourner le clip selectionne a droite"
+                                    aria-label="Tourner le clip selectionne a droite"
+                                >
+                                    <RotateCw size={12} />
+                                </button>
+                                <select
+                                    data-testid="header-export-fps-select"
+                                    value={exportFrameRate}
+                                    onChange={(event) => setExportFrameRate(event.target.value === 'auto' ? 'auto' : Number(event.target.value))}
+                                    className="h-7 rounded-sm border border-neutral-800 bg-neutral-900/70 px-2 text-[9px] font-mono uppercase tracking-widest text-neutral-300 outline-none transition hover:border-indigo-400/35 focus:border-indigo-400"
+                                    title={`FPS preview/export: ${exportFps}`}
+                                    aria-label="Choisir les FPS preview et export"
+                                >
+                                    {EXPORT_FRAME_RATE_OPTIONS.map((option) => (
+                                        <option key={option.value} value={option.value}>
+                                            {option.value === 'auto' ? `Auto ${exportFps} FPS` : `Preview/export ${option.label} FPS`}
+                                        </option>
+                                    ))}
+                                </select>
                                 <div className="h-4 w-px bg-neutral-800 mx-1" />
                                 <span className="text-[9px] font-mono text-neutral-600 uppercase tracking-widest">
                                     {clips.length} clip{clips.length > 1 ? 's' : ''}

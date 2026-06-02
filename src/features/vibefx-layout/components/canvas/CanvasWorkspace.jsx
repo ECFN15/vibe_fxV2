@@ -31,18 +31,15 @@ export default function CanvasWorkspace({
     activeTextId,
     activeTemplate,
     isDraggingText,
-    overlayImage,
     isCropping,
     setImages,
-    fusionConfig,
     setSelectedImgIndex,
     activeFormat,
     showGuidelines,
     customEditMode,
     onAddCustomZone,
 }) {
-    // Show canvas if there are images OR if we are in Fusion mode (to see background image/gradient)
-    const showCanvas = images.length > 0 || view === 'fusion' || (view === 'layout' && activeTemplate?.id === 'custom');
+    const showCanvas = images.length > 0 || (view === 'layout' && activeTemplate?.id === 'custom');
     const showCustomShapePalette = view === 'layout' && activeTemplate?.id === 'custom' && customEditMode;
 
     const getShapeDropPosition = (event, shape) => {
@@ -89,7 +86,7 @@ export default function CanvasWorkspace({
             else if (activeFormat.id === 'insta-land' || activeFormat.ratio > 1.5) maxWidth = '800px';
         }
 
-        if (activeFormat && (view === 'layout' || view === 'fusion' || view === 'vision')) {
+        if (activeFormat && (view === 'layout' || view === 'vision')) {
             return {
                 width: '100%',
                 maxWidth: maxWidth,
@@ -219,11 +216,10 @@ export default function CanvasWorkspace({
                             </div>
                         )}
 
-                        {view === 'fusion' && overlayImage && (<div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none text-white/50 text-sm bg-black/30 p-2 rounded backdrop-blur border border-white/20 px-3 py-1 flex items-center gap-2"><Move size={14} /> Glissez pour bouger</div>)}
                         {isCropping && view === 'studio' && (<div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none text-white/50 text-sm bg-black/30 p-2 rounded backdrop-blur border border-white/20 px-3 py-1 flex items-center gap-2 animate-pulse"><Move size={14} /> Glissez pour déplacer</div>)}
 
                         <button onClick={handleFullscreen} className={`vibefx-fullscreen-button absolute top-4 right-4 p-2.5 rounded-sm shadow-lg transition-all active:scale-95 border z-20 pointer-events-auto flex items-center justify-center ${isDarkMode ? 'bg-neutral-900/90 border-neutral-700 text-neutral-300 hover:bg-black hover:border-indigo-500 hover:text-indigo-400' : 'bg-white/90 border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-indigo-500 hover:text-indigo-500'}`}><Maximize size={18} /></button>
-                        {(view === 'layout' || view === 'fusion') && (
+                        {view === 'layout' && (
                             <div className="vibefx-thumb-rail absolute bottom-4 left-6 right-6 flex gap-3 overflow-x-auto pb-2 pointer-events-auto no-scrollbar">
                                 {images.map((img, i) => (
                                     <div key={i} className={`relative group flex-shrink-0 w-16 h-16 cursor-pointer border rounded-sm overflow-hidden transition-all active:scale-95 ${isDarkMode ? 'border-neutral-700' : 'border-gray-300'}`} onClick={() => setSelectedImgIndex(i)}>

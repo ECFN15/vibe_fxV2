@@ -15,6 +15,7 @@ import SpeedPanel from './panels/SpeedPanel';
 import ExportVideoPanel from './panels/ExportVideoPanel';
 import FilterVideoPanel from './panels/FilterVideoPanel';
 import MusicLibrary from './panels/MusicLibrary';
+import VibeCutQuickPanel from './panels/VibeCutQuickPanel';
 import { Maximize2, Minimize2, Upload, X } from 'lucide-react';
 
 const PANEL_LABELS = {
@@ -46,11 +47,23 @@ const VideoEditor = ({ onAiOpen }) => {
                     url: meta.url,
                     name: meta.name.replace(/\.[^.]+$/, ''),
                     duration: meta.duration,
+                    width: meta.width,
+                    height: meta.height,
+                    displayWidth: meta.displayWidth,
+                    displayHeight: meta.displayHeight,
+                    orientationRotation: meta.orientationRotation,
+                    orientationSource: meta.orientationSource,
                     thumbnails: [],
+                    sourceFrameRate: meta.sourceFrameRate,
+                    sourceFrameRateRaw: meta.sourceFrameRateRaw,
+                    sourceFrameRateStatus: meta.sourceFrameRateStatus,
+                    importFrameRate: meta.importFrameRate,
+                    importFrameRateMode: meta.importFrameRateMode,
+                    socialFpsNormalized: meta.socialFpsNormalized,
                 });
 
                 const thumbCount = meta.duration > 90 ? 4 : meta.duration > 30 ? 6 : 8;
-                extractThumbnails(meta.url, meta.duration, thumbCount)
+                extractThumbnails(meta.url, meta.duration, thumbCount, 60, meta)
                     .then((thumbnails) => updateClip(clipId, { thumbnails }))
                     .catch((err) => console.warn('Thumbnail extraction failed:', err));
 
@@ -166,15 +179,21 @@ const VideoEditor = ({ onAiOpen }) => {
                                         <p className="text-[9px] font-mono text-neutral-700 mt-1 uppercase tracking-widest">
                                             MP4 / WebM / MOV / glisser-deposer
                                         </p>
+                                        <p className="text-[8px] font-mono text-neutral-700 mt-1 uppercase tracking-widest">
+                                            Cadence source preservee jusqu'a 60 FPS
+                                        </p>
                                     </div>
                                 </button>
                             </div>
                         </div>
                     ) : (
-                        <>
+                        <div
+                            data-vibecut-preview-shell="true"
+                            className="flex min-h-0 flex-1 flex-col bg-black"
+                        >
                             <VideoPreview />
                             <PreviewControls />
-                        </>
+                        </div>
                     )}
                 </div>
 
@@ -184,6 +203,7 @@ const VideoEditor = ({ onAiOpen }) => {
                         {renderPanel()}
                     </div>
                 )}
+                <VibeCutQuickPanel />
             </div>
 
             {/* Timeline */}

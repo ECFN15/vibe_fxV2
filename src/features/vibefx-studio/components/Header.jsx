@@ -1,5 +1,5 @@
 import React, { useSyncExternalStore } from 'react';
-import { Camera, Sun, Moon, Zap, Layers, LayoutTemplate, Aperture, Download, Library, Film, Send, Sparkles, Music2 } from 'lucide-react';
+import { Camera, Sun, Moon, Zap, LayoutTemplate, Aperture, Download, Library, Film, Send, Sparkles, Music2 } from 'lucide-react';
 import SoundtrackHeaderMiniPlayer from '../soundtrack/components/SoundtrackHeaderMiniPlayer';
 
 const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, onExport, onImportPublication, onOpenPublications, isAiRailOpen, onToggleAiRail, aiJobActive, aiInterfacesEnabled = false, soundtrack, onOpenSoundtrack }) => {
@@ -7,7 +7,7 @@ const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, 
 
     // Helper simple pour les icônes conditionnelles
     const getIcon = (name) => {
-        const map = { Zap, Layers, LayoutTemplate, Aperture, Library, Music2, Film };
+        const map = { Zap, LayoutTemplate, Aperture, Library, Music2, Film };
         const Icon = map[name];
         return Icon ? <Icon size={14} /> : null;
     };
@@ -37,12 +37,11 @@ const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, 
                 <div className="vibefx-studio-header__tabs order-3 sm:order-2 w-full sm:w-auto flex-none sm:flex-1 min-w-0 flex h-12 sm:h-full items-center gap-1 overflow-x-auto scrollbar-hide md:justify-center">
                     {[
                         { id: 'studio', icon: 'Zap', label: 'Studio' },
-                        { id: 'fusion', icon: 'Layers', label: 'Fusion' },
                         { id: 'layout', icon: 'LayoutTemplate', label: 'Layout' },
                         ...(aiInterfacesEnabled ? [{ id: 'library', icon: 'Library', label: 'Library' }] : []),
                         { id: 'soundtrack', icon: 'Music2', label: 'Soundtrack' },
                         { id: 'vision-pro', icon: 'Aperture', label: 'Vision' },
-                        { id: 'video', icon: 'Film', label: 'Video' }
+                        { id: 'video', icon: 'Film', label: 'VibeCut' }
                     ].map(tab => (
                         <button
                             key={tab.id}

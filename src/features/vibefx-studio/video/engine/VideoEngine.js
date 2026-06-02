@@ -9,24 +9,77 @@ export function isWebCodecsSupported() {
     return typeof VideoDecoder !== 'undefined' && typeof VideoEncoder !== 'undefined';
 }
 
+export const SOCIAL_IMPORT_FPS = 30;
+export const HIGH_FPS_IMPORT_THRESHOLD = 50;
+
 export function loadVideoFile(file) {
     return new Promise((resolve, reject) => {
         const url = URL.createObjectURL(file);
         const video = document.createElement('video');
-        video.preload = 'metadata';
+        video.preload = 'auto';
         video.muted = true;
+        video.playsInline = true;
 
-        video.onloadedmetadata = () => {
-            resolve({
-                file, url,
-                name: file.name,
-                duration: video.duration,
-                width: video.videoWidth,
-                height: video.videoHeight,
-                type: file.type,
-                size: file.size,
-                videoElement: video,
-            });
+        video.onloadedmetadata = async () => {
+            try {
+                const [frameRateInfo, displayMetadata] = await Promise.all([
+                    estimateVideoFrameRate(video),
+                    readVideoDisplayMetadata(file),
+                ]);
+                const metadataFrameRate = Number.isFinite(displayMetadata.frameRate) ? displayMetadata.frameRate : null;
+                const sourceFrameRate = metadataFrameRate || (Number.isFinite(frameRateInfo.fps) ? frameRateInfo.fps : null);
+                const socialFpsNormalized = false;
+                const orientationRotation = normalizeOrientationRotation(displayMetadata.rotation);
+                const displaySize = getDisplaySizeFromRotation(
+                    video.videoWidth,
+                    video.videoHeight,
+                    orientationRotation,
+                    displayMetadata
+                );
+
+                resolve({
+                    file, url,
+                    name: file.name,
+                    duration: video.duration,
+                    width: video.videoWidth,
+                    height: video.videoHeight,
+                    displayWidth: displaySize.width,
+                    displayHeight: displaySize.height,
+                    orientationRotation,
+                    orientationSource: displayMetadata.source,
+                    type: file.type,
+                    size: file.size,
+                    sourceFrameRate,
+                    sourceFrameRateRaw: Number.isFinite(frameRateInfo.rawFps) ? frameRateInfo.rawFps : null,
+                    sourceFrameRateStatus: metadataFrameRate ? displayMetadata.frameRateStatus : frameRateInfo.status,
+                    importFrameRate: sourceFrameRate,
+                    importFrameRateMode: 'source',
+                    socialFpsNormalized,
+                    videoElement: video,
+                });
+            } catch (error) {
+                console.warn('Video metadata detection failed:', error);
+                resolve({
+                    file, url,
+                    name: file.name,
+                    duration: video.duration,
+                    width: video.videoWidth,
+                    height: video.videoHeight,
+                    displayWidth: video.videoWidth,
+                    displayHeight: video.videoHeight,
+                    orientationRotation: 0,
+                    orientationSource: 'unavailable',
+                    type: file.type,
+                    size: file.size,
+                    sourceFrameRate: null,
+                    sourceFrameRateRaw: null,
+                    sourceFrameRateStatus: 'unavailable',
+                    importFrameRate: null,
+                    importFrameRateMode: 'source',
+                    socialFpsNormalized: false,
+                    videoElement: video,
+                });
+            }
         };
 
         video.onerror = () => reject(new Error(`Impossible de charger: ${file.name}`));
@@ -34,7 +87,261 @@ export function loadVideoFile(file) {
     });
 }
 
-export async function extractThumbnails(videoUrl, duration, count = 8, thumbHeight = 60) {
+async function readVideoDisplayMetadata(file) {
+    if (!file || !/\.mp4$/i.test(file.name || '')) {
+        return { rotation: 0, width: null, height: null, frameRate: null, frameRateStatus: 'unavailable', source: 'browser' };
+    }
+
+    try {
+        const firstChunkSize = Math.min(file.size, 4 * 1024 * 1024);
+        const firstChunk = await file.slice(0, firstChunkSize).arrayBuffer();
+        const parsedChunk = parseMp4DisplayMetadata(firstChunk);
+        if (parsedChunk.source === 'mp4-tkhd') return parsedChunk;
+
+        if (file.size <= 256 * 1024 * 1024 && file.size > firstChunkSize) {
+            return parseMp4DisplayMetadata(await file.arrayBuffer());
+        }
+    } catch (error) {
+        console.warn('MP4 display metadata parse failed:', error);
+    }
+
+    return { rotation: 0, width: null, height: null, frameRate: null, frameRateStatus: 'unavailable', source: 'browser' };
+}
+
+function parseMp4DisplayMetadata(arrayBuffer) {
+    const view = new DataView(arrayBuffer);
+    const decoder = new TextDecoder('ascii');
+    const readType = (offset) => decoder.decode(new Uint8Array(arrayBuffer, offset, 4));
+    const readFixed16 = (offset) => view.getInt32(offset, false) / 65536;
+    const readUnsignedFixed16 = (offset) => view.getUint32(offset, false) / 65536;
+
+    const readBoxes = (start, end) => {
+        const boxes = [];
+        let offset = start;
+        while (offset + 8 <= end) {
+            let size = view.getUint32(offset, false);
+            const type = readType(offset + 4);
+            let header = 8;
+            if (size === 1 && offset + 16 <= end) {
+                size = Number(view.getBigUint64(offset + 8, false));
+                header = 16;
+            } else if (size === 0) {
+                size = end - offset;
+            }
+            if (!size || !Number.isFinite(size) || size < header || offset + size > end) break;
+            boxes.push({ type, start: offset, end: offset + size, header });
+            offset += size;
+        }
+        return boxes;
+    };
+
+    const children = (box) => readBoxes(box.start + box.header, box.end);
+    const rootBoxes = readBoxes(0, arrayBuffer.byteLength);
+    const moov = rootBoxes.find((box) => box.type === 'moov');
+    if (!moov) return { rotation: 0, width: null, height: null, source: 'browser' };
+
+    for (const trak of children(moov).filter((box) => box.type === 'trak')) {
+        const trakChildren = children(trak);
+        const mdia = trakChildren.find((box) => box.type === 'mdia');
+        const hdlr = mdia ? children(mdia).find((box) => box.type === 'hdlr') : null;
+        const handlerType = hdlr && hdlr.start + hdlr.header + 12 <= hdlr.end
+            ? readType(hdlr.start + hdlr.header + 8)
+            : '';
+        if (handlerType && handlerType !== 'vide') continue;
+
+        const tkhd = trakChildren.find((box) => box.type === 'tkhd');
+        if (!tkhd) continue;
+        const content = tkhd.start + tkhd.header;
+        const version = view.getUint8(content);
+        const matrixOffset = version === 1 ? content + 52 : content + 40;
+        if (matrixOffset + 44 > tkhd.end) continue;
+
+        const a = readFixed16(matrixOffset);
+        const b = readFixed16(matrixOffset + 4);
+        const c = readFixed16(matrixOffset + 12);
+        const d = readFixed16(matrixOffset + 16);
+        const width = readUnsignedFixed16(matrixOffset + 36);
+        const height = readUnsignedFixed16(matrixOffset + 40);
+        const frameRateInfo = readMp4FrameRate(children, mdia, view);
+        let rotation = 0;
+
+        if (Math.abs(a) < 0.01 && Math.abs(d) < 0.01 && Math.abs(b) > 0.9 && Math.abs(c) > 0.9) {
+            rotation = b > 0 && c < 0 ? 90 : 270;
+        } else if (a < -0.9 && d < -0.9) {
+            rotation = 180;
+        }
+
+        return { rotation, width, height, ...frameRateInfo, source: 'mp4-tkhd' };
+    }
+
+    return { rotation: 0, width: null, height: null, frameRate: null, frameRateStatus: 'unavailable', source: 'browser' };
+}
+
+function readMp4FrameRate(children, mdia, view) {
+    if (!mdia) return { frameRate: null, frameRateStatus: 'unavailable' };
+    const mdiaChildren = children(mdia);
+    const mdhd = mdiaChildren.find((box) => box.type === 'mdhd');
+    const minf = mdiaChildren.find((box) => box.type === 'minf');
+    const stbl = minf ? children(minf).find((box) => box.type === 'stbl') : null;
+    const stts = stbl ? children(stbl).find((box) => box.type === 'stts') : null;
+    if (!mdhd || !stts) return { frameRate: null, frameRateStatus: 'unavailable' };
+    return readMp4FrameRateFromBoxes(mdhd, stts, view);
+}
+
+function readMp4FrameRateFromBoxes(mdhd, stts, view) {
+    const content = mdhd.start + mdhd.header;
+    const version = view.getUint8(content);
+    const timescale = version === 1 ? view.getUint32(content + 20, false) : view.getUint32(content + 12, false);
+    const duration = version === 1 ? Number(view.getBigUint64(content + 24, false)) : view.getUint32(content + 16, false);
+    const timelineSeconds = timescale > 0 ? duration / timescale : 0;
+    if (!timelineSeconds) return { frameRate: null, frameRateStatus: 'unavailable' };
+
+    const sttsContent = stts.start + stts.header;
+    const entryCount = view.getUint32(sttsContent + 4, false);
+    let sampleCount = 0;
+    let offset = sttsContent + 8;
+    for (let index = 0; index < entryCount && offset + 8 <= stts.end; index += 1) {
+        sampleCount += view.getUint32(offset, false);
+        offset += 8;
+    }
+    if (!sampleCount) return { frameRate: null, frameRateStatus: 'unavailable' };
+
+    const fps = normalizeDetectedFrameRate(sampleCount / timelineSeconds);
+    return {
+        frameRate: fps,
+        frameRateStatus: fps ? (entryCount === 1 ? 'metadata-cfr' : 'metadata-average') : 'unavailable',
+    };
+}
+
+export function normalizeOrientationRotation(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 0;
+    return ((Math.round(numeric / 90) * 90) % 360 + 360) % 360;
+}
+
+function getDisplaySizeFromRotation(width, height, rotation, metadata = {}) {
+    const rawWidth = Number(width) || Number(metadata.width) || 0;
+    const rawHeight = Number(height) || Number(metadata.height) || 0;
+    const metaWidth = Number(metadata.width);
+    const metaHeight = Number(metadata.height);
+    if (Number.isFinite(metaWidth) && metaWidth > 0 && Number.isFinite(metaHeight) && metaHeight > 0) {
+        return { width: metaWidth, height: metaHeight };
+    }
+    return rotation === 90 || rotation === 270
+        ? { width: rawHeight, height: rawWidth }
+        : { width: rawWidth, height: rawHeight };
+}
+
+export async function estimateVideoFrameRate(video, options = {}) {
+    if (!video || typeof video.requestVideoFrameCallback !== 'function') {
+        return { fps: null, rawFps: null, status: 'unsupported', sampleFrames: 0, sampleSeconds: 0 };
+    }
+
+    const duration = Number.isFinite(video.duration) ? video.duration : 0;
+    const sampleSeconds = Math.min(options.sampleSeconds || 0.42, Math.max(0.18, duration - 0.08 || 0.42));
+    const timeoutMs = options.timeoutMs || 1100;
+    const originalTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+    const originalMuted = video.muted;
+    const wasPaused = video.paused;
+
+    let timer = null;
+    let callbackId = null;
+    let done = false;
+
+    const finishSeek = () => new Promise((resolve) => {
+        const timeout = window.setTimeout(resolve, 240);
+        video.onseeked = () => {
+            window.clearTimeout(timeout);
+            resolve();
+        };
+    });
+
+    const finish = async (status, resolve, frames, firstMediaTime, lastMediaTime) => {
+        if (done) return;
+        done = true;
+        window.clearTimeout(timer);
+        if (callbackId && typeof video.cancelVideoFrameCallback === 'function') {
+            video.cancelVideoFrameCallback(callbackId);
+        }
+        video.pause();
+        const measuredSeconds = Math.max(0, (lastMediaTime ?? 0) - (firstMediaTime ?? 0));
+        const rawFps = frames > 1 && measuredSeconds > 0 ? (frames - 1) / measuredSeconds : null;
+        const fps = normalizeDetectedFrameRate(rawFps);
+
+        if (Number.isFinite(originalTime) && Number.isFinite(video.duration)) {
+            try {
+                video.currentTime = Math.min(originalTime, Math.max(0, video.duration - 0.05));
+            } catch {
+                // Best-effort restore only; import metadata must not fail on seek quirks.
+            }
+        }
+        video.muted = originalMuted;
+        if (!wasPaused) {
+            try {
+                await video.play();
+            } catch {
+                video.pause();
+            }
+        }
+
+        resolve({
+            fps,
+            rawFps,
+            status: fps ? status : 'unavailable',
+            sampleFrames: frames,
+            sampleSeconds: measuredSeconds,
+        });
+    };
+
+    video.muted = true;
+    video.playsInline = true;
+
+    if (duration > sampleSeconds + 0.1) {
+        video.currentTime = Math.min(Math.max(0, duration * 0.04), Math.max(0, duration - sampleSeconds - 0.08));
+        await finishSeek();
+    }
+
+    return new Promise((resolve) => {
+        let frames = 0;
+        let firstMediaTime = null;
+        let lastMediaTime = null;
+        let previousMediaTime = null;
+
+        const onFrame = (_now, metadata = {}) => {
+            if (done) return;
+            const mediaTime = Number.isFinite(metadata.mediaTime) ? metadata.mediaTime : video.currentTime;
+            if (previousMediaTime !== null && Math.abs(mediaTime - previousMediaTime) < 0.0005) {
+                callbackId = video.requestVideoFrameCallback(onFrame);
+                return;
+            }
+            previousMediaTime = mediaTime;
+            frames += 1;
+            if (firstMediaTime === null) firstMediaTime = mediaTime;
+            lastMediaTime = mediaTime;
+
+            if ((lastMediaTime - firstMediaTime) >= sampleSeconds || frames >= 36) {
+                finish('estimated', resolve, frames, firstMediaTime, lastMediaTime);
+                return;
+            }
+            callbackId = video.requestVideoFrameCallback(onFrame);
+        };
+
+        callbackId = video.requestVideoFrameCallback(onFrame);
+        timer = window.setTimeout(() => finish(frames > 1 ? 'estimated' : 'timeout', resolve, frames, firstMediaTime, lastMediaTime), timeoutMs);
+        video.play().catch(() => finish('blocked', resolve, frames, firstMediaTime, lastMediaTime));
+    });
+}
+
+function normalizeDetectedFrameRate(rawFps) {
+    if (!Number.isFinite(rawFps) || rawFps <= 0) return null;
+    if (rawFps >= 55 && rawFps <= 66) return 60;
+    if (rawFps >= 47 && rawFps < 55) return 50;
+    if (rawFps >= 28 && rawFps <= 32) return 30;
+    if (rawFps >= 23 && rawFps <= 25.5) return 24;
+    return Math.round(rawFps);
+}
+
+export async function extractThumbnails(videoUrl, duration, count = 8, thumbHeight = 60, displayMetadata = {}) {
     const video = document.createElement('video');
     video.src = videoUrl;
     video.muted = true;
@@ -46,7 +353,14 @@ export async function extractThumbnails(videoUrl, duration, count = 8, thumbHeig
         video.onerror = reject;
     });
 
-    const aspect = video.videoWidth / video.videoHeight;
+    const rotation = normalizeOrientationRotation(displayMetadata.orientationRotation ?? displayMetadata.rotation);
+    const displaySize = getDisplaySizeFromRotation(video.videoWidth, video.videoHeight, rotation, {
+        width: displayMetadata.displayWidth,
+        height: displayMetadata.displayHeight,
+    });
+    const aspect = displaySize.width && displaySize.height
+        ? displaySize.width / displaySize.height
+        : video.videoWidth / video.videoHeight;
     const thumbWidth = Math.round(thumbHeight * aspect);
 
     const canvas = document.createElement('canvas');
@@ -61,7 +375,7 @@ export async function extractThumbnails(videoUrl, duration, count = 8, thumbHeig
         const time = i * interval + interval / 2;
         video.currentTime = Math.min(time, duration - 0.1);
         await new Promise((resolve) => { video.onseeked = resolve; });
-        ctx.drawImage(video, 0, 0, thumbWidth, thumbHeight);
+        drawSourceCover(ctx, video, thumbWidth, thumbHeight, displayMetadata);
         thumbnails.push(canvas.toDataURL('image/jpeg', 0.6));
     }
 
@@ -108,12 +422,26 @@ function easeInOut(t) {
     return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
 }
 
+function easeOutCubic(t) {
+    return 1 - Math.pow(1 - t, 3);
+}
+
+function easeInCubic(t) {
+    return t * t * t;
+}
+
 function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
 }
 
 function clampMediaVolume(volume = 100) {
     return clamp((Number(volume) || 0) / 100, 0, 1);
+}
+
+function configureCanvasQuality(ctx) {
+    if (!ctx) return;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 }
 
 function deterministicUnit(seed) {
@@ -163,12 +491,42 @@ function applyPostFilters(ctx, filters = {}, w, h) {
     }
 }
 
-function drawSourceCover(ctx, source, w, h) {
+function drawSourceCover(ctx, source, w, h, clip = {}) {
+    configureCanvasQuality(ctx);
     const sourceWidth = source?.videoWidth || source?.naturalWidth || source?.width || w;
     const sourceHeight = source?.videoHeight || source?.naturalHeight || source?.height || h;
+    const rotation = normalizeOrientationRotation(clip?.orientationRotation ?? clip?.rotation);
 
     if (!sourceWidth || !sourceHeight || !Number.isFinite(sourceWidth / sourceHeight)) {
         ctx.drawImage(source, 0, 0, w, h);
+        return;
+    }
+
+    if (rotation) {
+        const displayWidth = rotation === 90 || rotation === 270 ? sourceHeight : sourceWidth;
+        const displayHeight = rotation === 90 || rotation === 270 ? sourceWidth : sourceHeight;
+        const scale = Math.max(w / displayWidth, h / displayHeight);
+        const dx = (w - displayWidth * scale) / 2;
+        const dy = (h - displayHeight * scale) / 2;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, w, h);
+        ctx.clip();
+
+        if (rotation === 90) {
+            ctx.translate(dx + displayWidth * scale, dy);
+            ctx.rotate(Math.PI / 2);
+        } else if (rotation === 180) {
+            ctx.translate(dx + displayWidth * scale, dy + displayHeight * scale);
+            ctx.rotate(Math.PI);
+        } else {
+            ctx.translate(dx, dy + displayHeight * scale);
+            ctx.rotate(-Math.PI / 2);
+        }
+        ctx.scale(scale, scale);
+        ctx.drawImage(source, 0, 0, sourceWidth, sourceHeight);
+        ctx.restore();
         return;
     }
 
@@ -195,7 +553,7 @@ function drawFilteredSource(ctx, source, clip, w, h) {
     ctx.fillRect(0, 0, w, h);
     ctx.save();
     ctx.filter = buildFilterString(clip?.filters);
-    drawSourceCover(ctx, source, w, h);
+    drawSourceCover(ctx, source, w, h, clip);
     ctx.restore();
     applyPostFilters(ctx, clip?.filters, w, h);
 }
@@ -207,6 +565,58 @@ function makeFilteredFrame(source, clip, w, h) {
     const ctx = canvas.getContext('2d');
     drawFilteredSource(ctx, source, clip, w, h);
     return canvas;
+}
+
+function drawScaledFrame(ctx, source, w, h, scale = 1, alpha = 1, rotation = 0) {
+    ctx.save();
+    ctx.globalAlpha = clamp(alpha, 0, 1);
+    ctx.translate(w / 2, h / 2);
+    ctx.rotate(rotation);
+    ctx.scale(scale, scale);
+    ctx.drawImage(source, -w / 2, -h / 2, w, h);
+    ctx.restore();
+}
+
+function drawTransitionLabel(ctx, text, w, h, alpha = 1) {
+    const fontSize = Math.max(18, Math.round(w * 0.042));
+    ctx.save();
+    ctx.globalAlpha = clamp(alpha, 0, 1);
+    ctx.font = `700 ${fontSize}px Inter, system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.letterSpacing = '0px';
+    ctx.shadowColor = 'rgba(0,229,255,0.55)';
+    ctx.shadowBlur = Math.round(fontSize * 0.55);
+    ctx.fillStyle = '#f8f7ff';
+    ctx.fillText(text, w / 2, h / 2);
+    ctx.font = `500 ${Math.max(10, Math.round(fontSize * 0.28))}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+    ctx.shadowBlur = Math.round(fontSize * 0.25);
+    ctx.fillStyle = 'rgba(0,229,255,0.9)';
+    ctx.fillText('VIBE_CUT SEQUENCE', w / 2, h / 2 + fontSize * 0.78);
+    ctx.restore();
+}
+
+function drawScanlines(ctx, w, h, alpha = 0.16, offset = 0) {
+    ctx.save();
+    ctx.globalAlpha = clamp(alpha, 0, 1);
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    for (let y = -6 + (offset % 12); y < h; y += 12) {
+        ctx.fillRect(0, y, w, 1);
+    }
+    ctx.restore();
+}
+
+function drawSweepLine(ctx, w, h, position, color = 'rgba(0,229,255,0.85)') {
+    ctx.save();
+    const x = clamp(position, 0, 1) * w;
+    const gradient = ctx.createLinearGradient(x - w * 0.08, 0, x + w * 0.08, 0);
+    gradient.addColorStop(0, 'rgba(0,0,0,0)');
+    gradient.addColorStop(0.48, color);
+    gradient.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gradient;
+    ctx.globalCompositeOperation = 'screen';
+    ctx.fillRect(x - w * 0.08, 0, w * 0.16, h);
+    ctx.restore();
 }
 
 function getActiveTimelineTransition(transitionItems = [], globalTime) {
@@ -448,6 +858,124 @@ function renderTransition(ctx, fromPlayer, toPlayer, progress, type, w, h) {
             break;
         }
 
+        case 'wipe-up': {
+            const y = Math.round((1 - p) * h);
+            ctx.drawImage(fromPlayer, 0, 0, w, h);
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(0, 0, w, h - y);
+            ctx.clip();
+            ctx.drawImage(toPlayer, 0, 0, w, h);
+            ctx.restore();
+            break;
+        }
+
+        case 'wipe-down': {
+            const y = Math.round(p * h);
+            ctx.drawImage(fromPlayer, 0, 0, w, h);
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(0, y, w, h - y);
+            ctx.clip();
+            ctx.drawImage(toPlayer, 0, 0, w, h);
+            ctx.restore();
+            break;
+        }
+
+        case 'wipe-diagonal': {
+            const cover = p * (w + h);
+            ctx.drawImage(fromPlayer, 0, 0, w, h);
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(clamp(cover, 0, w), 0);
+            if (cover > w) ctx.lineTo(w, clamp(cover - w, 0, h));
+            if (cover > h) ctx.lineTo(clamp(cover - h, 0, w), h);
+            ctx.lineTo(0, clamp(cover, 0, h));
+            ctx.closePath();
+            ctx.clip();
+            ctx.drawImage(toPlayer, 0, 0, w, h);
+            ctx.restore();
+            break;
+        }
+
+        case 'split-vertical': {
+            ctx.drawImage(fromPlayer, 0, 0, w, h);
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(w / 2 - (w * p) / 2, 0, w * p, h);
+            ctx.clip();
+            ctx.drawImage(toPlayer, 0, 0, w, h);
+            ctx.restore();
+            break;
+        }
+
+        case 'split-horizontal': {
+            ctx.drawImage(fromPlayer, 0, 0, w, h);
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(0, h / 2 - (h * p) / 2, w, h * p);
+            ctx.clip();
+            ctx.drawImage(toPlayer, 0, 0, w, h);
+            ctx.restore();
+            break;
+        }
+
+        case 'iris-diamond': {
+            const rx = w * p;
+            const ry = h * p;
+            ctx.drawImage(fromPlayer, 0, 0, w, h);
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(w / 2, h / 2 - ry);
+            ctx.lineTo(w / 2 + rx, h / 2);
+            ctx.lineTo(w / 2, h / 2 + ry);
+            ctx.lineTo(w / 2 - rx, h / 2);
+            ctx.closePath();
+            ctx.clip();
+            ctx.drawImage(toPlayer, 0, 0, w, h);
+            ctx.restore();
+            break;
+        }
+
+        case 'venetian-blinds': {
+            const strips = 12;
+            const stripW = w / strips;
+            ctx.drawImage(fromPlayer, 0, 0, w, h);
+            ctx.save();
+            ctx.beginPath();
+            for (let i = 0; i < strips; i += 1) {
+                ctx.rect(i * stripW, 0, stripW * p, h);
+            }
+            ctx.clip();
+            ctx.drawImage(toPlayer, 0, 0, w, h);
+            ctx.restore();
+            break;
+        }
+
+        case 'grid-flip': {
+            const cols = 6;
+            const rows = 5;
+            const cellW = w / cols;
+            const cellH = h / rows;
+            ctx.drawImage(fromPlayer, 0, 0, w, h);
+            for (let row = 0; row < rows; row += 1) {
+                for (let col = 0; col < cols; col += 1) {
+                    const order = (row + col) / (rows + cols - 2);
+                    const local = clamp((p - order * 0.45) / 0.55, 0, 1);
+                    if (local <= 0) continue;
+                    const shrink = Math.abs(0.5 - local) * 2;
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.rect(col * cellW, row * cellH + (cellH * shrink) / 2, cellW, cellH * (1 - shrink * 0.82));
+                    ctx.clip();
+                    ctx.drawImage(toPlayer, 0, 0, w, h);
+                    ctx.restore();
+                }
+            }
+            break;
+        }
+
         case 'zoom-in': {
             const scale = 1 + p * 0.5;
             ctx.save();
@@ -487,6 +1015,46 @@ function renderTransition(ctx, fromPlayer, toPlayer, progress, type, w, h) {
             ctx.drawImage(fromPlayer, -w / 2, -h / 2, w, h);
             ctx.restore();
             ctx.globalAlpha = 1;
+            break;
+        }
+
+        case 'parallax-zoom': {
+            drawScaledFrame(ctx, fromPlayer, w, h, 1 - p * 0.12, 1 - p * 0.55);
+            drawScaledFrame(ctx, toPlayer, w, h, 1.18 - p * 0.18, p);
+            break;
+        }
+
+        case 'snap-zoom': {
+            drawScaledFrame(ctx, toPlayer, w, h, 1 + (1 - p) * 0.12, p);
+            drawScaledFrame(ctx, fromPlayer, w, h, 1 + p * 1.25, 1 - p);
+            ctx.fillStyle = `rgba(255,255,255,${0.35 * Math.sin(p * Math.PI)})`;
+            ctx.fillRect(0, 0, w, h);
+            break;
+        }
+
+        case 'spin-flash': {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, w, h);
+            drawScaledFrame(ctx, fromPlayer, w, h, 1 + p * 0.32, 1 - p, p * Math.PI * 0.22);
+            drawScaledFrame(ctx, toPlayer, w, h, 1 + (1 - p) * 0.32, p, -(1 - p) * Math.PI * 0.22);
+            ctx.fillStyle = `rgba(255,255,255,${0.42 * Math.sin(p * Math.PI)})`;
+            ctx.fillRect(0, 0, w, h);
+            break;
+        }
+
+        case 'cube-left': {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, w, h);
+            ctx.save();
+            ctx.globalAlpha = 1 - p * 0.2;
+            ctx.setTransform(1 - p * 0.25, 0.08 * p, 0, 1, -p * w, 0);
+            ctx.drawImage(fromPlayer, 0, 0, w, h);
+            ctx.restore();
+            ctx.save();
+            ctx.globalAlpha = 0.8 + p * 0.2;
+            ctx.setTransform(0.75 + p * 0.25, -0.08 * (1 - p), 0, 1, w * (1 - p), 0);
+            ctx.drawImage(toPlayer, 0, 0, w, h);
+            ctx.restore();
             break;
         }
 
@@ -540,6 +1108,30 @@ function renderTransition(ctx, fromPlayer, toPlayer, progress, type, w, h) {
             break;
         }
 
+        case 'rgb-split': {
+            const source = p < 0.5 ? fromPlayer : toPlayer;
+            const shift = Math.round((8 + w * 0.018) * Math.sin(p * Math.PI));
+            ctx.globalAlpha = 1;
+            ctx.drawImage(source, 0, 0, w, h);
+            ctx.globalCompositeOperation = 'screen';
+            ctx.globalAlpha = 0.45;
+            ctx.drawImage(fromPlayer, -shift, 0, w, h);
+            ctx.drawImage(toPlayer, shift, 0, w, h);
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.globalAlpha = p;
+            ctx.drawImage(toPlayer, 0, 0, w, h);
+            ctx.globalAlpha = 1;
+            break;
+        }
+
+        case 'strobe-cut': {
+            const flashes = Math.floor(p * 10);
+            ctx.drawImage(flashes % 2 === 0 ? fromPlayer : toPlayer, 0, 0, w, h);
+            ctx.fillStyle = `rgba(255,255,255,${0.18 * Math.sin(p * Math.PI)})`;
+            ctx.fillRect(0, 0, w, h);
+            break;
+        }
+
         case 'cross-blur':
         case 'motion-blur':
         case 'radial-blur': {
@@ -555,6 +1147,70 @@ function renderTransition(ctx, fromPlayer, toPlayer, progress, type, w, h) {
             break;
         }
 
+        case 'whip-pan': {
+            const dir = p < 0.5 ? fromPlayer : toPlayer;
+            const offset = Math.round((p - 0.5) * w * 2.2);
+            ctx.filter = `blur(${Math.round(10 * Math.sin(p * Math.PI))}px)`;
+            ctx.drawImage(dir, -offset, 0, w, h);
+            ctx.filter = 'none';
+            ctx.globalAlpha = 0.38 * Math.sin(p * Math.PI);
+            ctx.fillStyle = '#ffffff';
+            for (let i = 0; i < 12; i += 1) {
+                const y = deterministicUnit(i * 19 + Math.round(p * 100)) * h;
+                ctx.fillRect(0, y, w, 1);
+            }
+            ctx.globalAlpha = 1;
+            break;
+        }
+
+        case 'neon-shutter': {
+            const panels = 7;
+            const panelW = w / panels;
+            ctx.drawImage(fromPlayer, 0, 0, w, h);
+            for (let i = 0; i < panels; i += 1) {
+                const local = clamp((p - i * 0.045) / 0.7, 0, 1);
+                if (local <= 0) continue;
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(i * panelW, 0, panelW, h * local);
+                ctx.clip();
+                ctx.drawImage(toPlayer, 0, 0, w, h);
+                ctx.restore();
+                ctx.fillStyle = 'rgba(0,229,255,0.72)';
+                ctx.fillRect(i * panelW, h * local - 2, panelW, 2);
+            }
+            break;
+        }
+
+        case 'scanline-sweep': {
+            ctx.globalAlpha = 1;
+            ctx.drawImage(fromPlayer, 0, 0, w, h);
+            ctx.globalAlpha = p;
+            ctx.drawImage(toPlayer, 0, 0, w, h);
+            ctx.globalAlpha = 1;
+            drawScanlines(ctx, w, h, 0.18, Math.round(p * 60));
+            drawSweepLine(ctx, w, h, p);
+            break;
+        }
+
+        case 'ink-spread': {
+            const dots = 18;
+            ctx.drawImage(fromPlayer, 0, 0, w, h);
+            ctx.save();
+            ctx.beginPath();
+            for (let i = 0; i < dots; i += 1) {
+                const x = deterministicUnit(i * 23.7) * w;
+                const y = deterministicUnit(i * 41.3) * h;
+                const radius = Math.max(w, h) * clamp((p - deterministicUnit(i * 11.1) * 0.35) / 0.65, 0, 1) * 0.34;
+                ctx.moveTo(x + radius, y);
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+            }
+            ctx.clip();
+            ctx.drawImage(toPlayer, 0, 0, w, h);
+            ctx.restore();
+            break;
+        }
+
         case 'flash': {
             if (p < 0.3) {
                 ctx.drawImage(fromPlayer, 0, 0, w, h);
@@ -566,6 +1222,108 @@ function renderTransition(ctx, fromPlayer, toPlayer, progress, type, w, h) {
             } else {
                 ctx.drawImage(toPlayer, 0, 0, w, h);
                 ctx.fillStyle = `rgba(255,255,255,${(1 - p) / 0.5})`;
+                ctx.fillRect(0, 0, w, h);
+            }
+            break;
+        }
+
+        case 'intro-neon-doors': {
+            const open = easeOutCubic(p);
+            ctx.drawImage(toPlayer, 0, 0, w, h);
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, (w / 2) * (1 - open), h);
+            ctx.fillRect(w - (w / 2) * (1 - open), 0, (w / 2) * (1 - open), h);
+            ctx.fillStyle = 'rgba(0,229,255,0.85)';
+            ctx.fillRect((w / 2) * (1 - open), 0, 2, h);
+            ctx.fillStyle = 'rgba(155,92,255,0.85)';
+            ctx.fillRect(w - (w / 2) * (1 - open) - 2, 0, 2, h);
+            drawTransitionLabel(ctx, 'OPENING SIGNAL', w, h, 1 - p);
+            break;
+        }
+
+        case 'intro-title-scan': {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, w, h);
+            ctx.globalAlpha = easeInCubic(p);
+            ctx.drawImage(toPlayer, 0, 0, w, h);
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = `rgba(0,0,0,${0.62 * (1 - p)})`;
+            ctx.fillRect(0, 0, w, h);
+            drawScanlines(ctx, w, h, 0.22, Math.round(p * 80));
+            drawSweepLine(ctx, w, h, p, 'rgba(155,92,255,0.95)');
+            drawTransitionLabel(ctx, 'INTRO REVEAL', w, h, Math.sin(p * Math.PI));
+            break;
+        }
+
+        case 'intro-cinematic-bars': {
+            ctx.drawImage(toPlayer, 0, 0, w, h);
+            const bar = (h / 2) * (1 - easeOutCubic(p));
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, w, bar);
+            ctx.fillRect(0, h - bar, w, bar);
+            drawTransitionLabel(ctx, 'START', w, h, 1 - p);
+            break;
+        }
+
+        case 'intro-grid-reveal': {
+            const cols = 5;
+            const rows = 8;
+            const cellW = w / cols;
+            const cellH = h / rows;
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, w, h);
+            for (let row = 0; row < rows; row += 1) {
+                for (let col = 0; col < cols; col += 1) {
+                    const order = deterministicUnit(row * 13 + col * 31);
+                    if (p < order * 0.45) continue;
+                    const local = clamp((p - order * 0.45) / 0.55, 0, 1);
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.rect(col * cellW, row * cellH, cellW * local, cellH);
+                    ctx.clip();
+                    ctx.drawImage(toPlayer, 0, 0, w, h);
+                    ctx.restore();
+                }
+            }
+            break;
+        }
+
+        case 'outro-neon-close': {
+            const close = easeInCubic(p);
+            ctx.drawImage(fromPlayer, 0, 0, w, h);
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, (w / 2) * close, h);
+            ctx.fillRect(w - (w / 2) * close, 0, (w / 2) * close, h);
+            ctx.fillStyle = 'rgba(0,229,255,0.85)';
+            ctx.fillRect((w / 2) * close, 0, 2, h);
+            ctx.fillStyle = 'rgba(255,49,95,0.82)';
+            ctx.fillRect(w - (w / 2) * close - 2, 0, 2, h);
+            drawTransitionLabel(ctx, 'END FRAME', w, h, p);
+            break;
+        }
+
+        case 'outro-cinematic-fade': {
+            ctx.drawImage(fromPlayer, 0, 0, w, h);
+            const bar = (h / 2) * easeInCubic(p);
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, w, bar);
+            ctx.fillRect(0, h - bar, w, bar);
+            ctx.fillStyle = `rgba(0,0,0,${p * 0.75})`;
+            ctx.fillRect(0, 0, w, h);
+            break;
+        }
+
+        case 'outro-signal-collapse': {
+            const collapse = easeInCubic(p);
+            ctx.drawImage(fromPlayer, 0, 0, w, h);
+            drawScanlines(ctx, w, h, 0.28 * p, Math.round(p * 100));
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, w, (h / 2) * collapse);
+            ctx.fillRect(0, h - (h / 2) * collapse, w, (h / 2) * collapse);
+            ctx.fillStyle = `rgba(0,229,255,${0.75 * Math.sin(p * Math.PI)})`;
+            ctx.fillRect(0, h / 2 - 2, w, 4);
+            if (p > 0.8) {
+                ctx.fillStyle = `rgba(0,0,0,${(p - 0.8) / 0.2})`;
                 ctx.fillRect(0, 0, w, h);
             }
             break;
@@ -621,12 +1379,15 @@ export class PlaybackEngine {
     constructor(canvas) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
+        configureCanvasQuality(this.ctx);
         this.players = new Map();
         this.audioPlayers = new Map();
         this.audioSourceNodes = new Map();
         this.audioDestinationNodes = new Set();
         this.audioContext = null;
         this.animFrameId = null;
+        this.videoFrameCallbackId = null;
+        this.videoFrameCallbackPlayer = null;
         this.onTimeUpdate = null;
         this.isPlaying = false;
     }
@@ -851,6 +1612,7 @@ export class PlaybackEngine {
     }
 
     renderFrame(clips, transitions, globalTime, transitionItems = []) {
+        configureCanvasQuality(this.ctx);
         const result = this.getActiveClipAtTime(clips, transitions, globalTime, transitionItems);
         if (!result) {
             this.ctx.fillStyle = '#000';
@@ -1036,36 +1798,118 @@ export class PlaybackEngine {
         });
     }
 
-    startPlayback(clips, transitions, getCurrentTime, setCurrentTime, totalDuration, playbackSpeed = 1, audioTracks = [], transitionItems = []) {
+    getMediaDrivenTimelineTime(clips, transitions, currentTime, transitionItems = []) {
+        if (!hasResolvedVideoTiming(clips)) return null;
+        const activeResult = this.getActiveClipAtTime(clips, transitions, currentTime, transitionItems);
+        const clip = activeResult?.clip;
+        const player = clip ? this.players.get(clip.id) : null;
+        if (!clip || !player || player.paused || player.readyState < 2) return null;
+
+        const timelineStart = getResolvedClipStart(clip);
+        const trimStart = Number(clip.trimStart || 0);
+        const speed = Number(clip.speed || 1);
+        if (!Number.isFinite(timelineStart) || !Number.isFinite(speed) || speed <= 0) return null;
+
+        const timelineTime = timelineStart + ((player.currentTime - trimStart) / speed);
+        const timelineEnd = timelineStart + getResolvedClipDuration(clip);
+        if (!Number.isFinite(timelineTime) || timelineTime < timelineStart - 0.08 || timelineTime > timelineEnd + 0.08) return null;
+        return timelineTime;
+    }
+
+    hasActiveVideoWaitingForPlayback(clips, transitions, currentTime, transitionItems = []) {
+        const activeResult = this.getActiveClipAtTime(clips, transitions, currentTime, transitionItems);
+        const player = activeResult?.clip ? this.players.get(activeResult.clip.id) : null;
+        return Boolean(player && (player.paused || player.readyState < 2));
+    }
+
+    resolveTimelineTimeFromMediaFrame(clips, transitions, currentTime, transitionItems, framePlayer, mediaTime) {
+        if (!hasResolvedVideoTiming(clips) || !framePlayer || !Number.isFinite(mediaTime)) return null;
+        const activeResult = this.getActiveClipAtTime(clips, transitions, currentTime, transitionItems);
+        const clip = activeResult?.clip;
+        if (!clip || this.players.get(clip.id) !== framePlayer) return null;
+        const timelineStart = getResolvedClipStart(clip);
+        const trimStart = Number(clip.trimStart || 0);
+        const speed = Number(clip.speed || 1);
+        if (!Number.isFinite(timelineStart) || !Number.isFinite(speed) || speed <= 0) return null;
+        const timelineTime = timelineStart + ((mediaTime - trimStart) / speed);
+        const timelineEnd = timelineStart + getResolvedClipDuration(clip);
+        if (!Number.isFinite(timelineTime) || timelineTime < timelineStart - 0.08 || timelineTime > timelineEnd + 0.08) return null;
+        return timelineTime;
+    }
+
+    startPlayback(clips, transitions, getCurrentTime, setCurrentTime, totalDuration, playbackSpeed = 1, audioTracks = [], transitionItems = [], options = {}) {
         this.isPlaying = true;
         let lastTimestamp = null;
-        this.syncClipAudio(clips, transitions, getCurrentTime(), playbackSpeed, transitionItems);
-        this.syncExternalAudio(audioTracks, getCurrentTime(), playbackSpeed);
+        let timelineTime = getCurrentTime();
+        let lastRenderedTime = Number.NEGATIVE_INFINITY;
+        const previewFrameRate = Number(options.previewFrameRate);
+        const previewFrameDuration = Number.isFinite(previewFrameRate) && previewFrameRate > 0
+            ? 1 / previewFrameRate
+            : 0;
+        this.syncClipAudio(clips, transitions, timelineTime, playbackSpeed, transitionItems);
+        this.syncExternalAudio(audioTracks, timelineTime, playbackSpeed);
+
+        const commitTime = (newTime) => {
+            const safeTime = Math.min(Math.max(0, newTime), totalDuration);
+            if (safeTime >= totalDuration) {
+                this.stopPlayback();
+                setCurrentTime(0, { force: true });
+                return false;
+            }
+
+            timelineTime = safeTime;
+            const shouldRender = previewFrameDuration <= 0
+                || lastRenderedTime === Number.NEGATIVE_INFINITY
+                || safeTime - lastRenderedTime >= previewFrameDuration - 0.002;
+            if (shouldRender) {
+                this.renderFrame(clips, transitions, safeTime, transitionItems);
+                lastRenderedTime = safeTime;
+            }
+            setCurrentTime(safeTime);
+            this.syncClipAudio(clips, transitions, safeTime, playbackSpeed, transitionItems);
+            this.syncExternalAudio(audioTracks, safeTime, playbackSpeed);
+            return true;
+        };
+
+        const scheduleFrameSyncedToVideo = () => {
+            if (!this.isPlaying) return false;
+            const activeResult = this.getActiveClipAtTime(clips, transitions, timelineTime, transitionItems);
+            const player = activeResult?.clip ? this.players.get(activeResult.clip.id) : null;
+            if (!player || typeof player.requestVideoFrameCallback !== 'function') return false;
+            this.videoFrameCallbackPlayer = player;
+            this.videoFrameCallbackId = player.requestVideoFrameCallback((_now, metadata = {}) => {
+                this.videoFrameCallbackId = null;
+                if (!this.isPlaying) return;
+                const frameMediaTime = Number.isFinite(metadata.mediaTime) ? metadata.mediaTime : player.currentTime;
+                const frameTimelineTime = this.resolveTimelineTimeFromMediaFrame(clips, transitions, timelineTime, transitionItems, player, frameMediaTime)
+                    ?? this.getMediaDrivenTimelineTime(clips, transitions, timelineTime, transitionItems)
+                    ?? timelineTime;
+                if (commitTime(frameTimelineTime)) scheduleNextFrame();
+            });
+            return true;
+        };
 
         const tick = (timestamp) => {
             if (!this.isPlaying) return;
 
             if (lastTimestamp !== null) {
                 const delta = (timestamp - lastTimestamp) / 1000 * playbackSpeed;
-                const newTime = Math.min(getCurrentTime() + delta, totalDuration);
-
-                if (newTime >= totalDuration) {
-                    this.stopPlayback();
-                    setCurrentTime(0);
-                    return;
-                }
-
-                this.renderFrame(clips, transitions, newTime, transitionItems);
-                setCurrentTime(newTime);
-                this.syncClipAudio(clips, transitions, newTime, playbackSpeed, transitionItems);
-                this.syncExternalAudio(audioTracks, newTime, playbackSpeed);
+                const timelineTimeFromVideo = this.getMediaDrivenTimelineTime(clips, transitions, timelineTime, transitionItems);
+                const waitingForVideo = timelineTimeFromVideo === null && this.hasActiveVideoWaitingForPlayback(clips, transitions, timelineTime, transitionItems);
+                const fallbackTime = waitingForVideo ? timelineTime : timelineTime + delta;
+                if (!commitTime(timelineTimeFromVideo ?? fallbackTime)) return;
             }
 
             lastTimestamp = timestamp;
             this.animFrameId = requestAnimationFrame(tick);
         };
 
-        this.animFrameId = requestAnimationFrame(tick);
+        const scheduleNextFrame = () => {
+            if (scheduleFrameSyncedToVideo()) return;
+            this.animFrameId = requestAnimationFrame(tick);
+        };
+
+        scheduleNextFrame();
     }
 
     stopPlayback() {
@@ -1074,6 +1918,11 @@ export class PlaybackEngine {
             cancelAnimationFrame(this.animFrameId);
             this.animFrameId = null;
         }
+        if (this.videoFrameCallbackId !== null && this.videoFrameCallbackPlayer?.cancelVideoFrameCallback) {
+            this.videoFrameCallbackPlayer.cancelVideoFrameCallback(this.videoFrameCallbackId);
+        }
+        this.videoFrameCallbackId = null;
+        this.videoFrameCallbackPlayer = null;
         this.players.forEach(player => { player.pause(); });
         this.audioPlayers.forEach(player => { player.pause(); });
     }
@@ -1114,24 +1963,51 @@ export const TRANSITIONS = [
 
     { id: 'wipe-left', name: 'Wipe Left', category: 'wipe', icon: '\u258C', defaultDuration: 0.6 },
     { id: 'wipe-right', name: 'Wipe Right', category: 'wipe', icon: '\u2590', defaultDuration: 0.6 },
+    { id: 'wipe-up', name: 'Wipe Up', category: 'wipe', icon: '\u2580', defaultDuration: 0.6 },
+    { id: 'wipe-down', name: 'Wipe Down', category: 'wipe', icon: '\u2584', defaultDuration: 0.6 },
+    { id: 'wipe-diagonal', name: 'Diagonal Wipe', category: 'wipe', icon: '\u25E9', defaultDuration: 0.7 },
     { id: 'wipe-circle', name: 'Circle Wipe', category: 'wipe', icon: '\u25C9', defaultDuration: 0.7 },
     { id: 'wipe-clock', name: 'Clock Wipe', category: 'wipe', icon: '\u25F7', defaultDuration: 0.8 },
+    { id: 'split-vertical', name: 'Split Vertical', category: 'wipe', icon: '\u25EB', defaultDuration: 0.7 },
+    { id: 'split-horizontal', name: 'Split Horizontal', category: 'wipe', icon: '\u25EB', defaultDuration: 0.7 },
+    { id: 'iris-diamond', name: 'Diamond Iris', category: 'wipe', icon: '\u25C7', defaultDuration: 0.75 },
+    { id: 'venetian-blinds', name: 'Venetian Blinds', category: 'wipe', icon: '\u2630', defaultDuration: 0.7 },
+    { id: 'grid-flip', name: 'Grid Flip', category: 'wipe', icon: '\u25A6', defaultDuration: 0.8 },
 
     { id: 'zoom-in', name: 'Zoom In', category: 'zoom', icon: '\u2295', defaultDuration: 0.5 },
     { id: 'zoom-out', name: 'Zoom Out', category: 'zoom', icon: '\u2296', defaultDuration: 0.5 },
     { id: 'zoom-rotate', name: 'Zoom Rotate', category: 'zoom', icon: '\u21BB', defaultDuration: 0.7 },
+    { id: 'parallax-zoom', name: 'Parallax Zoom', category: 'zoom', icon: '\u25CE', defaultDuration: 0.75 },
+    { id: 'snap-zoom', name: 'Snap Zoom', category: 'zoom', icon: '\u2316', defaultDuration: 0.45 },
+    { id: 'spin-flash', name: 'Spin Flash', category: 'zoom', icon: '\u2737', defaultDuration: 0.55 },
+    { id: 'cube-left', name: 'Cube Left', category: 'zoom', icon: '\u25E7', defaultDuration: 0.7 },
 
     { id: 'glitch', name: 'Glitch', category: 'glitch', icon: '\u26A1', defaultDuration: 0.4 },
     { id: 'pixel-scatter', name: 'Pixel Scatter', category: 'glitch', icon: '\u25A6', defaultDuration: 0.5 },
     { id: 'chromatic', name: 'Chromatic', category: 'glitch', icon: '\u25C8', defaultDuration: 0.4 },
+    { id: 'rgb-split', name: 'RGB Split', category: 'glitch', icon: '\u25C8', defaultDuration: 0.45 },
+    { id: 'strobe-cut', name: 'Strobe Cut', category: 'glitch', icon: '\u2736', defaultDuration: 0.35 },
 
     { id: 'cross-blur', name: 'Cross Blur', category: 'blur', icon: '\u25CC', defaultDuration: 0.6 },
     { id: 'motion-blur', name: 'Motion Blur', category: 'blur', icon: '\u224B', defaultDuration: 0.5 },
     { id: 'radial-blur', name: 'Radial Blur', category: 'blur', icon: '\u273A', defaultDuration: 0.6 },
+    { id: 'whip-pan', name: 'Whip Pan', category: 'blur', icon: '\u21A0', defaultDuration: 0.42 },
 
     { id: 'flash', name: 'Flash', category: 'light', icon: '\u2726', defaultDuration: 0.3 },
     { id: 'light-leak', name: 'Light Leak', category: 'light', icon: '\u2600', defaultDuration: 0.8 },
     { id: 'burn', name: 'Burn', category: 'light', icon: '\uD83D\uDD25', defaultDuration: 0.6 },
+    { id: 'neon-shutter', name: 'Neon Shutter', category: 'light', icon: '\u25A5', defaultDuration: 0.65 },
+    { id: 'scanline-sweep', name: 'Scanline Sweep', category: 'light', icon: '\u25AC', defaultDuration: 0.65 },
+    { id: 'ink-spread', name: 'Ink Spread', category: 'light', icon: '\u25CF', defaultDuration: 0.8 },
+
+    { id: 'intro-neon-doors', name: 'Neon Doors', category: 'intro', icon: '\u25E7', defaultDuration: 1.0 },
+    { id: 'intro-title-scan', name: 'Title Scan', category: 'intro', icon: '\u25AC', defaultDuration: 1.2 },
+    { id: 'intro-cinematic-bars', name: 'Cine Open', category: 'intro', icon: '\u25AC', defaultDuration: 1.0 },
+    { id: 'intro-grid-reveal', name: 'Grid Reveal', category: 'intro', icon: '\u25A6', defaultDuration: 0.9 },
+
+    { id: 'outro-neon-close', name: 'Neon Close', category: 'outro', icon: '\u25E8', defaultDuration: 1.0 },
+    { id: 'outro-cinematic-fade', name: 'Cine Fade', category: 'outro', icon: '\u25AC', defaultDuration: 1.0 },
+    { id: 'outro-signal-collapse', name: 'Signal Collapse', category: 'outro', icon: '\u2501', defaultDuration: 0.9 },
 ];
 
 export const TRANSITION_CATEGORIES = [
@@ -1142,6 +2018,8 @@ export const TRANSITION_CATEGORIES = [
     { id: 'glitch', name: 'Glitch' },
     { id: 'blur', name: 'Blur' },
     { id: 'light', name: 'Light' },
+    { id: 'intro', name: 'Intro' },
+    { id: 'outro', name: 'Outro' },
 ];
 
 export const EXPORT_PRESETS = {
@@ -1162,6 +2040,11 @@ export const TEXT_ANIMATIONS = [
     { id: 'slide-down', name: 'Slide Down' },
     { id: 'scale', name: 'Scale Pop' },
     { id: 'blur-in', name: 'Blur In' },
+    { id: 'reveal-up', name: 'Reveal Up' },
+    { id: 'wipe-mask', name: 'Wipe Mask' },
+    { id: 'neon-scan', name: 'Neon Scan' },
+    { id: 'tracking-in', name: 'Tracking In' },
+    { id: 'letter-pop', name: 'Letter Pop' },
 ];
 
 export function formatTime(seconds) {

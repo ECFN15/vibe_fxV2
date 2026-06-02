@@ -12,12 +12,22 @@ const MIME_CANDIDATES = {
     mp4: ['video/mp4;codecs=h264,aac', 'video/mp4;codecs=h264', 'video/mp4'],
 };
 
+export const EXPORT_FRAME_RATE_OPTIONS = [
+    { value: 'auto', label: 'Auto' },
+    { value: 24, label: '24' },
+    { value: 25, label: '25' },
+    { value: 30, label: '30' },
+    { value: 50, label: '50' },
+    { value: 60, label: '60' },
+];
+
 const ExportVideoPanel = () => {
     const [exportMessage, setExportMessage] = useState('');
     const [mimeSupport, setMimeSupport] = useState({ webm: false, mp4: false });
     const {
         sequencePreset, setSequencePreset,
         exportFormat, setExportFormat,
+        exportFrameRate, setExportFrameRate,
         isExporting, exportProgress,
         setActivePanel, totalDuration, clips, transitions, transitionItems,
         audioTracks, textOverlays, setIsExporting, setExportProgress,
@@ -36,6 +46,8 @@ const ExportVideoPanel = () => {
     }), [audioTracks, clips, textOverlays, totalDuration, tracks, transitions, transitionItems]);
     const hasClips = exportPlan.clips.length > 0;
     const exportClips = exportPlan.clips;
+    const sourceFpsMax = useMemo(() => resolveSourceFpsMax(exportClips), [exportClips]);
+    const exportFps = useMemo(() => resolveExportFps(preset?.fps, sourceFpsMax, exportFrameRate), [exportFrameRate, preset?.fps, sourceFpsMax]);
     const exportAllTransitions = exportPlan.allTransitions;
     const exportTextOverlays = exportPlan.textOverlays;
     const exportAudioTracks = exportPlan.audioTracks;
@@ -50,7 +62,7 @@ const ExportVideoPanel = () => {
     const effectiveExportFormat = exportFormat === 'mp4' && !mimeSupport.mp4 ? 'webm' : exportFormat;
     const formatFallbackActive = exportFormat !== effectiveExportFormat;
     const exportPreflight = useMemo(() => {
-        const fps = Number(preset?.fps || 30);
+        const fps = exportFps;
         const frameSchedule = buildExportFrameSchedule({ totalDuration, fps });
         const mimeType = getSupportedMimeType(effectiveExportFormat);
         const timelineAudit = validateExportTimeline({
@@ -111,7 +123,7 @@ const ExportVideoPanel = () => {
             mimeType,
             status: errors.length > 0 ? 'blocked' : warnings.length > 0 ? 'warning' : 'ready',
         };
-    }, [effectiveExportFormat, exportAllTransitions, exportAudioTracks, exportClips, exportPlaybackClips, exportPlan, preset?.fps, rightsBlockers, shouldMixAudio, totalDuration]);
+    }, [effectiveExportFormat, exportAllTransitions, exportAudioTracks, exportClips, exportFps, exportPlaybackClips, exportPlan, rightsBlockers, shouldMixAudio, totalDuration]);
 
     useEffect(() => {
         if (typeof MediaRecorder === 'undefined') return;
@@ -406,7 +418,7 @@ const ExportVideoPanel = () => {
                                 {p.height > p.width ? <Smartphone size={12} /> : <Monitor size={12} />}
                                 <div>
                                     <div className="text-[10px] font-mono font-medium">{p.name}</div>
-                                    <div className="text-[8px] font-mono text-neutral-500">{p.width}x{p.height}</div>
+                                    <div className="text-[8px] font-mono text-neutral-500">{p.width}x{p.height} / {p.label} / auto {p.fps}-60 FPS</div>
                                 </div>
                             </button>
                         ))}
@@ -439,6 +451,30 @@ const ExportVideoPanel = () => {
                     )}
                 </div>
 
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                        <label htmlFor="vibecut-export-fps" className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest">
+                            FPS preview/export
+                        </label>
+                        <span className="text-[9px] font-mono text-indigo-300 uppercase tracking-widest">
+                            {exportFps} FPS
+                        </span>
+                    </div>
+                    <select
+                        id="vibecut-export-fps"
+                        data-testid="export-fps-select"
+                        value={exportFrameRate}
+                        onChange={(event) => setExportFrameRate(event.target.value === 'auto' ? 'auto' : Number(event.target.value))}
+                        className="w-full rounded-sm border border-neutral-800 bg-neutral-950 px-2 py-2 text-[10px] font-mono uppercase tracking-widest text-neutral-200 outline-none transition hover:border-neutral-600 focus:border-indigo-400"
+                    >
+                        {EXPORT_FRAME_RATE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                                {option.value === 'auto' ? `Auto (${sourceFpsMax || preset.fps} FPS)` : `${option.label} FPS`}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
                 {preset && (
                     <div className="border border-neutral-800 rounded-sm p-3 space-y-1.5">
                         <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest">Resume</span>
@@ -446,7 +482,8 @@ const ExportVideoPanel = () => {
                             {[
                                 ['Resolution', `${preset.width} x ${preset.height}`],
                                 ['Sequence', `${preset.name} ${preset.label}`],
-                                ['FPS', `${preset.fps}`],
+                                ['FPS', `${exportFps}`],
+                                ['Source FPS', sourceFpsMax > exportFps ? `${sourceFpsMax}->${exportFps} FPS` : `${sourceFpsMax || exportFps} FPS preserve`],
                                 ['Duree', `${totalDuration.toFixed(1)}s`],
                                 ['Audio export', shouldMixAudio ? [
                                     hasAudibleClipAudio ? 'clips' : '',
@@ -596,6 +633,24 @@ function getSupportedMimeType(format = 'webm') {
     if (typeof MediaRecorder === 'undefined') return '';
     const candidates = MIME_CANDIDATES[format] || MIME_CANDIDATES.webm;
     return candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate)) || '';
+}
+
+function resolveSourceFpsMax(clips = []) {
+    const detected = clips
+        .map((clip) => Number(clip.sourceFrameRate || clip.importFrameRate || 0))
+        .filter((fps) => Number.isFinite(fps) && fps > 0);
+    if (!detected.length) return 0;
+    return Math.min(60, Math.max(...detected.map((fps) => Math.round(fps))));
+}
+
+export function resolveExportFps(presetFps, sourceFpsMax, override = 'auto') {
+    const requestedFps = Number(override);
+    if (override !== 'auto' && Number.isFinite(requestedFps) && requestedFps > 0) {
+        return Math.min(60, Math.max(1, Math.round(requestedFps)));
+    }
+    const baseFps = Number.isFinite(Number(presetFps)) ? Number(presetFps) : 30;
+    const sourceFps = Number.isFinite(Number(sourceFpsMax)) ? Number(sourceFpsMax) : 0;
+    return Math.min(60, Math.max(baseFps, sourceFps || baseFps));
 }
 
 function sampleCanvasFrameHealth(canvas) {

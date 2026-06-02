@@ -121,7 +121,7 @@ export default function Home() {
             Backoffice
           </Link>
         </div>
-        <Link href="/studio" className="vf-nav-cta">
+        <Link href="/studio?workspace=layout" className="vf-nav-cta">
           Launch app
         </Link>
       </nav>
@@ -137,7 +137,7 @@ export default function Home() {
             indexable et ultra-rapide.
           </p>
           <div className="vf-actions" aria-label="Actions principales">
-            <Link href="/studio" className="vf-primary">
+            <Link href="/studio?workspace=layout" className="vf-primary">
               Launch app
             </Link>
             <Link href="/pricing" className="vf-secondary">

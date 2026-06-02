@@ -1,8 +1,12 @@
 import { create } from 'zustand';
-import { buildTimelineModel, clampVolumePercent, doesTrackAllowOverlap, findTimelineItemOverlap, getDefaultTracks, getTimelineTrackRole, getTrackForItemType, isTrackLocked as isTimelineTrackLocked } from '../model/timelineModel';
+import { buildTimelineModel, clampVolumePercent, doesTrackAllowOverlap, findTimelineItemOverlap, getDefaultTracks, getIntroOffset, getSequencePlacement, getTimelineTrackRole, getTrackForItemType, isTrackLocked as isTimelineTrackLocked } from '../model/timelineModel';
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const normalizeClipFrameRate = (value) => {
+    const frameRate = Number(value);
+    return Number.isFinite(frameRate) && frameRate > 0 ? frameRate : null;
+};
 
 // Snapshot keys for undo/redo
 const SNAPSHOT_KEYS = ['clips', 'transitions', 'transitionItems', 'textOverlays', 'audioTracks', 'tracks', 'selectedClipId', 'selectedTextId', 'selectedTransitionId', 'selectedAudioTrackId', 'sequencePreset'];
@@ -150,9 +154,21 @@ const useVideoStore = create((set, get) => ({
                 url: clipData.url,
                 duration: clipData.duration || 0,
                 originalDuration: clipData.duration || 0,
+                width: Number.isFinite(Number(clipData.width)) ? Number(clipData.width) : null,
+                height: Number.isFinite(Number(clipData.height)) ? Number(clipData.height) : null,
+                displayWidth: Number.isFinite(Number(clipData.displayWidth)) ? Number(clipData.displayWidth) : null,
+                displayHeight: Number.isFinite(Number(clipData.displayHeight)) ? Number(clipData.displayHeight) : null,
+                orientationRotation: Number.isFinite(Number(clipData.orientationRotation)) ? Number(clipData.orientationRotation) : 0,
+                orientationSource: clipData.orientationSource || 'browser',
                 trimStart: 0,
                 trimEnd: clipData.duration || 0,
                 thumbnails: clipData.thumbnails || [],
+                sourceFrameRate: normalizeClipFrameRate(clipData.sourceFrameRate),
+                sourceFrameRateRaw: normalizeClipFrameRate(clipData.sourceFrameRateRaw),
+                sourceFrameRateStatus: clipData.sourceFrameRateStatus || 'unknown',
+                importFrameRate: normalizeClipFrameRate(clipData.importFrameRate),
+                importFrameRateMode: clipData.importFrameRateMode || 'source',
+                socialFpsNormalized: clipData.socialFpsNormalized === true,
                 speed: 1,
                 volume: 100,
                 filters: { brightness: 100, contrast: 100, saturation: 100, temperature: 0, vignette: 0, grain: 0 },
@@ -340,7 +356,8 @@ const useVideoStore = create((set, get) => ({
         }
         const duration = Math.max(0.1, transition.duration || transition.defaultDuration || 0.5);
         const maxEnd = Math.max(0.1, state.totalDuration || 0.1);
-        const startTime = clamp(transition.startTime ?? state.currentTime ?? 0, 0, Math.max(0, maxEnd - duration));
+        const sequencePlacement = getSequencePlacement(transition);
+        const startTime = resolveTransitionStartTime(transition, sequencePlacement, duration, maxEnd, state.currentTime);
         const id = transition.id || uid();
         const nextItem = {
             id,
@@ -349,7 +366,10 @@ const useVideoStore = create((set, get) => ({
             trackId,
             fromItemId: transition.fromItemId || null,
             toItemId: transition.toItemId || null,
-            params: transition.params || {},
+            params: {
+                ...(transition.params || {}),
+                ...(sequencePlacement ? { placement: sequencePlacement, sequenceSlot: sequencePlacement, singleton: true } : {}),
+            },
             name: transition.name || transition.type || 'Transition',
             icon: transition.icon || '*',
             category: transition.category || 'basic',
@@ -357,15 +377,20 @@ const useVideoStore = create((set, get) => ({
             endTime: startTime + duration,
             duration,
         };
-        if (hasDisallowedItemOverlap(nextTracks, [...state.transitionItems, nextItem], trackId)) {
+        const transitionItemsForValidation = sequencePlacement
+            ? replaceSequenceTransitionItem(state.transitionItems, nextItem, sequencePlacement)
+            : [...state.transitionItems, nextItem];
+        if (hasDisallowedItemOverlap(nextTracks, transitionItemsForValidation, trackId)) {
             rejectTimelineEdit(set, 'track-overlap', 'Overlap interdit sur cette piste: transition ignoree.');
             return;
         }
         pushHistory(state);
         set((s) => ({
             tracks: nextTracks,
-            transitionItems: [...s.transitionItems, nextItem],
+            transitionItems: transitionItemsForValidation,
             selectedTransitionId: id,
+            totalDuration: computeTotalDuration(s.clips, s.transitions, transitionItemsForValidation),
+            currentTime: clamp(s.currentTime, 0, computeTotalDuration(s.clips, s.transitions, transitionItemsForValidation)),
             timelineEditNotice: null,
         }));
     },
@@ -416,7 +441,15 @@ const useVideoStore = create((set, get) => ({
             return;
         }
         if (options.history) pushHistory(state);
-        set({ transitionItems: nextTransitionItems, timelineEditNotice: null });
+        set((s) => {
+            const totalDuration = computeTotalDuration(s.clips, s.transitions, nextTransitionItems);
+            return {
+                transitionItems: nextTransitionItems,
+                totalDuration,
+                currentTime: clamp(s.currentTime, 0, totalDuration),
+                timelineEditNotice: null,
+            };
+        });
     },
 
     removeTransitionItem: (id) => {
@@ -430,6 +463,8 @@ const useVideoStore = create((set, get) => ({
         set((s) => ({
             transitionItems: s.transitionItems.filter(item => item.id !== id),
             selectedTransitionId: s.selectedTransitionId === id ? null : s.selectedTransitionId,
+            totalDuration: computeTotalDuration(s.clips, s.transitions, s.transitionItems.filter(item => item.id !== id)),
+            currentTime: clamp(s.currentTime, 0, computeTotalDuration(s.clips, s.transitions, s.transitionItems.filter(item => item.id !== id))),
             timelineEditNotice: null,
         }));
     },
@@ -542,7 +577,7 @@ const useVideoStore = create((set, get) => ({
             rejectTimelineEdit(set, 'track-locked', 'Piste texte verrouillee: ajout ignore.');
             return;
         }
-        const id = uid();
+        const id = text.id || uid();
         const nextText = normalizeTextOverlay(text, {
             id,
             trackId,
@@ -629,10 +664,12 @@ const useVideoStore = create((set, get) => ({
     setSequencePreset: (p) => set({ sequencePreset: p, exportPreset: p }),
     exportFormat: 'mp4',
     exportPreset: 'youtube',
+    exportFrameRate: 'auto',
     exportProgress: 0,
     isExporting: false,
     setExportFormat: (f) => set({ exportFormat: f }),
     setExportPreset: (p) => set({ exportPreset: p, sequencePreset: p }),
+    setExportFrameRate: (fps) => set({ exportFrameRate: fps }),
     setExportProgress: (p) => set({ exportProgress: p }),
     setIsExporting: (v) => set({ isExporting: v }),
 
@@ -981,7 +1018,9 @@ function hasRangeOverlap(items = [], startTime = 0, endTime = 0) {
 function hasDisallowedItemOverlap(tracks = [], items = [], trackId = '') {
     if (!trackId || doesTrackAllowOverlap(tracks, trackId)) return false;
     return Boolean(findTimelineItemOverlap(
-        items.filter(item => (item.trackId || '') === trackId),
+        items
+            .filter(item => !getSequencePlacement(item))
+            .filter(item => (item.trackId || '') === trackId),
         { tolerance: 0.001 }
     ));
 }
@@ -1061,7 +1100,7 @@ function getCutTransitionForPair(transitions = {}, transitionItems = [], fromId,
 
 function computeTotalDuration(clips, transitions = {}, transitionItems = []) {
     if (clips.length === 0) return 0;
-    let total = 0;
+    let total = getIntroOffset(transitionItems);
     clips.forEach((clip, i) => {
         const clipDur = (clip.trimEnd - clip.trimStart) / (clip.speed || 1);
         total += clipDur;
@@ -1070,7 +1109,24 @@ function computeTotalDuration(clips, transitions = {}, transitionItems = []) {
             if (tr) total -= tr.duration || 0;
         }
     });
+    const outroDuration = transitionItems
+        .filter(item => getSequencePlacement(item) === 'outro')
+        .reduce((maxDuration, item) => Math.max(maxDuration, Number(item.duration) || 0), 0);
+    total += outroDuration;
     return Math.max(0, total);
+}
+
+function resolveTransitionStartTime(transition = {}, sequencePlacement = null, duration = 0.5, maxEnd = 0.1, currentTime = 0) {
+    if (sequencePlacement === 'intro') return 0;
+    if (sequencePlacement === 'outro') return Math.max(0, maxEnd - duration);
+    return clamp(transition.startTime ?? currentTime ?? 0, 0, Math.max(0, maxEnd - duration));
+}
+
+function replaceSequenceTransitionItem(items = [], nextItem = {}, sequencePlacement = '') {
+    return [
+        ...items.filter(item => getSequencePlacement(item) !== sequencePlacement),
+        nextItem,
+    ];
 }
 
 export default useVideoStore;

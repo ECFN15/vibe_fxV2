@@ -18,7 +18,7 @@ import PublicationDashboard from "./PublicationDashboard";
 import PublicationList from "./PublicationList";
 import PublicationPreview from "./PublicationPreview";
 
-export default function PublicationComposer({ draft, publication, publications, loading, authError = "", currentUser = null, accountData = null, onBackToLayout, onSelectPublication, onDeletePublication, onSetHomeFeature, onSaved }) {
+export default function PublicationComposer({ draft, publication, publications, loading, authError = "", currentUser = null, accountData = null, aiInterfacesEnabled = false, onBackToLayout, onSelectPublication, onDeletePublication, onSetHomeFeature, onSaved }) {
   const initialFormat = useMemo(
     () => getCanonicalFormat(draft?.format || publication?.format),
     [draft?.format, publication?.format]
@@ -240,6 +240,7 @@ export default function PublicationComposer({ draft, publication, publications, 
         message={authError || message}
         currentUser={currentUser}
         accountData={accountData}
+        aiInterfacesEnabled={aiInterfacesEnabled}
       />
     );
   }

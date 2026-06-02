@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 
 /**
  * useCanvasEvents — Gère tous les événements pointer (down, move, up) du canvas.
- * Couvre les interactions Layout (textes, assets, slots) et Studio/Fusion (crop, overlay).
+ * Couvre les interactions Layout (textes, assets, slots) et Studio (crop, overlay).
  */
 export default function useCanvasEvents({
     canvasRef, view, images,
@@ -19,11 +19,9 @@ export default function useCanvasEvents({
     activeGuides, setActiveGuides,
     // Refs
     lastMousePos, dragOffset, textMetrics,
-    // Studio/Fusion state
+    // Studio state
     isCropping,
-    setOverlayPos, setCropPos,
-    fusionConfig, setFusionConfig,
-    selectedImgIndex, setSelectedImgIndex,
+    setCropPos,
 }) {
     const getPointerPos = useCallback((e, canvas) => {
         const rect = canvas.getBoundingClientRect();
@@ -90,92 +88,10 @@ export default function useCanvasEvents({
             }
             setSelectedSlotIndex(null); setActiveTextId(null); setActiveAssetId(null);
         }
-        // STUDIO / FUSION MODE LOGIC
+        // STUDIO MODE LOGIC
         else {
             if (images.length === 0) return;
-            const isFusionDrag = view === 'fusion';
-            const isCropDrag = view !== 'fusion' && isCropping;
-            if (!isFusionDrag && !isCropDrag) return;
-
-            if (isFusionDrag) {
-                const pos = getPointerPos(e, canvasRef.current);
-                const W = canvasRef.current.width;
-                const H = canvasRef.current.height;
-
-                // Hit detection matching studioRenderer.js placement (z-index order reverse)
-                for (let i = images.length - 1; i >= 0; i--) {
-                    const comp = fusionConfig.composition || 'single';
-                    const specific = (fusionConfig.perImageConfigs || {})[i] || {};
-                    const scale = ((specific.imageScale || fusionConfig.imageScale) / 100);
-
-                    // Base coordinates logic as per studioRenderer.js
-                    let cX = W / 2, cY = H / 2, baseScale = 1;
-
-                    if (comp === 'split_v' && images.length >= 2) {
-                        cY = i % 2 === 0 ? H * 0.25 : H * 0.75; baseScale = 0.6;
-                    } else if (comp === 'split_h' && images.length >= 2) {
-                        cX = i % 2 === 0 ? W * 0.25 : W * 0.75; baseScale = 0.6;
-                    } else if (comp === 'scattered' && images.length >= 2) {
-                        // PRNG MUST match studioRenderer.js: xfc32(i + 10, 20, 30, 40)
-                        const seed = i + 10;
-                        let a = seed >>> 0, b = 20 >>> 0, c = 30 >>> 0, d = 40 >>> 0;
-                        const xfc32_local = () => { let t = (a + b) | 0; a = b ^ b >>> 9; b = c + (c << 3) | 0; c = (c << 21 | c >>> 11); d = d + 1 | 0; t = t + d | 0; c = c + t | 0; return (t >>> 0) / 4294967296; };
-                        cX = W * (0.2 + xfc32_local() * 0.6); cY = H * (0.2 + xfc32_local() * 0.6); baseScale = 0.4 + xfc32_local() * 0.4;
-                    } else if (comp === 'asymmetric' && images.length >= 2) {
-                        if (i === 0) { cX = W * 0.4; cY = H * 0.4; baseScale = 0.8; }
-                        else if (i === 1) { cX = W * 0.7; cY = H * 0.7; baseScale = 0.4; }
-                        else if (i === 2) { cX = W * 0.2; cY = H * 0.8; baseScale = 0.3; }
-                        else {
-                            const seed = i;
-                            let a = seed >>> 0, b = 1 >>> 0, c = 2 >>> 0, d = 3 >>> 0;
-                            const xfc32_local = () => { let t = (a + b) | 0; a = b ^ b >>> 9; b = c + (c << 3) | 0; c = (c << 21 | c >>> 11); d = d + 1 | 0; t = t + d | 0; c = c + t | 0; return (t >>> 0) / 4294967296; };
-                            cX = W * (0.2 + xfc32_local() * 0.6); cY = H * (0.2 + xfc32_local() * 0.6); baseScale = 0.2;
-                        }
-                    }
-
-                    const finalScale = scale * baseScale;
-                    let mW = W * finalScale;
-                    let mH = H * finalScale;
-
-                    // SYNC: studioRenderer.js geometry constraint
-                    const maskShape = specific.maskShape || fusionConfig.maskShape || 'none';
-                    if (maskShape !== 'none' && maskShape !== 'rhombus') {
-                        const sq = Math.min(mW, mH);
-                        mW = sq; mH = sq;
-                    } else if (maskShape === 'none') {
-                        const img = images[i];
-                        if (img) {
-                            const imgR = img.width / img.height;
-                            const canR = W / H;
-                            if (imgR > canR) {
-                                mW = W * finalScale;
-                                mH = mW / imgR;
-                            } else {
-                                mH = H * finalScale;
-                                mW = mH * imgR;
-                            }
-                        }
-                    }
-
-                    const px = specific.posX || 0;
-                    const py = specific.posY || 0;
-                    const gPx = fusionConfig.imagePos?.x || 0;
-                    const gPy = fusionConfig.imagePos?.y || 0;
-
-                    const activeCenter = { x: cX + px + gPx, y: cY + py + gPy };
-
-                    // Hit check logic
-                    if (Math.abs(pos.x - activeCenter.x) < mW / 2 && Math.abs(pos.y - activeCenter.y) < mH / 2) {
-                        setSelectedImgIndex(i);
-                        setIsDragging(true);
-                        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-                        lastMousePos.current = { x: clientX, y: clientY };
-                        return;
-                    }
-                }
-                setSelectedImgIndex(-1); // Background click
-            }
+            if (!isCropping) return;
 
             setIsDragging(true);
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -255,29 +171,12 @@ export default function useCanvasEvents({
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
             const dx = clientX - lastMousePos.current.x;
             const dy = clientY - lastMousePos.current.y;
-            if (view === 'fusion') {
-                if (selectedImgIndex !== null) {
-                    setFusionConfig(prev => {
-                        const per = { ...(prev.perImageConfigs || {}) };
-                        const spec = { ...(per[selectedImgIndex] || {}) };
-                        spec.posX = (spec.posX || 0) + dx;
-                        spec.posY = (spec.posY || 0) + dy;
-                        per[selectedImgIndex] = spec;
-                        return { ...prev, perImageConfigs: per };
-                    });
-                } else {
-                    setFusionConfig(prev => ({
-                        ...prev,
-                        imagePos: { x: (prev.imagePos?.x || 0) + dx, y: (prev.imagePos?.y || 0) + dy }
-                    }));
-                }
-            }
-            else if (isCropping) { const speedFactor = 1.5; setCropPos(prev => ({ x: prev.x + (dx * speedFactor), y: prev.y + (dy * speedFactor) })); }
+            if (isCropping) { const speedFactor = 1.5; setCropPos(prev => ({ x: prev.x + (dx * speedFactor), y: prev.y + (dy * speedFactor) })); }
             lastMousePos.current = { x: clientX, y: clientY };
         }
     }, [view, isDraggingText, isDraggingAsset, isDragging, canvasRef, activeTextId, activeAssetId,
         texts, isCropping, getPointerPos, setActiveGuides, setTexts, setAssets,
-        setCropPos, dragOffset, textMetrics, lastMousePos, setFusionConfig]);
+        setCropPos, dragOffset, textMetrics, lastMousePos]);
 
     const handlePointerUp = useCallback(() => {
         setIsDragging(false);

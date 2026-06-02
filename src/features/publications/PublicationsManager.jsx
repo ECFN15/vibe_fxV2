@@ -16,11 +16,13 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged, signInAnonymously } from "firebase/auth";
 import { auth, db } from "../../lib/firebase.js";
+import { useAiLaunchSettings } from "../../hooks/useAiLaunchSettings.js";
 import PublicationComposer from "./components/PublicationComposer";
 import { normalizeVibeFxDraft } from "./helpers/publicationHelpers";
 import VibeFxStudio from "../vibefx-studio";
 
 export default function PublicationsManager({ initialMode = "dashboard", initialWorkspace = "studio" }) {
+  const { aiInterfacesEnabled } = useAiLaunchSettings();
   const [publications, setPublications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState(initialMode);
@@ -61,6 +63,15 @@ export default function PublicationsManager({ initialMode = "dashboard", initial
       return;
     }
 
+    const jobQuery = aiInterfacesEnabled
+      ? getDocs(query(
+        collection(db, "aiJobs"),
+        where("uid", "==", currentUid),
+        orderBy("createdAt", "desc"),
+        limit(4)
+      )).catch(() => ({ docs: [] }))
+      : Promise.resolve({ docs: [] });
+
     const [profileSnapshot, paymentSnapshot, checkoutSnapshot, jobSnapshot] = await Promise.all([
       getDoc(doc(db, "users", currentUid)).catch(() => null),
       getDocs(query(
@@ -75,12 +86,7 @@ export default function PublicationsManager({ initialMode = "dashboard", initial
         orderBy("updatedAt", "desc"),
         limit(4)
       )).catch(() => ({ docs: [] })),
-      getDocs(query(
-        collection(db, "aiJobs"),
-        where("uid", "==", currentUid),
-        orderBy("createdAt", "desc"),
-        limit(4)
-      )).catch(() => ({ docs: [] })),
+      jobQuery,
     ]);
 
     setAccountData({
@@ -89,7 +95,7 @@ export default function PublicationsManager({ initialMode = "dashboard", initial
       checkouts: checkoutSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })),
       jobs: jobSnapshot.docs.map((item) => ({ id: item.id, ...item.data() })),
     });
-  }, [currentUid]);
+  }, [aiInterfacesEnabled, currentUid]);
 
   useEffect(() => {
     if (!auth) {
@@ -199,6 +205,7 @@ export default function PublicationsManager({ initialMode = "dashboard", initial
           authError={authError}
           currentUser={currentUser}
           accountData={accountData}
+          aiInterfacesEnabled={aiInterfacesEnabled}
           onBackToLayout={openLayoutFromPublications}
           onSelectPublication={handleSelectPublication}
           onDeletePublication={handleDelete}

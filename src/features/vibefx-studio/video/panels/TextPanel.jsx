@@ -21,6 +21,11 @@ const ANIMATION_IN = [
     { id: 'slide-down', name: 'Glissement bas' },
     { id: 'scale', name: 'Zoom' },
     { id: 'blur-in', name: 'Flou' },
+    { id: 'reveal-up', name: 'Reveal haut' },
+    { id: 'wipe-mask', name: 'Masque horizontal' },
+    { id: 'neon-scan', name: 'Scan neon' },
+    { id: 'tracking-in', name: 'Tracking' },
+    { id: 'letter-pop', name: 'Lettres pop' },
 ];
 
 const ANIMATION_OUT = [
@@ -29,6 +34,8 @@ const ANIMATION_OUT = [
     { id: 'slide-up', name: 'Glissement haut' },
     { id: 'slide-down', name: 'Glissement bas' },
     { id: 'scale', name: 'Retrecir' },
+    { id: 'wipe-out', name: 'Masque sortie' },
+    { id: 'glitch-out', name: 'Glitch sortie' },
 ];
 
 const TextPanel = () => {

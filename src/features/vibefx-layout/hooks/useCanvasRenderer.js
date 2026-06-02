@@ -19,11 +19,9 @@ export default function useCanvasRenderer({
     // Text & Assets
     texts, assets, activeTextId, activeAssetId,
     isDraggingText, activeGuides,
-    // Studio/Fusion
+    // Studio
     cropRatio, cropPos, cropScale, isCropping,
     filters,
-    fusionConfig,
-    selectedImgIndex,
     // Animation
     isDragging, requestRef,
 }) {
@@ -53,7 +51,7 @@ export default function useCanvasRenderer({
     }, [images, activeFormat, layoutBgBlur, view, bgCanvasRef]);
 
     const getCanvasDimensions = useCallback(() => {
-        if (view === 'layout' || view === 'fusion') return { width: activeFormat.w, height: activeFormat.h };
+        if (view === 'layout') return { width: activeFormat.w, height: activeFormat.h };
         if (!images.length) return { width: 0, height: 0 };
 
         const img = images[0];
@@ -243,7 +241,7 @@ export default function useCanvasRenderer({
 
     const renderCanvas = useCallback(() => {
         const canRenderEmptyCustomLayout = view === 'layout' && activeTemplate.id === 'custom';
-        if ((!images.length && view !== 'fusion' && !canRenderEmptyCustomLayout) || !canvasRef.current) return;
+        if ((!images.length && !canRenderEmptyCustomLayout) || !canvasRef.current) return;
         const canvas = canvasRef.current;
         const { width, height } = getCanvasDimensions();
         if (width === 0 || height === 0) return;

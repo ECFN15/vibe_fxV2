@@ -7,7 +7,6 @@ Cette architecture permet de **sharder** la logique UI de `App.jsx` pour un code
 ## Composants
 - `BackgroundPanel.jsx` : Gestion de la couleur de fond, de l'opacité (blur) et du grain.
 - `ExportPanel.jsx` : Options d'export (format, qualité, panoramas).
-- `FusionPanel.jsx` : Logique de "Double Exposition" (upload overlay, blend modes, opacité).
 - `GeometryPanel.jsx` : Gestion des marges, espacements (gap) et arrondis (border-radius).
 - `StylePanel.jsx` : Le "Studio", gestion des presets argentiques/numériques et filtres (Lumière, Contraste, Grain, etc.).
 - `TextAssetsPanel.jsx` : Outils de typographie et d'ajout d'assets visuels (scotch, éléments graphiques).

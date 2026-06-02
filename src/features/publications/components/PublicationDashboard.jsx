@@ -23,7 +23,7 @@ function providerIds(user) {
   return (user?.providerData || []).map((provider) => provider.providerId).filter(Boolean);
 }
 
-export default function PublicationDashboard({ stats, publications, loading, selectedId, onBackToLayout, onSelectPublication, onDeletePublication, onSetHomeFeature, featureSaving, message, currentUser = null, accountData = null }) {
+export default function PublicationDashboard({ stats, publications, loading, selectedId, onBackToLayout, onSelectPublication, onDeletePublication, onSetHomeFeature, featureSaving, message, currentUser = null, accountData = null, aiInterfacesEnabled = false }) {
   const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
   const latest = publications.slice(0, 6);
   const queued = publications.filter((item) => item.status !== "published").slice(0, 3);
@@ -91,11 +91,13 @@ export default function PublicationDashboard({ stats, publications, loading, sel
           <strong>{lastCheckout?.status || "Aucune session"}</strong>
           <small>{lastCheckout ? `${lastCheckout.productKey || "produit"} - ${safeDate(lastCheckout.updatedAt || lastCheckout.createdAt)}` : "Pas de session recente"}</small>
         </article>
-        <article className="pub-account-card">
-          <span className="pub-account-kicker">Usage IA</span>
-          <strong>{lastJob?.status || "Aucun job"}</strong>
-          <small>{lastJob ? `${lastJob.feature || "feature"} - ${formatNumber(lastJob.capturedCredits || lastJob.estimatedCredits)} credits` : "Historique vide"}</small>
-        </article>
+        {aiInterfacesEnabled ? (
+          <article className="pub-account-card">
+            <span className="pub-account-kicker">Usage IA</span>
+            <strong>{lastJob?.status || "Aucun job"}</strong>
+            <small>{lastJob ? `${lastJob.feature || "feature"} - ${formatNumber(lastJob.capturedCredits || lastJob.estimatedCredits)} credits` : "Historique vide"}</small>
+          </article>
+        ) : null}
       </section>
 
       <section className="pub-hub-stats" aria-label="Etat des publications">
