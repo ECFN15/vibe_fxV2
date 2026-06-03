@@ -17,7 +17,7 @@ try {
   await writeFile(tempModelPath, modelSource, "utf8");
   await writeFile(tempStorePath, storeSource, "utf8");
 
-  const { getDefaultTracks } = await import(pathToFileURL(tempModelPath).href);
+  const { getDefaultTracks, resolveTimelineRenderPlan, validateTimelineRenderPlan } = await import(pathToFileURL(tempModelPath).href);
   const { default: useVideoStore } = await import(pathToFileURL(tempStorePath).href);
 
   const resetStore = (overrides = {}) => {
@@ -101,6 +101,72 @@ try {
   assert.equal(useVideoStore.getState().timelineEditNotice, null, "accepted transition edit must clear stale edit notices");
   useVideoStore.getState().updateTransitionItem("tr-b", { startTime: 0.2, endTime: 1.2 });
   assert.equal(useVideoStore.getState().transitionItems.find((item) => item.id === "tr-b").startTime, 0.2, "transition update should honor allowOverlap=true");
+
+  resetStore({
+    clips: [
+      { id: "clip-a", name: "Clip A", url: "/a.webm", trimStart: 0, trimEnd: 3, duration: 3, speed: 1, volume: 100 },
+      { id: "clip-b", name: "Clip B", url: "/b.webm", trimStart: 0, trimEnd: 2, duration: 2, speed: 1, volume: 100 },
+    ],
+    totalDuration: 5,
+  });
+  useVideoStore.getState().addTransitionItem({
+    id: "intro-a",
+    type: "intro-neon-doors",
+    category: "intro",
+    duration: 1.2,
+    params: { placement: "intro", sequenceSlot: "intro", singleton: true },
+  });
+  assert.equal(useVideoStore.getState().transitionItems.length, 1, "intro sequence should create one transition item");
+  assert.equal(useVideoStore.getState().transitionItems[0].trackId, "sequence-main", "intro sequence should stay on the dedicated sequence track");
+  assert.equal(useVideoStore.getState().tracks.filter((track) => track.laneRole === "transition").length, 1, "intro sequence must not create an extra effects track");
+  assert.equal(useVideoStore.getState().totalDuration, 6.2, "intro sequence must extend timeline duration before video");
+  let introModel = useVideoStore.getState().getTimelineModel();
+  assert.equal(introModel.items.find((item) => item.type === "video" && item.id === "clip-a").start, 1.2, "intro sequence must shift first video item");
+
+  useVideoStore.getState().addTransitionItem({
+    id: "intro-b",
+    type: "intro-title-scan",
+    category: "intro",
+    duration: 0.8,
+    params: { placement: "intro", sequenceSlot: "intro", singleton: true },
+  });
+  const introItems = useVideoStore.getState().transitionItems.filter((item) => item.params?.sequenceSlot === "intro");
+  assert.equal(introItems.length, 1, "second intro sequence must replace the existing intro slot");
+  assert.equal(introItems[0].id, "intro-b", "intro replacement must keep the newest intro item");
+  assert.equal(introItems[0].trackId, "sequence-main", "intro replacement must keep the dedicated sequence track");
+  assert.equal(useVideoStore.getState().tracks.filter((track) => track.laneRole === "transition").length, 1, "intro replacement must not create Effets 2");
+  assert.equal(useVideoStore.getState().totalDuration, 5.8, "intro replacement must recompute duration with the new intro length");
+  introModel = useVideoStore.getState().getTimelineModel();
+  assert.equal(introModel.items.find((item) => item.type === "video" && item.id === "clip-a").start, 0.8, "replaced intro length must control video shift");
+  useVideoStore.getState().updateTransitionItem("intro-b", { duration: 1.6 }, { history: true });
+  introModel = useVideoStore.getState().getTimelineModel();
+  assert.equal(useVideoStore.getState().totalDuration, 6.6, "intro duration edit must extend the total timeline duration");
+  assert.equal(introModel.items.find((item) => item.type === "video" && item.id === "clip-a").start, 1.6, "intro duration edit must shift the video lane");
+
+  useVideoStore.getState().addTransitionItem({
+    id: "outro-a",
+    type: "outro-neon-close",
+    category: "outro",
+    duration: 1,
+    params: { placement: "outro", sequenceSlot: "outro", singleton: true },
+  });
+  useVideoStore.getState().addTransitionItem({
+    id: "outro-b",
+    type: "outro-signal-collapse",
+    category: "outro",
+    duration: 0.9,
+    params: { placement: "outro", sequenceSlot: "outro", singleton: true },
+  });
+  const outroItems = useVideoStore.getState().transitionItems.filter((item) => item.params?.sequenceSlot === "outro");
+  assert.equal(outroItems.length, 1, "outro sequence must also be a singleton slot");
+  assert.equal(outroItems[0].id, "outro-b", "outro replacement must keep the newest outro item");
+  assert.equal(outroItems[0].trackId, "sequence-main", "outro replacement must keep the dedicated sequence track");
+  assert.equal(useVideoStore.getState().tracks.filter((track) => track.laneRole === "transition").length, 1, "outro replacement must not create extra effects tracks");
+  const sequencePlan = resolveTimelineRenderPlan(useVideoStore.getState());
+  assert.equal(sequencePlan.clips[0].start, 1.6, "render plan must keep videos after the intro segment");
+  assert.equal(sequencePlan.allTransitions.find((item) => item.params?.sequenceSlot === "outro").start, 6.6, "outro must render after the shifted video segment");
+  const sequenceAudit = validateTimelineRenderPlan({ plan: sequencePlan, totalDuration: useVideoStore.getState().totalDuration, frameDuration: 1 / 30 });
+  assert.deepEqual(sequenceAudit.errors, [], "intro/outro slots must not create timeline validation errors");
 
   resetStore({
     tracks: getDefaultTracks().map((track) => track.id === "music-main" ? { ...track, locked: true } : track),

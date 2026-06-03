@@ -449,25 +449,94 @@ function deterministicUnit(seed) {
     return x - Math.floor(x);
 }
 
+function normalizeFilters(filters = {}) {
+    return {
+        exposure: clamp(filters.exposure ?? 0, -100, 100),
+        brightness: clamp(filters.brightness ?? 100, 0, 200),
+        contrast: clamp(filters.contrast ?? 100, 0, 200),
+        pivot: clamp(filters.pivot ?? 50, 0, 100),
+        saturation: clamp(filters.saturation ?? 100, 0, 200),
+        vibrance: clamp(filters.vibrance ?? 0, -100, 100),
+        temperature: clamp(filters.temperature ?? 0, -100, 100),
+        tint: clamp(filters.tint ?? 0, -100, 100),
+        hue: clamp(filters.hue ?? 0, -180, 180),
+        shadows: clamp(filters.shadows ?? 0, -100, 100),
+        midtones: clamp(filters.midtones ?? 0, -100, 100),
+        highlights: clamp(filters.highlights ?? 0, -100, 100),
+        fade: clamp(filters.fade ?? 0, 0, 100),
+        vignette: clamp(filters.vignette ?? 0, 0, 100),
+        grain: clamp(filters.grain ?? 0, 0, 100),
+    };
+}
+
 function buildFilterString(filters = {}) {
-    const brightness = clamp(filters.brightness ?? 100, 0, 200);
-    const contrast = clamp(filters.contrast ?? 100, 0, 200);
-    const saturation = clamp(filters.saturation ?? 100, 0, 200);
-    return `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%)`;
+    const grade = normalizeFilters(filters);
+    const exposureMultiplier = Math.pow(2, grade.exposure / 100);
+    const pivotCompensation = 100 + ((50 - grade.pivot) * Math.max(0, grade.contrast - 100) * 0.018);
+    const brightness = clamp(grade.brightness * exposureMultiplier * (pivotCompensation / 100), 0, 260);
+    const saturation = clamp(grade.saturation + grade.vibrance * 0.58, 0, 260);
+    return [
+        `brightness(${brightness.toFixed(2)}%)`,
+        `contrast(${grade.contrast}%)`,
+        `saturate(${saturation.toFixed(2)}%)`,
+        `hue-rotate(${grade.hue}deg)`,
+    ].join(' ');
+}
+
+function fillGradeOverlay(ctx, color, alpha, composite = 'soft-light') {
+    if (alpha <= 0) return;
+    ctx.save();
+    ctx.globalCompositeOperation = composite;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.restore();
+}
+
+function applyRangeAdjustment(ctx, value = 0, positiveColor = '#ffffff', negativeColor = '#000000', maxAlpha = 0.18, composite = 'soft-light') {
+    const amount = clamp(value, -100, 100);
+    if (amount === 0) return;
+    fillGradeOverlay(
+        ctx,
+        amount > 0 ? positiveColor : negativeColor,
+        Math.min(maxAlpha, Math.abs(amount) / 100 * maxAlpha),
+        composite
+    );
 }
 
 function applyPostFilters(ctx, filters = {}, w, h) {
-    const temperature = clamp(filters.temperature ?? 0, -100, 100);
-    if (temperature !== 0) {
-        ctx.save();
-        ctx.globalCompositeOperation = temperature > 0 ? 'soft-light' : 'screen';
-        ctx.globalAlpha = Math.min(0.28, Math.abs(temperature) / 260);
-        ctx.fillStyle = temperature > 0 ? '#ffb36b' : '#5ea8ff';
-        ctx.fillRect(0, 0, w, h);
-        ctx.restore();
+    const grade = normalizeFilters(filters);
+    const fade = grade.fade;
+    if (fade > 0) {
+        fillGradeOverlay(ctx, '#d8c7ad', Math.min(0.26, fade / 220), 'screen');
+        fillGradeOverlay(ctx, '#111111', Math.min(0.12, fade / 520), 'source-over');
     }
 
-    const vignette = clamp(filters.vignette ?? 0, 0, 100);
+    const temperature = grade.temperature;
+    if (temperature !== 0) {
+        fillGradeOverlay(
+            ctx,
+            temperature > 0 ? '#ffb36b' : '#5ea8ff',
+            Math.min(0.28, Math.abs(temperature) / 260),
+            temperature > 0 ? 'soft-light' : 'screen'
+        );
+    }
+
+    const tint = grade.tint;
+    if (tint !== 0) {
+        fillGradeOverlay(
+            ctx,
+            tint > 0 ? '#d76bff' : '#5dff94',
+            Math.min(0.20, Math.abs(tint) / 360),
+            'soft-light'
+        );
+    }
+
+    applyRangeAdjustment(ctx, grade.shadows, '#f7f2e8', '#050505', 0.18, grade.shadows > 0 ? 'screen' : 'multiply');
+    applyRangeAdjustment(ctx, grade.midtones, '#f0f2ff', '#1b1825', 0.13, 'soft-light');
+    applyRangeAdjustment(ctx, grade.highlights, '#ffffff', '#1b2430', 0.16, grade.highlights > 0 ? 'screen' : 'multiply');
+
+    const vignette = grade.vignette;
     if (vignette > 0) {
         ctx.save();
         const gradient = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.22, w / 2, h / 2, Math.max(w, h) * 0.72);
@@ -478,7 +547,7 @@ function applyPostFilters(ctx, filters = {}, w, h) {
         ctx.restore();
     }
 
-    const grain = clamp(filters.grain ?? 0, 0, 100);
+    const grain = grade.grain;
     if (grain > 0) {
         ctx.save();
         ctx.globalAlpha = grain / 650;
@@ -1851,9 +1920,10 @@ export class PlaybackEngine {
 
         const commitTime = (newTime) => {
             const safeTime = Math.min(Math.max(0, newTime), totalDuration);
-            if (safeTime >= totalDuration) {
+            if (safeTime >= totalDuration - 0.001) {
                 this.stopPlayback();
-                setCurrentTime(0, { force: true });
+                setCurrentTime(totalDuration, { ended: true, force: true, rendered: false });
+                options.onEnded?.();
                 return false;
             }
 
@@ -1865,14 +1935,31 @@ export class PlaybackEngine {
                 this.renderFrame(clips, transitions, safeTime, transitionItems);
                 lastRenderedTime = safeTime;
             }
-            setCurrentTime(safeTime);
+            setCurrentTime(safeTime, { rendered: shouldRender });
             this.syncClipAudio(clips, transitions, safeTime, playbackSpeed, transitionItems);
             this.syncExternalAudio(audioTracks, safeTime, playbackSpeed);
             return true;
         };
 
+        const absorbExternalSeek = () => {
+            const externalTime = Number(getCurrentTime());
+            if (!Number.isFinite(externalTime)) return false;
+            const safeExternalTime = Math.min(Math.max(0, externalTime), totalDuration);
+            if (Math.abs(safeExternalTime - timelineTime) < 0.12) return false;
+
+            timelineTime = safeExternalTime;
+            lastTimestamp = null;
+            lastRenderedTime = Number.NEGATIVE_INFINITY;
+            this.renderFrame(clips, transitions, timelineTime, transitionItems);
+            setCurrentTime(timelineTime, { force: true, rendered: true });
+            this.syncClipAudio(clips, transitions, timelineTime, playbackSpeed, transitionItems);
+            this.syncExternalAudio(audioTracks, timelineTime, playbackSpeed);
+            return true;
+        };
+
         const scheduleFrameSyncedToVideo = () => {
             if (!this.isPlaying) return false;
+            if (!hasResolvedVideoTiming(clips)) return false;
             const activeResult = this.getActiveClipAtTime(clips, transitions, timelineTime, transitionItems);
             const player = activeResult?.clip ? this.players.get(activeResult.clip.id) : null;
             if (!player || typeof player.requestVideoFrameCallback !== 'function') return false;
@@ -1880,6 +1967,10 @@ export class PlaybackEngine {
             this.videoFrameCallbackId = player.requestVideoFrameCallback((_now, metadata = {}) => {
                 this.videoFrameCallbackId = null;
                 if (!this.isPlaying) return;
+                if (absorbExternalSeek()) {
+                    scheduleNextFrame();
+                    return;
+                }
                 const frameMediaTime = Number.isFinite(metadata.mediaTime) ? metadata.mediaTime : player.currentTime;
                 const frameTimelineTime = this.resolveTimelineTimeFromMediaFrame(clips, transitions, timelineTime, transitionItems, player, frameMediaTime)
                     ?? this.getMediaDrivenTimelineTime(clips, transitions, timelineTime, transitionItems)
@@ -1891,6 +1982,11 @@ export class PlaybackEngine {
 
         const tick = (timestamp) => {
             if (!this.isPlaying) return;
+
+            if (absorbExternalSeek()) {
+                this.animFrameId = requestAnimationFrame(tick);
+                return;
+            }
 
             if (lastTimestamp !== null) {
                 const delta = (timestamp - lastTimestamp) / 1000 * playbackSpeed;
@@ -1905,6 +2001,10 @@ export class PlaybackEngine {
         };
 
         const scheduleNextFrame = () => {
+            if (absorbExternalSeek()) {
+                this.animFrameId = requestAnimationFrame(tick);
+                return;
+            }
             if (scheduleFrameSyncedToVideo()) return;
             this.animFrameId = requestAnimationFrame(tick);
         };

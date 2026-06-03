@@ -886,7 +886,7 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
               <span className="hidden sm:inline">Demo live</span>
             </button>
             <button type="button" disabled={!images.length} onClick={() => setImages([])} className="hidden sm:block text-[10px] uppercase font-mono tracking-widest px-3 py-1 transition-colors duration-200 disabled:opacity-30 border border-transparent hover:border-red-900/50 text-neutral-500 hover:text-red-400 hover:bg-red-950/20">Reinitialiser</button>
-            <button type="button" onClick={handleImport} disabled={!images.length || typeof onImportToPublication !== 'function'} className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-1.5 text-xs font-mono font-medium hover:bg-indigo-500 transition shadow-[0_0_20px_rgba(79,70,229,0.4)] disabled:opacity-50 disabled:shadow-none uppercase tracking-wide clip-path-polygon">
+            <button type="button" onClick={handleImport} disabled={!images.length || typeof onImportToPublication !== 'function'} className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-5 py-1.5 text-xs font-mono font-medium hover:bg-indigo-500 transition shadow-[0_0_20px_rgba(79,70,229,0.4)] disabled:opacity-50 disabled:shadow-none uppercase tracking-wide clip-path-polygon">
               <Send size={14} />
               <span className="hidden sm:inline">Importer</span>
             </button>
@@ -934,11 +934,11 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
               <span className="text-[10px] font-mono text-neutral-500">{images.length} image(s)</span>
             </div>
             <div className="flex gap-2">
-              <button type="button" onClick={handleDownloadPreview} disabled={!images.length} className="flex items-center gap-2 px-3 py-2 text-[10px] font-mono uppercase border border-neutral-800 text-neutral-400 hover:text-white hover:border-indigo-500 disabled:opacity-30">
+              <button type="button" onClick={handleDownloadPreview} disabled={!images.length} className="flex items-center justify-center gap-2 px-3 py-2 text-[10px] font-mono uppercase border border-neutral-800 text-neutral-400 hover:text-white hover:border-indigo-500 disabled:opacity-30">
                 <Download size={14} />
                 PNG
               </button>
-              <button type="button" onClick={handleImport} disabled={!images.length || typeof onImportToPublication !== 'function'} className="flex items-center gap-2 px-3 py-2 text-[10px] font-mono uppercase border border-indigo-500/50 bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600 hover:text-white disabled:opacity-30">
+              <button type="button" onClick={handleImport} disabled={!images.length || typeof onImportToPublication !== 'function'} className="flex items-center justify-center gap-2 px-3 py-2 text-[10px] font-mono uppercase border border-indigo-500/50 bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600 hover:text-white disabled:opacity-30">
                 <Send size={14} />
                 Importer
               </button>

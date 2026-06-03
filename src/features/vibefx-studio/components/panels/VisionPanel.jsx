@@ -8,8 +8,12 @@ import ControlGroup from '../ui/ControlGroup';
 
 const FAVORITES_STORAGE_KEY = 'vibefx.vision.favoriteProfiles';
 const CUSTOM_PROFILES_STORAGE_KEY = 'vibefx.vision.customProfiles';
-const PREVIEW_WIDTH = 96;
-const PREVIEW_HEIGHT = 58;
+const PREVIEW_ASPECT_WIDTH = 96;
+const PREVIEW_ASPECT_HEIGHT = 58;
+const PREVIEW_RENDER_WIDTH = 384;
+const PREVIEW_RENDER_HEIGHT = Math.round((PREVIEW_RENDER_WIDTH * PREVIEW_ASPECT_HEIGHT) / PREVIEW_ASPECT_WIDTH);
+const PREVIEW_DISPLAY_ASPECT_RATIO = `${PREVIEW_ASPECT_WIDTH} / ${PREVIEW_ASPECT_HEIGHT}`;
+const COMPACT_PREVIEW_HEIGHT = 58;
 const HISTORY_LIMIT = 30;
 const CUSTOM_PROFILE_NAME_LIMIT = 36;
 const TONE_CURVE_BASE = [0, 64, 128, 192, 255];
@@ -208,10 +212,12 @@ function buildVisionSafetyActions({
 function renderVisionProfilePreview(sourceImage, profile) {
     if (!sourceImage || typeof document === 'undefined') return null;
     const canvas = document.createElement('canvas');
-    canvas.width = PREVIEW_WIDTH;
-    canvas.height = PREVIEW_HEIGHT;
+    canvas.width = PREVIEW_RENDER_WIDTH;
+    canvas.height = PREVIEW_RENDER_HEIGHT;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return null;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
     const profileParameters = profile?.vision?.parameters || profile?.parameters || profile?.filters || {};
     const filters = normalizeVisionFilters({ ...DEFAULT_FILTERS, ...profileParameters, safeSmartphone: true, filterIntensity: 100 });
@@ -220,7 +226,7 @@ function renderVisionProfilePreview(sourceImage, profile) {
     if (!sourceW || !sourceH) return null;
 
     const sourceRatio = sourceW / sourceH;
-    const targetRatio = PREVIEW_WIDTH / PREVIEW_HEIGHT;
+    const targetRatio = PREVIEW_RENDER_WIDTH / PREVIEW_RENDER_HEIGHT;
     let sx = 0;
     let sy = 0;
     let sw = sourceW;
@@ -241,28 +247,28 @@ function renderVisionProfilePreview(sourceImage, profile) {
         filters.sepia ? `sepia(${filters.sepia}%)` : '',
         hueRotate ? `hue-rotate(${hueRotate}deg)` : '',
     ].filter(Boolean).join(' ');
-    ctx.drawImage(sourceImage, sx, sy, sw, sh, 0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+    ctx.drawImage(sourceImage, sx, sy, sw, sh, 0, 0, PREVIEW_RENDER_WIDTH, PREVIEW_RENDER_HEIGHT);
     ctx.filter = 'none';
 
-    applyFusedPixelOps(ctx, PREVIEW_WIDTH, PREVIEW_HEIGHT, filters);
+    applyFusedPixelOps(ctx, PREVIEW_RENDER_WIDTH, PREVIEW_RENDER_HEIGHT, filters);
 
     if (filters.tintIntensity > 0) {
-        applySafeGlobalTint(ctx, PREVIEW_WIDTH, PREVIEW_HEIGHT, filters.tintColor, filters.tintIntensity, filters.safeSmartphone !== false);
+        applySafeGlobalTint(ctx, PREVIEW_RENDER_WIDTH, PREVIEW_RENDER_HEIGHT, filters.tintColor, filters.tintIntensity, filters.safeSmartphone !== false);
     }
 
     if (filters.vignette > 0) {
         ctx.save();
         ctx.globalCompositeOperation = 'multiply';
-        const gradient = ctx.createRadialGradient(PREVIEW_WIDTH / 2, PREVIEW_HEIGHT / 2, PREVIEW_WIDTH * 0.28, PREVIEW_WIDTH / 2, PREVIEW_HEIGHT / 2, PREVIEW_WIDTH * 0.72);
+        const gradient = ctx.createRadialGradient(PREVIEW_RENDER_WIDTH / 2, PREVIEW_RENDER_HEIGHT / 2, PREVIEW_RENDER_WIDTH * 0.28, PREVIEW_RENDER_WIDTH / 2, PREVIEW_RENDER_HEIGHT / 2, PREVIEW_RENDER_WIDTH * 0.72);
         gradient.addColorStop(0, 'rgba(0,0,0,0)');
         gradient.addColorStop(1, `rgba(0,0,0, ${filters.vignette / 100})`);
         ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+        ctx.fillRect(0, 0, PREVIEW_RENDER_WIDTH, PREVIEW_RENDER_HEIGHT);
         ctx.restore();
     }
 
-    applySmartphoneOutputGuards(ctx, PREVIEW_WIDTH, PREVIEW_HEIGHT, filters);
-    return canvas.toDataURL('image/jpeg', 0.78);
+    applySmartphoneOutputGuards(ctx, PREVIEW_RENDER_WIDTH, PREVIEW_RENDER_HEIGHT, filters);
+    return canvas.toDataURL('image/jpeg', 0.9);
 }
 
 const VisionPanel = ({
@@ -329,9 +335,9 @@ const VisionPanel = ({
         }
 
         let cancelled = false;
+        let renderTimer = null;
         const sourceImage = images[0];
         const timer = window.setTimeout(() => {
-            const nextPreviews = {};
             const previewProfiles = [
                 ...selectedBrand.profiles.map(profile => ({
                     ...profile,
@@ -344,7 +350,14 @@ const VisionPanel = ({
                     vision: buildVisionProfileModel(profile),
                 })),
             ];
-            for (const profile of previewProfiles) {
+            const nextPreviews = {};
+            let index = 0;
+            setProfilePreviews({});
+
+            const renderNextPreview = () => {
+                if (cancelled || index >= previewProfiles.length) return;
+                const profile = previewProfiles[index];
+                index += 1;
                 const profileId = profile.profileId;
                 try {
                     const preview = renderVisionProfilePreview(sourceImage, profile);
@@ -352,13 +365,19 @@ const VisionPanel = ({
                 } catch {
                     nextPreviews[profileId] = null;
                 }
-            }
-            if (!cancelled) setProfilePreviews(nextPreviews);
+                if (!cancelled) setProfilePreviews({ ...nextPreviews });
+                if (index < previewProfiles.length) {
+                    renderTimer = window.setTimeout(renderNextPreview, 16);
+                }
+            };
+
+            renderNextPreview();
         }, 30);
 
         return () => {
             cancelled = true;
             window.clearTimeout(timer);
+            if (renderTimer) window.clearTimeout(renderTimer);
         };
     }, [customProfiles, images, selectedBrand]);
 
@@ -1223,11 +1242,16 @@ const VisionPanel = ({
                                             data-active={activeProfileName === profile.name}
                                             className={`group flex min-h-20 gap-2 rounded-sm border p-1.5 text-left transition active:scale-[0.98] ${activeProfileName === profile.name ? (isDarkMode ? 'border-cyan-400 bg-cyan-500/10' : 'border-cyan-300 bg-cyan-50') : (isDarkMode ? 'border-neutral-800 hover:border-neutral-600 hover:bg-neutral-900/80' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50')}`}
                                         >
-                                            <div className={`h-[58px] w-20 shrink-0 overflow-hidden rounded-sm border ${isDarkMode ? 'border-neutral-800 bg-neutral-950' : 'border-gray-200 bg-gray-50'}`}>
+                                            <div
+                                                className={`w-20 shrink-0 overflow-hidden rounded-sm border ${isDarkMode ? 'border-neutral-800 bg-neutral-950' : 'border-gray-200 bg-gray-50'}`}
+                                                style={{ height: COMPACT_PREVIEW_HEIGHT }}
+                                            >
                                                 {profilePreviews[profile.profileId] ? (
                                                     <img
                                                         src={profilePreviews[profile.profileId]}
                                                         alt=""
+                                                        decoding="async"
+                                                        draggable={false}
                                                         className="h-full w-full object-cover"
                                                     />
                                                 ) : (
@@ -1284,12 +1308,17 @@ const VisionPanel = ({
                                                     </button>
                                                 )}
                                                 <button type="button" onClick={() => handleApplyProfile(profile)} className="group w-full p-3 pr-12 text-left transition-all active:scale-[0.98]">
-                                                    <div className={`mb-3 h-[58px] w-full overflow-hidden rounded-sm border ${isDarkMode ? 'border-neutral-800 bg-neutral-950' : 'border-gray-200 bg-gray-50'}`}>
+                                                    <div
+                                                        className={`mb-3 w-full overflow-hidden rounded-sm border ${isDarkMode ? 'border-neutral-800 bg-neutral-950' : 'border-gray-200 bg-gray-50'}`}
+                                                        style={{ aspectRatio: PREVIEW_DISPLAY_ASPECT_RATIO }}
+                                                    >
                                                         {profilePreviews[profile.profileId] ? (
                                                             <img
                                                                 src={profilePreviews[profile.profileId]}
                                                                 alt=""
                                                                 data-testid={`vision-preview-${profile.profileId}`}
+                                                                decoding="async"
+                                                                draggable={false}
                                                                 className="h-full w-full object-cover"
                                                             />
                                                         ) : (

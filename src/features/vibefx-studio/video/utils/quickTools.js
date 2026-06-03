@@ -200,7 +200,7 @@ export function applyQuickToolToTimeline(storeApi, tool, options = {}) {
             });
         }
         clearSelection(storeApi, 'transition');
-        storeApi.getState().setActivePanel?.('transitions');
+        storeApi.getState().setActivePanel?.(null);
         return true;
     }
 

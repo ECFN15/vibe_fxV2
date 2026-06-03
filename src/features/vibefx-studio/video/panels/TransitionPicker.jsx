@@ -2,7 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { X, Clock, Crosshair, Trash2 } from 'lucide-react';
 import useVideoStore from '../store/videoStore';
 import { TRANSITIONS, TRANSITION_CATEGORIES, formatTime } from '../engine/VideoEngine';
-import { getTimelineTrackRole, normalizeTransitionItems } from '../model/timelineModel';
+import { getSequencePlacement, getTimelineTrackRole, normalizeTransitionItems } from '../model/timelineModel';
+
+const EDITABLE_TRANSITION_CATEGORIES = TRANSITION_CATEGORIES.filter(cat => !['intro', 'outro'].includes(cat.id));
 
 const TransitionPicker = () => {
     const {
@@ -14,6 +16,7 @@ const TransitionPicker = () => {
     const [activeCategory, setActiveCategory] = useState('basic');
     const normalizedTransitionItems = useMemo(() => (
         normalizeTransitionItems(transitionItems, totalDuration)
+            .filter(item => !getSequencePlacement(item))
     ), [totalDuration, transitionItems]);
     const selectedTransition = useMemo(() => {
         if (selectedTransitionId) {
@@ -197,7 +200,7 @@ const TransitionPicker = () => {
             </div>
 
             <div className="flex gap-1 px-3 py-2 overflow-x-auto border-b border-neutral-800/30 scrollbar-hide">
-                {TRANSITION_CATEGORIES.map(cat => (
+                {EDITABLE_TRANSITION_CATEGORIES.map(cat => (
                     <button
                         key={cat.id}
                         onClick={() => setActiveCategory(cat.id)}

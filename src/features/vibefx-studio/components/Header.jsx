@@ -78,11 +78,11 @@ const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, 
                     )}
                     <button onClick={onReset} disabled={!hasImages} className={`hidden sm:block text-[10px] uppercase font-mono tracking-widest px-3 py-1 transition-colors duration-200 disabled:opacity-30 border border-transparent hover:border-red-900/50 ${isDarkMode ? 'text-neutral-500 hover:text-red-400 hover:bg-red-950/20' : 'text-gray-500 hover:text-red-600'}`}>Reset</button>
                     {onImportPublication && (
-                        <button onClick={onImportPublication} disabled={!hasImages} className="flex items-center gap-2 border border-indigo-500/40 bg-indigo-500/10 text-indigo-300 px-2 lg:px-4 py-1.5 text-[10px] font-mono font-medium hover:bg-indigo-500 hover:text-white transition disabled:opacity-40 disabled:bg-transparent uppercase tracking-wide">
+                        <button onClick={onImportPublication} disabled={!hasImages} className="flex items-center justify-center gap-2 border border-indigo-500/40 bg-indigo-500/10 text-indigo-300 px-2 lg:px-4 py-1.5 text-[10px] font-mono font-medium hover:bg-indigo-500 hover:text-white transition disabled:opacity-40 disabled:bg-transparent uppercase tracking-wide">
                             <Send size={14} /> Publication
                         </button>
                     )}
-                    <button onClick={onExport} disabled={!hasImages} className="flex items-center gap-2 bg-indigo-600 text-white px-3 sm:px-5 py-1.5 text-xs font-mono font-medium hover:bg-indigo-500 transition shadow-[0_0_20px_rgba(79,70,229,0.4)] disabled:opacity-50 disabled:shadow-none uppercase tracking-wide clip-path-polygon">
+                    <button onClick={onExport} disabled={!hasImages} className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-3 sm:px-5 py-1.5 text-xs font-mono font-medium hover:bg-indigo-500 transition shadow-[0_0_20px_rgba(79,70,229,0.4)] disabled:opacity-50 disabled:shadow-none uppercase tracking-wide clip-path-polygon">
                         <Download size={14} /> <span className="hidden sm:inline">Export</span>
                     </button>
                 </div>

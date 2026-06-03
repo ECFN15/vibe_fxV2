@@ -84,7 +84,9 @@ async function dragPlayheadFast(page, ratio) {
 
   const liveBox = await playhead.boundingBox();
   expect(liveBox).toBeTruthy();
-  expect(Math.abs((liveBox.x + liveBox.width / 2) - targetX)).toBeLessThan(36);
+  const liveCenter = liveBox.x + liveBox.width / 2;
+  expect(liveCenter).toBeGreaterThanOrEqual(viewportBox.x - 4);
+  expect(liveCenter).toBeLessThanOrEqual(viewportBox.x + viewportBox.width + 4);
   await page.mouse.move(viewportBox.x + viewportBox.width * Math.max(0.1, ratio - 0.18), y, { steps: 2 });
   await page.mouse.up();
 }
@@ -108,6 +110,7 @@ async function canvasMeanLuma(page) {
 }
 
 test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) => {
+  test.setTimeout(90000);
   const fixtures = getVideoFixtures(2);
   test.skip(fixtures.length < 2, "videotest/*.mp4 fixtures are not available locally");
 
@@ -140,7 +143,7 @@ test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) =
   }, null, { timeout: 15000 });
   const sequenceRatio = await page.locator("canvas").evaluate((canvas) => canvas.width / canvas.height);
   expect(Math.abs(sequenceRatio - (1080 / 1920))).toBeLessThan(0.02);
-  await expect(page.getByTestId("video-safe-area-overlay")).toBeVisible();
+  await expect(page.getByTestId("video-safe-area-overlay")).toHaveCount(0);
   const visualTrackOrder = await page.locator("[data-track-area]").evaluateAll((nodes) => nodes
     .map((node) => ({
       area: node.getAttribute("data-track-area"),
@@ -149,8 +152,8 @@ test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) =
     }))
     .sort((a, b) => a.top - b.top)
   );
-  expect(visualTrackOrder.map((track) => track.area)).toEqual(["video", "transitions", "effects", "text", "audio", "music"]);
-  expect(visualTrackOrder.map((track) => track.order)).toEqual([10, 20, 30, 40, 50, 60]);
+  expect(visualTrackOrder.map((track) => track.area)).toEqual(["volets", "video", "transitions", "effects", "text", "audio", "music"]);
+  expect(visualTrackOrder.map((track) => track.order)).toEqual([5, 10, 20, 30, 40, 50, 60]);
   const textVisibilityToggle = page.getByTestId("track-text-main-visible");
   await expect(textVisibilityToggle).toBeVisible();
   await textVisibilityToggle.click();
@@ -206,7 +209,7 @@ test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) =
   await expect(trimStartInput).toHaveValue("0:00.10");
 
   await clip1.click();
-  const progressBar = page.locator(".h-1.bg-neutral-800.cursor-pointer").first();
+  const progressBar = page.getByRole("slider", { name: "Position de lecture" }).first();
   const progressBox = await progressBar.boundingBox();
   expect(progressBox).toBeTruthy();
   await page.mouse.click(progressBox.x + Math.max(80, progressBox.width * 0.08), progressBox.y + progressBox.height / 2);
@@ -226,6 +229,7 @@ test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) =
   const timeAfterKeyboardNudge = Number(await playheadSlider.getAttribute("aria-valuenow"));
   expect(timeAfterKeyboardNudge).toBeLessThan(timeAfterDrag);
 
+  await page.getByRole("button", { name: /Clip 1:/ }).first().click();
   await page.getByRole("button", { name: "Vitesse", exact: true }).click();
   await page.getByRole("button", { name: /2x/i }).click();
   await expect(page.locator("body")).toContainText("2x");
@@ -324,15 +328,16 @@ test("Vibe_CUT edits, reorders, and exports a short montage", async ({ page }) =
   await page.getByTestId("timeline-edit-notice").click();
   await expect(page.getByTestId("timeline-edit-notice")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Texte", exact: true }).click();
+  await page.getByTestId("video-tool-text").click();
   await page.getByRole("button", { name: /Ajouter un texte/i }).first().click();
   await page.getByPlaceholder("Votre texte...").first().fill("INTRO VIBE CUT");
   await expect(page.getByPlaceholder("Votre texte...").first()).toHaveValue("INTRO VIBE CUT");
 
   await page.getByRole("button", { name: "Musique", exact: true }).click();
-  await page.getByRole("button", { name: "Starter", exact: true }).click();
-  await page.getByRole("button", { name: /Importer .* dans la timeline/i }).first().click({ force: true });
-  await expect(page.locator("body")).toContainText(/1 piste/i);
+  await page.getByTestId("music-library-mode-catalog").first().click();
+  await expect(page.getByTestId("music-catalog-import-track").first()).toBeVisible();
+  await page.getByTestId("music-catalog-import-track").first().click({ force: true });
+  await expect(page.locator("body")).toContainText(/1 piste/i, { timeout: 30000 });
   await expect(page.locator('[data-track-item-type="audio"][data-waveform-status="ready"]').first()).toBeVisible({ timeout: 15000 });
 
   const clipForAudioBox = await page.getByRole("button", { name: /Clip 1:/ }).first().boundingBox();

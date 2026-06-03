@@ -3,6 +3,7 @@ import { buildTimelineModel, clampVolumePercent, doesTrackAllowOverlap, findTime
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const SEQUENCE_TRACK_ID = 'sequence-main';
 const normalizeClipFrameRate = (value) => {
     const frameRate = Number(value);
     return Number.isFinite(frameRate) && frameRate > 0 ? frameRate : null;
@@ -171,7 +172,23 @@ const useVideoStore = create((set, get) => ({
                 socialFpsNormalized: clipData.socialFpsNormalized === true,
                 speed: 1,
                 volume: 100,
-                filters: { brightness: 100, contrast: 100, saturation: 100, temperature: 0, vignette: 0, grain: 0 },
+                filters: {
+                    exposure: 0,
+                    brightness: 100,
+                    contrast: 100,
+                    pivot: 50,
+                    saturation: 100,
+                    vibrance: 0,
+                    temperature: 0,
+                    tint: 0,
+                    hue: 0,
+                    shadows: 0,
+                    midtones: 0,
+                    highlights: 0,
+                    fade: 0,
+                    vignette: 0,
+                    grain: 0,
+                },
                 waveform: clipData.waveform || { status: 'pending', peaks: [] },
             };
             const clips = [...s.clips, newClip];
@@ -348,15 +365,17 @@ const useVideoStore = create((set, get) => ({
     addTransitionItem: (transition) => {
         const state = get();
         const explicitTrackId = transition.trackId;
-        const trackId = explicitTrackId || resolveTimelineTrackForRange(state, 'transition', transition);
-        const nextTracks = ensureTimelineTrack(state.tracks, trackId ? makeTimelineTrackFromRole('transition', state.tracks, trackId) : null);
+        const sequencePlacement = getSequencePlacement(transition);
+        const trackId = explicitTrackId || (sequencePlacement ? SEQUENCE_TRACK_ID : resolveTimelineTrackForRange(state, 'transition', transition));
+        const nextTracks = sequencePlacement
+            ? state.tracks
+            : ensureTimelineTrack(state.tracks, trackId ? makeTimelineTrackFromRole('transition', state.tracks, trackId) : null);
         if (isTimelineTrackLocked(nextTracks, trackId)) {
             rejectTimelineEdit(set, 'track-locked', 'Piste transition verrouillee: ajout ignore.');
             return;
         }
         const duration = Math.max(0.1, transition.duration || transition.defaultDuration || 0.5);
         const maxEnd = Math.max(0.1, state.totalDuration || 0.1);
-        const sequencePlacement = getSequencePlacement(transition);
         const startTime = resolveTransitionStartTime(transition, sequencePlacement, duration, maxEnd, state.currentTime);
         const id = transition.id || uid();
         const nextItem = {
@@ -389,8 +408,8 @@ const useVideoStore = create((set, get) => ({
             tracks: nextTracks,
             transitionItems: transitionItemsForValidation,
             selectedTransitionId: id,
-            totalDuration: computeTotalDuration(s.clips, s.transitions, transitionItemsForValidation),
-            currentTime: clamp(s.currentTime, 0, computeTotalDuration(s.clips, s.transitions, transitionItemsForValidation)),
+            totalDuration: computeStoreTotalDuration(s, transitionItemsForValidation),
+            currentTime: clamp(s.currentTime, 0, computeStoreTotalDuration(s, transitionItemsForValidation)),
             timelineEditNotice: null,
         }));
     },
@@ -406,6 +425,33 @@ const useVideoStore = create((set, get) => ({
         const nextTransitionItems = state.transitionItems.map((item) => {
             if (item.id !== id) return item;
             const next = { ...item, ...updates };
+            const sequencePlacement = getSequencePlacement(next);
+            const previousDuration = Math.max(0.1, Number(item.duration ?? ((item.endTime ?? 0) - (item.startTime ?? item.start ?? 0))) || 0.1);
+            const requestedDuration = Object.prototype.hasOwnProperty.call(updates, 'duration')
+                ? Number(updates.duration)
+                : Number(next.duration ?? ((next.endTime ?? 0) - (next.startTime ?? next.start ?? 0)));
+
+            if (sequencePlacement) {
+                const duration = Math.max(0.1, Number.isFinite(requestedDuration) ? requestedDuration : previousDuration);
+                const startTime = sequencePlacement === 'intro' ? 0 : Math.max(0, (state.totalDuration || previousDuration) - previousDuration);
+                return {
+                    ...next,
+                    start: startTime,
+                    startTime,
+                    endTime: startTime + duration,
+                    duration,
+                    trackId: SEQUENCE_TRACK_ID,
+                    fromItemId: next.fromItemId || null,
+                    toItemId: next.toItemId || null,
+                    params: {
+                        ...(next.params || {}),
+                        placement: sequencePlacement,
+                        sequenceSlot: sequencePlacement,
+                        singleton: true,
+                    },
+                };
+            }
+
             const maxEnd = Math.max(0.1, state.totalDuration || 0.1);
             const requestedStart = Object.prototype.hasOwnProperty.call(updates, 'start') || Object.prototype.hasOwnProperty.call(updates, 'startTime')
                 ? (updates.start ?? updates.startTime)
@@ -442,7 +488,7 @@ const useVideoStore = create((set, get) => ({
         }
         if (options.history) pushHistory(state);
         set((s) => {
-            const totalDuration = computeTotalDuration(s.clips, s.transitions, nextTransitionItems);
+            const totalDuration = computeStoreTotalDuration(s, nextTransitionItems);
             return {
                 transitionItems: nextTransitionItems,
                 totalDuration,
@@ -460,13 +506,24 @@ const useVideoStore = create((set, get) => ({
             return;
         }
         pushHistory(state);
-        set((s) => ({
-            transitionItems: s.transitionItems.filter(item => item.id !== id),
-            selectedTransitionId: s.selectedTransitionId === id ? null : s.selectedTransitionId,
-            totalDuration: computeTotalDuration(s.clips, s.transitions, s.transitionItems.filter(item => item.id !== id)),
-            currentTime: clamp(s.currentTime, 0, computeTotalDuration(s.clips, s.transitions, s.transitionItems.filter(item => item.id !== id))),
-            timelineEditNotice: null,
-        }));
+        set((s) => {
+            const sequencePlacement = getSequencePlacement(target);
+            const linkedTextId = target.params?.linkedTextId || (sequencePlacement ? `sequence-${sequencePlacement}-text` : null);
+            const transitionItems = s.transitionItems.filter(item => item.id !== id);
+            const textOverlays = sequencePlacement
+                ? s.textOverlays.filter(text => text.id !== linkedTextId && text.params?.sequenceSlot !== sequencePlacement)
+                : s.textOverlays;
+            const totalDuration = computeStoreTotalDuration(s, transitionItems);
+            return {
+                transitionItems,
+                textOverlays,
+                selectedTransitionId: s.selectedTransitionId === id ? null : s.selectedTransitionId,
+                selectedTextId: sequencePlacement && !textOverlays.some(text => text.id === s.selectedTextId) ? null : s.selectedTextId,
+                totalDuration,
+                currentTime: clamp(s.currentTime, 0, totalDuration),
+                timelineEditNotice: null,
+            };
+        });
     },
 
     removeTransition: (fromId, toId) => {
@@ -1114,6 +1171,12 @@ function computeTotalDuration(clips, transitions = {}, transitionItems = []) {
         .reduce((maxDuration, item) => Math.max(maxDuration, Number(item.duration) || 0), 0);
     total += outroDuration;
     return Math.max(0, total);
+}
+
+function computeStoreTotalDuration(state = {}, transitionItems = state.transitionItems || []) {
+    return state.clips?.length
+        ? computeTotalDuration(state.clips, state.transitions, transitionItems)
+        : Math.max(0, Number(state.totalDuration) || 0);
 }
 
 function resolveTransitionStartTime(transition = {}, sequencePlacement = null, duration = 0.5, maxEnd = 0.1, currentTime = 0) {

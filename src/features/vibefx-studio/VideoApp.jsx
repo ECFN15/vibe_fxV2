@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ChevronDown, Film, Monitor, Smartphone, Sparkles, Undo2, Redo2, RotateCcw, RotateCw } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Film, Monitor, Smartphone, Sparkles, Trash2, Undo2, Redo2, RotateCcw, RotateCw } from 'lucide-react';
 import { useAiLaunchSettings } from '@/hooks/useAiLaunchSettings';
 import VideoEditor from './video/VideoEditor';
 import useVideoStore from './video/store/videoStore';
@@ -17,7 +17,7 @@ function VideoApp({ onBack }) {
     const {
         clips, undo, redo, canUndo, canRedo,
         sequencePreset, setSequencePreset,
-        selectedClipId, updateClip,
+        selectedClipId, updateClip, removeClip,
         exportFrameRate, setExportFrameRate,
     } = useVideoStore();
     const activePreset = EXPORT_PRESETS[sequencePreset] || EXPORT_PRESETS.youtube;
@@ -65,6 +65,11 @@ function VideoApp({ onBack }) {
         const orientationRotation = ((currentRotation + delta) % 360 + 360) % 360;
         updateClip(selectedClip.id, { orientationRotation, orientationSource: 'manual' }, { history: true });
     }, [selectedClip, updateClip]);
+
+    const deleteSelectedClip = useCallback(() => {
+        if (!selectedClip?.id) return;
+        removeClip(selectedClip.id);
+    }, [removeClip, selectedClip]);
 
     return (
         <div className="min-h-screen flex flex-col h-screen overflow-hidden font-sans bg-black text-gray-300">
@@ -194,6 +199,18 @@ function VideoApp({ onBack }) {
                                     aria-label="Tourner le clip selectionne a droite"
                                 >
                                     <RotateCw size={12} />
+                                </button>
+                                <button
+                                    type="button"
+                                    data-testid="header-delete-selected"
+                                    disabled={!selectedClip}
+                                    onClick={deleteSelectedClip}
+                                    className="inline-flex h-7 items-center justify-center gap-1 rounded-sm border border-neutral-800 bg-neutral-900/70 px-2 text-[8px] font-mono uppercase tracking-widest text-neutral-400 transition hover:border-rose-400/45 hover:text-rose-200 disabled:cursor-not-allowed disabled:opacity-30"
+                                    title={selectedClip ? 'Supprimer la video selectionnee' : 'Selectionne une video a supprimer'}
+                                    aria-label="Supprimer la video selectionnee"
+                                >
+                                    <Trash2 size={11} />
+                                    <span className="hidden lg:inline">Supprimer</span>
                                 </button>
                                 <select
                                     data-testid="header-export-fps-select"

@@ -1,9 +1,10 @@
-import React from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Maximize2 } from 'lucide-react';
+import React, { useRef } from 'react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, Maximize2 } from 'lucide-react';
 import useVideoStore from '../store/videoStore';
 import { formatTimeFull } from '../engine/VideoEngine';
 
 const PreviewControls = () => {
+    const isScrubbingRef = useRef(false);
     const {
         isPlaying, togglePlay, currentTime, totalDuration,
         seekTo, playbackSpeed, setPlaybackSpeed, clips, previewCanvas
@@ -12,10 +13,48 @@ const PreviewControls = () => {
     const hasClips = clips.length > 0;
     const progress = totalDuration > 0 ? (currentTime / totalDuration) * 100 : 0;
 
-    const handleProgressClick = (e) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const seekFromClientX = (clientX, target) => {
+        if (!totalDuration || !target) return;
+        const rect = target.getBoundingClientRect();
+        const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
         seekTo(ratio * totalDuration);
+    };
+
+    const handleProgressPointerDown = (e) => {
+        if (e.button !== 0) return;
+        isScrubbingRef.current = true;
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+        seekFromClientX(e.clientX, e.currentTarget);
+        e.preventDefault();
+    };
+
+    const handleProgressPointerMove = (e) => {
+        if (!isScrubbingRef.current) return;
+        seekFromClientX(e.clientX, e.currentTarget);
+        e.preventDefault();
+    };
+
+    const handleProgressPointerUp = (e) => {
+        if (!isScrubbingRef.current) return;
+        isScrubbingRef.current = false;
+        seekFromClientX(e.clientX, e.currentTarget);
+        e.currentTarget.releasePointerCapture?.(e.pointerId);
+        e.preventDefault();
+    };
+
+    const handleProgressKeyDown = (e) => {
+        const fineStep = e.altKey ? 0.04 : 0.1;
+        const step = e.shiftKey ? 5 : fineStep;
+        let nextTime = currentTime;
+
+        if (e.key === 'ArrowLeft') nextTime = currentTime - step;
+        else if (e.key === 'ArrowRight') nextTime = currentTime + step;
+        else if (e.key === 'Home') nextTime = 0;
+        else if (e.key === 'End') nextTime = totalDuration;
+        else return;
+
+        e.preventDefault();
+        seekTo(Math.max(0, Math.min(totalDuration, nextTime)));
     };
 
     const skipBack = () => seekTo(Math.max(0, currentTime - 5));
@@ -40,13 +79,19 @@ const PreviewControls = () => {
         <div className="shrink-0 border-t border-neutral-800 bg-black/60 backdrop-blur-sm">
             {/* Progress bar */}
             <div
-                className="h-1 bg-neutral-800 cursor-pointer group relative"
-                onClick={handleProgressClick}
+                className="h-2 bg-neutral-800 cursor-pointer group relative touch-none"
+                onPointerDown={handleProgressPointerDown}
+                onPointerMove={handleProgressPointerMove}
+                onPointerUp={handleProgressPointerUp}
+                onPointerCancel={handleProgressPointerUp}
+                onKeyDown={handleProgressKeyDown}
                 role="slider"
                 aria-label="Position de lecture"
                 aria-valuemin={0}
                 aria-valuemax={Math.round(totalDuration)}
                 aria-valuenow={Math.round(currentTime)}
+                aria-valuetext={`${formatTimeFull(currentTime)} / ${formatTimeFull(totalDuration)}`}
+                tabIndex={hasClips ? 0 : -1}
             >
                 <div
                     className="h-full bg-indigo-500 transition-[width] duration-75 relative"
@@ -63,7 +108,7 @@ const PreviewControls = () => {
                         onClick={skipBack}
                         disabled={!hasClips}
                         aria-label="Reculer de 5 secondes"
-                        className="h-11 w-11 flex items-center justify-center text-neutral-400 hover:text-white transition disabled:opacity-30"
+                        className="vibecut-square-button h-11 w-11 flex items-center justify-center text-neutral-400 hover:text-white transition disabled:opacity-30"
                     >
                         <SkipBack size={14} />
                     </button>
@@ -72,7 +117,7 @@ const PreviewControls = () => {
                         onClick={togglePlay}
                         disabled={!hasClips}
                         aria-label={isPlaying ? 'Pause' : 'Lire'}
-                        className="h-11 w-11 flex items-center justify-center text-white hover:text-indigo-400 transition disabled:opacity-30"
+                        className="vibecut-square-button h-11 w-11 flex items-center justify-center text-white hover:text-indigo-400 transition disabled:opacity-30"
                     >
                         {isPlaying ? <Pause size={18} /> : <Play size={18} fill="currentColor" />}
                     </button>
@@ -81,7 +126,7 @@ const PreviewControls = () => {
                         onClick={skipForward}
                         disabled={!hasClips}
                         aria-label="Avancer de 5 secondes"
-                        className="h-11 w-11 flex items-center justify-center text-neutral-400 hover:text-white transition disabled:opacity-30"
+                        className="vibecut-square-button h-11 w-11 flex items-center justify-center text-neutral-400 hover:text-white transition disabled:opacity-30"
                     >
                         <SkipForward size={14} />
                     </button>
@@ -110,13 +155,13 @@ const PreviewControls = () => {
                     <button
                         onClick={openFullscreenPreview}
                         disabled={!hasClips || !previewCanvas}
-                        className="h-11 w-11 flex items-center justify-center text-neutral-400 hover:text-white transition disabled:opacity-30"
+                        className="vibecut-square-button h-11 w-11 flex items-center justify-center text-neutral-400 hover:text-white transition disabled:opacity-30"
                         aria-label="Agrandir la preview"
                         title="Agrandir la preview"
                     >
                         <Maximize2 size={14} />
                     </button>
-                    <button className="h-11 w-11 flex items-center justify-center text-neutral-400 hover:text-white transition" aria-label="Volume preview">
+                    <button className="vibecut-square-button h-11 w-11 flex items-center justify-center text-neutral-400 hover:text-white transition" aria-label="Volume preview">
                         <Volume2 size={14} />
                     </button>
                 </div>

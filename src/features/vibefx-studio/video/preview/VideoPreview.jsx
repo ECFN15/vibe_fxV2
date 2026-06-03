@@ -258,10 +258,19 @@ function drawGuides(canvas) {
 }
 
 const DEFAULT_FILTERS = {
+    exposure: 0,
     brightness: 100,
     contrast: 100,
+    pivot: 50,
     saturation: 100,
+    vibrance: 0,
     temperature: 0,
+    tint: 0,
+    hue: 0,
+    shadows: 0,
+    midtones: 0,
+    highlights: 0,
+    fade: 0,
     vignette: 0,
     grain: 0,
 };
@@ -281,15 +290,15 @@ const VideoPreview = () => {
     const engineRef = useRef(null);
     const [isDraggingText, setIsDraggingText] = useState(false);
     const [showGuides, setShowGuides] = useState(false);
-    const [canvasCssSize, setCanvasCssSize] = useState({ width: 0, height: 0 });
     const dragRef = useRef(null);
     const renderRequestRef = useRef(0);
     const lastPlaybackStoreUpdateRef = useRef(0);
 
     const {
         clips, transitions, transitionItems, isPlaying, totalDuration,
-        playbackSpeed, setCurrentTime, textOverlays,
+        playbackSpeed, setCurrentTime, setIsPlaying, textOverlays,
         selectedTextId, setSelectedTextId, updateTextOverlay,
+        setSelectedClipId, setSelectedTransitionId, setSelectedAudioTrackId,
         audioTracks, tracks, setPreviewCanvas, setPreviewEngine, sequencePreset,
         filterPreviewBypassClipId, exportFrameRate
     } = useVideoStore();
@@ -374,7 +383,7 @@ const VideoPreview = () => {
                         lastPlaybackStoreUpdateRef.current = now;
                         setCurrentTime(t);
                     }
-                    if (canvasRef.current) {
+                    if (canvasRef.current && options.rendered !== false) {
                         const state = useVideoStore.getState();
                         const plan = resolveTimelineRenderPlan(state);
                         drawTextOverlays(canvasRef.current, plan.textOverlays, t, state.selectedTextId);
@@ -384,13 +393,16 @@ const VideoPreview = () => {
                 playbackSpeed,
                 renderAudioTracks,
                 renderTransitions,
-                { previewFrameRate }
+                {
+                    previewFrameRate,
+                    onEnded: () => setIsPlaying(false),
+                }
             );
         } else {
             engineRef.current.stopPlayback();
         }
         return () => { engineRef.current?.stopPlayback(); };
-    }, [isPlaying, renderClips.length, playbackClips, transitions, renderTransitions, totalDuration, playbackSpeed, renderAudioTracks, previewFrameRate, setCurrentTime]);
+    }, [isPlaying, renderClips.length, playbackClips, transitions, renderTransitions, totalDuration, playbackSpeed, renderAudioTracks, previewFrameRate, setCurrentTime, setIsPlaying]);
 
     // Render on seek
     useEffect(() => {
@@ -441,8 +453,6 @@ const VideoPreview = () => {
             canvasRef.current.height = Math.round(preset.height);
             canvasRef.current.style.width = `${Math.round(w)}px`;
             canvasRef.current.style.height = `${Math.round(h)}px`;
-            setCanvasCssSize({ width: Math.round(w), height: Math.round(h) });
-
             if (!isPlaying) {
                 const time = useVideoStore.getState().currentTime;
                 if (renderClips.length === 0) {
@@ -475,11 +485,23 @@ const VideoPreview = () => {
         };
     }, []);
 
+    const findClipAtTime = useCallback((time, clipsAtTimeline) => {
+        for (let index = clipsAtTimeline.length - 1; index >= 0; index -= 1) {
+            const clip = clipsAtTimeline[index];
+            const start = Number(clip.start ?? clip.startTime ?? 0);
+            const duration = Number(clip.duration || 0);
+            const end = start + duration;
+            if (time >= start - 0.001 && time <= end + 0.001) return clip;
+        }
+        return null;
+    }, []);
+
     const handleCanvasPointerDown = useCallback((e) => {
         const coords = getCanvasCoords(e);
         const currentTime = useVideoStore.getState().currentTime;
         const state = useVideoStore.getState();
-        const overlays = resolveTimelineRenderPlan(state).textOverlays;
+        const plan = resolveTimelineRenderPlan(state);
+        const overlays = plan.textOverlays;
 
         // Find text under cursor
         let found = null;
@@ -499,16 +521,24 @@ const VideoPreview = () => {
 
         if (found) {
             setSelectedTextId(found.id);
+            setSelectedClipId(null);
+            setSelectedTransitionId(null);
+            setSelectedAudioTrackId(null);
             setIsDraggingText(true);
             setShowGuides(true);
             dragRef.current = { id: found.id, offsetX: coords.x - (found.x ?? 0.5), offsetY: coords.y - (found.y ?? 0.5) };
             e.currentTarget.setPointerCapture?.(e.pointerId);
             e.preventDefault();
         } else {
+            const clip = findClipAtTime(currentTime, plan.clips);
+            setSelectedClipId(clip ? (clip.sourceId || clip.id) : null);
             setSelectedTextId(null);
+            setSelectedTransitionId(null);
+            setSelectedAudioTrackId(null);
             setShowGuides(false);
+            if (clip) e.preventDefault();
         }
-    }, [getCanvasCoords, setSelectedTextId]);
+    }, [findClipAtTime, getCanvasCoords, setSelectedAudioTrackId, setSelectedClipId, setSelectedTextId, setSelectedTransitionId]);
 
     const handleCanvasPointerMove = useCallback((e) => {
         if (!isDraggingText || !dragRef.current) return;
@@ -541,7 +571,6 @@ const VideoPreview = () => {
     }, [isDraggingText]);
 
     const hasContent = renderPlan.hasVisibleContent;
-    const showSafeArea = preset.height >= preset.width;
 
     return (
         <div ref={containerRef} className="relative flex-1 flex items-center justify-center bg-black overflow-hidden group">
@@ -550,7 +579,7 @@ const VideoPreview = () => {
                 className={`max-w-full max-h-full transition-opacity duration-300 ${!hasContent ? 'opacity-0' : 'opacity-100'} bg-black`}
                 style={{
                     aspectRatio: `${preset.width} / ${preset.height}`,
-                    cursor: isDraggingText ? 'grabbing' : (selectedTextId ? 'grab' : 'default'),
+                    cursor: isDraggingText ? 'grabbing' : (selectedTextId ? 'grab' : (renderClips.length ? 'pointer' : 'default')),
                     imageRendering: 'auto',
                 }}
                 onPointerDown={handleCanvasPointerDown}
@@ -558,25 +587,6 @@ const VideoPreview = () => {
                 onPointerUp={handleCanvasPointerUp}
                 onPointerCancel={handleCanvasPointerUp}
             />
-
-            {hasContent && showSafeArea && canvasCssSize.width > 0 && (
-                <div
-                    data-testid="video-safe-area-overlay"
-                    className="absolute pointer-events-none"
-                    style={{
-                        width: `${canvasCssSize.width}px`,
-                        height: `${canvasCssSize.height}px`,
-                    }}
-                    aria-hidden="true"
-                >
-                    <div className="absolute left-[7%] right-[7%] top-[7%] bottom-[12%] border border-dashed border-cyan-300/40 rounded-sm" />
-                    <div className="absolute left-[12%] right-[12%] top-[10%] h-[9%] border border-dashed border-amber-300/35 rounded-sm" />
-                    <div className="absolute left-[10%] right-[10%] bottom-[8%] h-[14%] border border-dashed border-amber-300/35 rounded-sm" />
-                    <span className="absolute left-2 top-2 rounded-sm border border-cyan-300/30 bg-black/65 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-widest text-cyan-200/80">
-                        Safe areas
-                    </span>
-                </div>
-            )}
 
             {!hasContent && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-neutral-600 pointer-events-none">

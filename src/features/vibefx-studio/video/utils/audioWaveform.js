@@ -5,14 +5,20 @@ const normalizePeaks = (peaks) => {
     return peaks.map((peak) => Number(Math.max(0.04, Math.min(1, peak / max)).toFixed(3)));
 };
 
-async function readAudioSource(source) {
+async function readAudioSource(source, options = {}) {
     if (source instanceof File || source instanceof Blob) {
         return source.arrayBuffer();
     }
     if (typeof source === 'string' && source) {
-        const response = await fetch(source);
-        if (!response.ok) throw new Error(`Audio fetch failed: ${response.status}`);
-        return response.arrayBuffer();
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), options.timeoutMs || 8000);
+        try {
+            const response = await fetch(source, { signal: controller.signal });
+            if (!response.ok) throw new Error(`Audio fetch failed: ${response.status}`);
+            return response.arrayBuffer();
+        } finally {
+            window.clearTimeout(timeout);
+        }
     }
     throw new Error('Audio source missing');
 }
@@ -24,7 +30,7 @@ export async function extractAudioWaveform(source, options = {}) {
 
     const audioContext = new AudioContextClass();
     try {
-        const buffer = await audioContext.decodeAudioData(await readAudioSource(source));
+        const buffer = await audioContext.decodeAudioData(await readAudioSource(source, options));
         const channelCount = Math.max(1, buffer.numberOfChannels);
         const samplesPerPeak = Math.max(1, Math.floor(buffer.length / peakCount));
         const peaks = [];

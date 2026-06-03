@@ -8,7 +8,7 @@ import { buildExportFrameSchedule, resolveTimelineRenderPlan, validateExportAudi
 import { persistExportRightsManifest } from '../services/exportRightsManifestClient';
 
 const MIME_CANDIDATES = {
-    webm: ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'],
+    webm: ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8', 'video/webm;codecs=vp9', 'video/webm'],
     mp4: ['video/mp4;codecs=h264,aac', 'video/mp4;codecs=h264', 'video/mp4'],
 };
 
@@ -21,7 +21,7 @@ export const EXPORT_FRAME_RATE_OPTIONS = [
     { value: 60, label: '60' },
 ];
 
-const ExportVideoPanel = () => {
+export function useVideoExportController() {
     const [exportMessage, setExportMessage] = useState('');
     const [mimeSupport, setMimeSupport] = useState({ webm: false, mp4: false });
     const {
@@ -157,28 +157,30 @@ const ExportVideoPanel = () => {
         const exportId = `export-${Date.now()}`;
         if (exportPreflight.warnings.length > 0) setExportMessage(`Export prepare avec corrections.${warningNote}`);
 
-        const exportCanvas = document.createElement('canvas');
-        if (!exportCanvas.captureStream) {
+        const recordCanvas = document.createElement('canvas');
+        if (!recordCanvas.captureStream) {
             setExportMessage('Export canvas indisponible sur cette session.');
             return;
         }
 
-        exportCanvas.width = preset?.width || 1920;
-        exportCanvas.height = preset?.height || 1080;
-        exportCanvas.style.width = `${exportCanvas.width}px`;
-        exportCanvas.style.height = `${exportCanvas.height}px`;
-        exportCanvas.style.position = 'fixed';
-        exportCanvas.style.left = '-100000px';
-        exportCanvas.style.top = '0';
-        exportCanvas.style.pointerEvents = 'none';
-        document.body.appendChild(exportCanvas);
+        recordCanvas.width = preset?.width || 1920;
+        recordCanvas.height = preset?.height || 1080;
+        recordCanvas.style.width = `${recordCanvas.width}px`;
+        recordCanvas.style.height = `${recordCanvas.height}px`;
+        recordCanvas.style.position = 'fixed';
+        recordCanvas.style.left = '-100000px';
+        recordCanvas.style.top = '0';
+        recordCanvas.style.pointerEvents = 'none';
+        document.body.appendChild(recordCanvas);
 
-        const exportEngine = new PlaybackEngine(exportCanvas);
+        const exportEngine = new PlaybackEngine(recordCanvas);
         const chunks = [];
-        const stream = exportCanvas.captureStream(fps);
+        const stream = recordCanvas.captureStream(0);
         let disconnectAudio = null;
         let recordStream = stream;
         let progressTimer = null;
+        let renderTimer = null;
+        let stopTimer = null;
         let renderStopped = false;
         let exportFailureMessage = '';
 
@@ -187,7 +189,7 @@ const ExportVideoPanel = () => {
             stream.getTracks().forEach((track) => track.stop());
             disconnectAudio?.();
             exportEngine.dispose();
-            exportCanvas.remove();
+            recordCanvas.remove();
         };
 
         const clipLoadResults = await exportEngine.loadAllClips(exportClips);
@@ -235,41 +237,46 @@ const ExportVideoPanel = () => {
 
         let recorder;
         try {
+            const videoBitsPerSecond = resolveQualityVideoBitrate(recordCanvas.width, recordCanvas.height, fps);
+            const audioBitsPerSecond = 256_000;
             recorder = new MediaRecorder(recordStream, {
                 mimeType,
-                videoBitsPerSecond: 8_000_000,
-                audioBitsPerSecond: 192_000,
+                bitsPerSecond: videoBitsPerSecond + audioBitsPerSecond,
+                videoBitsPerSecond,
+                audioBitsPerSecond,
             });
         } catch (error) {
             recordStream.getTracks().forEach((track) => track.stop());
             stream.getTracks().forEach((track) => track.stop());
             disconnectAudio?.();
             exportEngine.dispose();
-            exportCanvas.remove();
+            recordCanvas.remove();
             setExportMessage(`Export impossible: ${error.message}`);
             return;
         }
 
+        const durationMs = Math.max(1000, frameSchedule.expectedDuration * 1000 + 1500);
         const startedAt = performance.now();
-        const durationMs = Math.max(1000, frameSchedule.expectedDuration * 1000 + 500);
         let renderTime = 0;
-        let frameIndex = 0;
+        let renderedFrameCount = 0;
         let blankFrameStreak = 0;
         const frameDuration = frameSchedule.frameDuration;
         const maxBlankFrameStreak = Math.max(3, Math.ceil(fps * 0.15));
 
-        setExportMessage(`${mimeType.includes('mp4') ? 'Export MP4 en cours.' : 'Export WebM en cours. MP4 natif indisponible dans ce navigateur.'}${warningNote}`);
+        setExportMessage(`${mimeType.includes('mp4') ? 'Export MP4 qualite en cours.' : 'Export WebM qualite en cours. MP4 natif indisponible dans ce navigateur.'}${warningNote}`);
         setExportProgress(0);
         setIsExporting(true);
 
         const cleanup = () => {
             window.clearInterval(progressTimer);
+            window.clearInterval(renderTimer);
+            window.clearTimeout(stopTimer);
             renderStopped = true;
             recordStream.getTracks().forEach((track) => track.stop());
             stream.getTracks().forEach((track) => track.stop());
             disconnectAudio?.();
             exportEngine.dispose();
-            exportCanvas.remove();
+            recordCanvas.remove();
         };
 
         const stopRecording = () => {
@@ -284,34 +291,6 @@ const ExportVideoPanel = () => {
             exportFailureMessage = message;
             setExportMessage(message);
             stopRecording();
-        };
-
-        const renderExportFrame = async () => {
-            const frameResult = await exportEngine.seekAndDraw(exportClips, transitions, renderTime, exportAllTransitions);
-            if (renderStopped || exportFailureMessage) return;
-            const frameShouldContainVideo = exportClips.length > 0 && renderTime < totalDuration - (frameDuration / 2);
-            if (frameShouldContainVideo && !frameResult?.rendered) {
-                throw new Error(`frame video non rendue a ${renderTime.toFixed(2)}s (${frameResult?.reason || 'aucun clip actif'})`);
-            }
-            drawTextOverlays(exportCanvas, exportTextOverlays, renderTime, null);
-            if (frameShouldContainVideo) {
-                const frameHealth = sampleCanvasFrameHealth(exportCanvas);
-                if (frameHealth.checkable && frameHealth.blank) {
-                    blankFrameStreak += 1;
-                    if (blankFrameStreak >= maxBlankFrameStreak) {
-                        throw new Error(`frames noires consecutives a ${renderTime.toFixed(2)}s`);
-                    }
-                } else {
-                    blankFrameStreak = 0;
-                }
-            }
-            exportEngine.syncClipAudio(exportPlaybackClips, transitions, renderTime, 1, exportAllTransitions);
-            exportEngine.syncExternalAudio(exportAudioTracks, renderTime, 1);
-            stream.getVideoTracks().forEach((track) => track.requestFrame?.());
-            frameIndex += 1;
-            renderTime = Math.min(totalDuration, frameIndex * frameDuration);
-            setExportProgress(Math.min(99, Math.round((frameIndex / frameSchedule.totalFrames) * 100)));
-            if (frameIndex >= frameSchedule.totalFrames) stopRecording();
         };
 
         recorder.ondataavailable = (event) => {
@@ -335,6 +314,10 @@ const ExportVideoPanel = () => {
             const blob = new Blob(chunks, { type: mimeType });
             if (blob.size === 0) {
                 setExportMessage('Export echoue: fichier vide, aucune frame enregistree.');
+                return;
+            }
+            if (renderedFrameCount === 0) {
+                setExportMessage('Export echoue: aucune frame video rendue.');
                 return;
             }
             const url = URL.createObjectURL(blob);
@@ -373,24 +356,112 @@ const ExportVideoPanel = () => {
             setExportProgress(Math.min(99, Math.max(Math.round((elapsed / durationMs) * 100), Math.round(timeProgress))));
         }, 200);
 
-        recorder.start();
-        const renderLoop = async () => {
-            if (renderStopped || recorder.state === 'inactive') return;
-            const frameStartedAt = performance.now();
-            try {
-                await renderExportFrame();
-            } catch (error) {
-                if (renderStopped || exportFailureMessage) return;
-                failExport(`Export interrompu: ${error.message}`);
-                return;
+        setExportMessage(`${mimeType.includes('mp4') ? 'Encodage MP4 qualite en cours.' : 'Encodage WebM qualite en cours.'} Capture ${fps} FPS, bitrate eleve.${warningNote}`);
+        recorder.start(250);
+        const videoTracks = stream.getVideoTracks();
+        let frameIndex = 0;
+        const totalFrames = frameSchedule.totalFrames;
+
+        const renderExportFrame = (time) => {
+            const frameResult = exportEngine.renderFrame(exportClips, transitions, time, exportAllTransitions);
+            const frameShouldContainVideo = exportClips.length > 0 && time < totalDuration - (frameDuration / 2);
+            if (frameShouldContainVideo && !frameResult?.rendered) {
+                failExport(`Export interrompu: frame video non rendue a ${time.toFixed(2)}s (${frameResult?.reason || 'aucun clip actif'})`);
+                return false;
             }
-            if (renderStopped || exportFailureMessage) return;
-            const elapsed = performance.now() - frameStartedAt;
-            window.setTimeout(renderLoop, Math.max(0, (1000 / fps) - elapsed));
+            drawTextOverlays(recordCanvas, exportTextOverlays, time, null);
+            exportEngine.syncClipAudio(exportPlaybackClips, transitions, time, 1, exportAllTransitions);
+            exportEngine.syncExternalAudio(exportAudioTracks, time, 1);
+            videoTracks.forEach((track) => track.requestFrame?.());
+            renderedFrameCount += 1;
+            if (frameShouldContainVideo) {
+                const frameHealth = sampleCanvasFrameHealth(recordCanvas);
+                if (frameHealth.checkable && frameHealth.blank) {
+                    blankFrameStreak += 1;
+                    if (blankFrameStreak >= maxBlankFrameStreak) {
+                        failExport(`Export interrompu: frames noires consecutives a ${time.toFixed(2)}s`);
+                        return false;
+                    }
+                } else {
+                    blankFrameStreak = 0;
+                }
+            }
+            return true;
         };
-        renderLoop();
-        window.setTimeout(stopRecording, durationMs);
+
+        renderExportFrame(0);
+
+        renderTimer = window.setInterval(() => {
+            if (renderStopped || recorder.state === 'inactive' || exportFailureMessage) return;
+            frameIndex += 1;
+            renderTime = Math.min(totalDuration, frameIndex * frameDuration);
+            if (!renderExportFrame(renderTime)) return;
+            setExportProgress(Math.min(99, Math.round((frameIndex / Math.max(totalFrames, 1)) * 100)));
+            if (frameIndex >= totalFrames || renderTime >= totalDuration - (frameDuration / 2)) {
+                stopRecording();
+            }
+        }, 1000 / fps);
+        stopTimer = window.setTimeout(stopRecording, durationMs);
     };
+
+    return {
+        audioTracks: exportAudioTracks,
+        effectiveExportFormat,
+        exportAudioTracks,
+        exportFps,
+        exportFormat,
+        exportFrameRate,
+        exportMessage,
+        exportPreflight,
+        exportProgress,
+        formatFallbackActive,
+        handleExport,
+        hasAudibleClipAudio,
+        hasClips,
+        isExporting,
+        mimeSupport,
+        preset,
+        projectName,
+        rightsAudit,
+        rightsBlockers,
+        sequencePreset,
+        setActivePanel,
+        setExportFormat,
+        setExportFrameRate,
+        setSequencePreset,
+        shouldMixAudio,
+        sourceFpsMax,
+        totalDuration,
+    };
+}
+
+const ExportVideoPanel = () => {
+    const {
+        effectiveExportFormat,
+        exportAudioTracks,
+        exportFps,
+        exportFormat,
+        exportFrameRate,
+        exportMessage,
+        exportPreflight,
+        exportProgress,
+        handleExport,
+        hasAudibleClipAudio,
+        hasClips,
+        isExporting,
+        mimeSupport,
+        preset,
+        rightsAudit,
+        rightsBlockers,
+        sequencePreset,
+        setActivePanel,
+        setExportFormat,
+        setExportFrameRate,
+        setSequencePreset,
+        shouldMixAudio,
+        sourceFpsMax,
+        totalDuration,
+    } = useVideoExportController();
 
     return (
         <div className="flex flex-col h-full">
@@ -641,6 +712,13 @@ function resolveSourceFpsMax(clips = []) {
         .filter((fps) => Number.isFinite(fps) && fps > 0);
     if (!detected.length) return 0;
     return Math.min(60, Math.max(...detected.map((fps) => Math.round(fps))));
+}
+
+function resolveQualityVideoBitrate(width = 1920, height = 1080, fps = 30) {
+    const pixels = Math.max(1, Number(width) * Number(height));
+    const normalizedFps = Math.max(24, Math.min(60, Number(fps) || 30));
+    const bitsPerPixelFrame = 0.28;
+    return Math.round(Math.min(90_000_000, Math.max(24_000_000, pixels * normalizedFps * bitsPerPixelFrame)));
 }
 
 export function resolveExportFps(presetFps, sourceFpsMax, override = 'auto') {

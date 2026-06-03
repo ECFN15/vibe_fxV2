@@ -197,6 +197,7 @@ const ModeButton = ({ id, label, icon: Icon, active, onClick }) => (
     <button
         type="button"
         onClick={() => onClick(id)}
+        data-testid={`music-library-mode-${id}`}
         className={`flex items-center justify-center gap-1.5 rounded-sm border px-2 py-2 text-[9px] font-mono uppercase tracking-widest transition ${
             active
                 ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
@@ -294,7 +295,7 @@ const TrackRow = ({ track, isPlaying, onPlay, onImport }) => (
         <button
             type="button"
             onClick={onPlay}
-            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-sm transition ${
+            className={`vibecut-square-button flex h-11 w-11 shrink-0 items-center justify-center rounded-sm transition ${
                 isPlaying ? 'bg-emerald-600/20 text-emerald-400' : 'bg-neutral-800 text-neutral-400 hover:text-white'
             }`}
             aria-label={isPlaying ? `Mettre ${track.title} en pause` : `Ecouter ${track.title}`}
@@ -319,7 +320,8 @@ const TrackRow = ({ track, isPlaying, onPlay, onImport }) => (
         <button
             type="button"
             onClick={onImport}
-            className="flex h-11 w-11 items-center justify-center rounded-sm border border-neutral-800 bg-neutral-950 text-neutral-400 transition hover:border-emerald-500/40 hover:text-emerald-400"
+            data-testid="music-catalog-import-track"
+            className="vibecut-square-button flex h-11 w-11 items-center justify-center rounded-sm border border-neutral-800 bg-neutral-950 text-neutral-400 transition hover:border-emerald-500/40 hover:text-emerald-400"
             title="Importer dans la timeline"
             aria-label={`Importer ${track.title} dans la timeline`}
         >

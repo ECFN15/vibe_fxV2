@@ -75,3 +75,54 @@ test("VibeCut quick panel can create timeline items and the top delete action re
 
   expect(consoleIssues).toEqual([]);
 });
+
+test("VibeCut volet tools keep intro and outro as singletons and shift the video lane", async ({ page }) => {
+  const fixtures = getVideoFixtures(1);
+  test.skip(fixtures.length < 1, "videotest/*.mp4 fixtures are not available locally");
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openVibeCut(page);
+  await page.locator('input[type=file][accept="video/*"]').setInputFiles(fixtures);
+  await page.waitForFunction(() => document.body.innerText.includes("1 CLIP"), null, { timeout: 120000 });
+
+  const voletItems = page.locator('[data-track-area="volets"] [data-track-item-type="transition"]');
+  const transitionItems = page.locator('[data-track-area="transitions"] [data-track-item-type="transition"]');
+  const firstVideoClip = page.locator('[data-track-area="video"] [role="button"][aria-label^="Clip 1:"]').first();
+
+  await page.getByTestId("quick-tool-group-volets").click();
+  await page.getByTestId("quick-tool-sequence-intro-neon-doors").click();
+  await expect(voletItems).toHaveCount(1);
+  await expect(transitionItems).toHaveCount(0);
+  await expect(page.getByTestId("volet-config-intro")).toBeVisible();
+  await expect(page.getByTestId("quick-tool-sequence-intro-neon-doors")).toContainText(/place/i);
+
+  const introDoorsOffset = await firstVideoClip.evaluate((node) => parseFloat(node.style.left || "0"));
+  expect(introDoorsOffset).toBeGreaterThan(0);
+
+  await page.getByTestId("quick-tool-sequence-intro-title-scan").click();
+  await expect(voletItems).toHaveCount(1);
+  await expect(transitionItems).toHaveCount(0);
+  await expect(page.getByTestId("quick-tool-sequence-intro-title-scan")).toContainText(/place/i);
+  await expect(page.getByTestId("quick-tool-sequence-intro-neon-doors")).toContainText(/remplace/i);
+  await expect(page.getByText(/timeline effets entre la video et le texte/i)).not.toBeVisible();
+
+  const introScanOffset = await firstVideoClip.evaluate((node) => parseFloat(node.style.left || "0"));
+  expect(introScanOffset).toBeGreaterThan(introDoorsOffset);
+
+  await page.getByTestId("volet-text-intro").fill("INTRO TEST");
+  await expect(page.getByTestId("volet-text-intro")).toHaveValue("INTRO TEST");
+  await page.getByTestId("volet-duration-intro").fill("1.6");
+  await expect(page.getByTestId("volet-duration-intro")).toHaveValue("1.6");
+  const editedIntroOffset = await firstVideoClip.evaluate((node) => parseFloat(node.style.left || "0"));
+  expect(editedIntroOffset).toBeGreaterThan(introScanOffset);
+
+  await page.getByTestId("quick-tool-sequence-outro-neon-close").click();
+  await expect(voletItems).toHaveCount(2);
+  await expect(transitionItems).toHaveCount(0);
+  await expect(page.getByTestId("volet-config-outro")).toBeVisible();
+  await page.getByTestId("quick-tool-sequence-outro-signal-collapse").click();
+  await expect(voletItems).toHaveCount(2);
+  await expect(transitionItems).toHaveCount(0);
+  await expect(page.getByTestId("quick-tool-sequence-outro-signal-collapse")).toContainText(/place/i);
+  await expect(page.getByTestId("quick-tool-sequence-outro-neon-close")).toContainText(/remplace/i);
+});

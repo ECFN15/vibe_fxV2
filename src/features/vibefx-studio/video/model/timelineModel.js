@@ -1,4 +1,5 @@
 const DEFAULT_TRACKS = [
+    { id: 'sequence-main', type: 'transition', laneRole: 'sequence', name: 'Volets', locked: false, muted: false, visible: true, allowOverlap: true, order: 5 },
     { id: 'video-main', type: 'video', laneRole: 'video', name: 'Video', locked: false, muted: false, visible: true, allowOverlap: false, order: 10 },
     { id: 'transition-main', type: 'transition', laneRole: 'transition', name: 'Effets', locked: false, muted: false, visible: true, allowOverlap: false, order: 20 },
     { id: 'effect-main', type: 'effect', laneRole: 'effect', name: 'Filtres', locked: false, muted: false, visible: true, allowOverlap: true, order: 30 },
@@ -9,7 +10,23 @@ const DEFAULT_TRACKS = [
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const finiteNumber = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
-const DEFAULT_FILTERS = { brightness: 100, contrast: 100, saturation: 100, temperature: 0, vignette: 0, grain: 0 };
+const DEFAULT_FILTERS = {
+    exposure: 0,
+    brightness: 100,
+    contrast: 100,
+    pivot: 50,
+    saturation: 100,
+    vibrance: 0,
+    temperature: 0,
+    tint: 0,
+    hue: 0,
+    shadows: 0,
+    midtones: 0,
+    highlights: 0,
+    fade: 0,
+    vignette: 0,
+    grain: 0,
+};
 export const DEFAULT_SNAP_THRESHOLD_SECONDS = 0.08;
 
 export function clampVolumePercent(volume = 100) {

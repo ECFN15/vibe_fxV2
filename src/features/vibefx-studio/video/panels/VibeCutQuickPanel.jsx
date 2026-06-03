@@ -3,6 +3,7 @@ import { Clapperboard, GripVertical, MousePointer2, Sparkles, Type, Wand2 } from
 import useVideoStore from '../store/videoStore';
 import {
     applyQuickToolToTimeline,
+    getQuickToolSequenceSlot,
     getQuickToolPayload,
     QUICK_TOOL_GROUPS,
     QUICK_TOOL_TRANSFER_TYPE,
@@ -36,12 +37,61 @@ const ACCENT_CLASS = {
 const VibeCutQuickPanel = () => {
     const [activeGroupId, setActiveGroupId] = useState(QUICK_TOOL_GROUPS[0]?.id || 'effects');
     const currentTime = useVideoStore((state) => state.currentTime);
+    const totalDuration = useVideoStore((state) => state.totalDuration);
+    const transitionItems = useVideoStore((state) => state.transitionItems);
+    const textOverlays = useVideoStore((state) => state.textOverlays);
+    const updateTransitionItem = useVideoStore((state) => state.updateTransitionItem);
+    const updateTextOverlay = useVideoStore((state) => state.updateTextOverlay);
+    const setSelectedTransitionId = useVideoStore((state) => state.setSelectedTransitionId);
+    const setSelectedTextId = useVideoStore((state) => state.setSelectedTextId);
+    const setActivePanel = useVideoStore((state) => state.setActivePanel);
     const activeGroup = useMemo(() => (
         QUICK_TOOL_GROUPS.find(group => group.id === activeGroupId) || QUICK_TOOL_GROUPS[0]
     ), [activeGroupId]);
+    const placedSequenceSlots = useMemo(() => (
+        (transitionItems || []).reduce((slots, item) => {
+            const slot = item?.params?.sequenceSlot || item?.params?.placement;
+            if (slot === 'intro' || slot === 'outro') {
+                slots[slot] = item;
+            }
+            return slots;
+        }, {})
+    ), [transitionItems]);
+    const sequenceEditors = useMemo(() => (
+        ['intro', 'outro'].map((slot) => {
+            const item = placedSequenceSlots[slot];
+            if (!item) return null;
+            const linkedTextId = item.params?.linkedTextId || `sequence-${slot}-text`;
+            const text = (textOverlays || []).find(overlay => overlay.id === linkedTextId)
+                || (textOverlays || []).find(overlay => overlay.params?.sequenceSlot === slot)
+                || null;
+            return { slot, item, text };
+        }).filter(Boolean)
+    ), [placedSequenceSlots, textOverlays]);
 
     const handleApply = (tool) => {
         applyQuickToolToTimeline(useVideoStore, tool, { startTime: currentTime });
+    };
+
+    const handleSequenceTextChange = (editor, content) => {
+        if (!editor?.text?.id) return;
+        updateTextOverlay(editor.text.id, { content }, { history: true });
+        setSelectedTextId(null);
+        setSelectedTransitionId(editor.item.id);
+        setActivePanel(null);
+    };
+
+    const handleSequenceDurationChange = (editor, rawValue) => {
+        if (!editor?.item?.id) return;
+        const duration = clampSequenceDuration(rawValue);
+        const textRange = getSequenceTextRange(editor.slot, editor.item, duration, totalDuration);
+        updateTransitionItem(editor.item.id, { duration, startTime: textRange.startTime, endTime: textRange.endTime }, { history: true });
+        if (editor.text?.id) {
+            updateTextOverlay(editor.text.id, textRange, { history: true });
+        }
+        setSelectedTransitionId(editor.item.id);
+        setSelectedTextId(null);
+        setActivePanel(null);
     };
 
     return (
@@ -88,6 +138,11 @@ const VibeCutQuickPanel = () => {
                 <div className="space-y-2">
                     {activeGroup.tools.map((tool) => {
                         const accent = ACCENT_CLASS[activeGroup.accent] || ACCENT_CLASS.purple;
+                        const sequenceSlot = getQuickToolSequenceSlot(tool);
+                        const placedSequence = sequenceSlot ? placedSequenceSlots[sequenceSlot] : null;
+                        const sequenceState = placedSequence
+                            ? (placedSequence.type === tool.transitionId ? 'Place' : 'Remplace')
+                            : null;
                         return (
                             <button
                                 key={tool.id}
@@ -109,7 +164,14 @@ const VibeCutQuickPanel = () => {
                                             <span className="truncate text-[10px] font-mono uppercase tracking-widest text-neutral-200">
                                                 {tool.label}
                                             </span>
-                                            <GripVertical size={12} className="shrink-0 text-neutral-600 transition group-hover:text-neutral-300" />
+                                            <span className="flex shrink-0 items-center gap-1">
+                                                {sequenceState && (
+                                                    <span className="rounded-sm border border-purple-400/25 bg-purple-500/10 px-1 py-0.5 text-[7px] font-mono uppercase tracking-widest text-purple-200">
+                                                        {sequenceState}
+                                                    </span>
+                                                )}
+                                                <GripVertical size={12} className="text-neutral-600 transition group-hover:text-neutral-300" />
+                                            </span>
                                         </span>
                                         <span className="mt-1 block text-[9px] font-mono uppercase tracking-wider text-neutral-600">
                                             {tool.detail}
@@ -120,6 +182,72 @@ const VibeCutQuickPanel = () => {
                         );
                     })}
                 </div>
+
+                {activeGroup.id === 'volets' && sequenceEditors.length > 0 && (
+                    <div className="mt-4 space-y-3 border-t border-neutral-800 pt-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="text-[8px] font-mono uppercase tracking-widest text-neutral-500">Reglage volet</span>
+                            <span className="text-[8px] font-mono uppercase tracking-widest text-purple-300/70">
+                                Texte + duree
+                            </span>
+                        </div>
+                        {sequenceEditors.map((editor) => {
+                            const duration = clampSequenceDuration(editor.item.duration || 1);
+                            const label = editor.slot === 'intro' ? 'Intro' : 'Fin';
+                            return (
+                                <div
+                                    key={editor.slot}
+                                    data-testid={`volet-config-${editor.slot}`}
+                                    className="rounded-sm border border-purple-500/20 bg-purple-500/[0.045] p-2.5"
+                                >
+                                    <div className="mb-2 flex items-center justify-between gap-2">
+                                        <span className="truncate text-[9px] font-mono uppercase tracking-widest text-purple-200">
+                                            {label} - {editor.item.name}
+                                        </span>
+                                        <span className="shrink-0 text-[8px] font-mono tabular-nums text-purple-300/70">
+                                            {duration.toFixed(1)}s
+                                        </span>
+                                    </div>
+                                    <label className="block">
+                                        <span className="mb-1 block text-[8px] font-mono uppercase tracking-widest text-neutral-500">Texte</span>
+                                        <input
+                                            type="text"
+                                            data-testid={`volet-text-${editor.slot}`}
+                                            value={editor.text?.content || ''}
+                                            onChange={(event) => handleSequenceTextChange(editor, event.target.value)}
+                                            className="h-8 w-full rounded-sm border border-neutral-800 bg-black/50 px-2 text-[10px] font-mono uppercase tracking-wider text-neutral-100 outline-none transition placeholder:text-neutral-700 focus:border-purple-300/60"
+                                            placeholder={editor.slot === 'intro' ? 'Texte intro' : 'Texte fin'}
+                                        />
+                                    </label>
+                                    <div className="mt-2 grid grid-cols-[1fr_3.8rem] items-center gap-2">
+                                        <label className="min-w-0">
+                                            <span className="sr-only">Duree du volet {label}</span>
+                                            <input
+                                                type="range"
+                                                min="0.5"
+                                                max="4"
+                                                step="0.1"
+                                                value={duration}
+                                                onChange={(event) => handleSequenceDurationChange(editor, event.target.value)}
+                                                className="w-full accent-purple-400"
+                                            />
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min="0.5"
+                                            max="4"
+                                            step="0.1"
+                                            data-testid={`volet-duration-${editor.slot}`}
+                                            value={duration}
+                                            onChange={(event) => handleSequenceDurationChange(editor, event.target.value)}
+                                            className="h-8 rounded-sm border border-neutral-800 bg-black/50 px-1 text-center text-[10px] font-mono tabular-nums text-neutral-100 outline-none transition focus:border-purple-300/60"
+                                        />
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
 
             <div className="border-t border-neutral-800 p-3">
@@ -133,5 +261,21 @@ const VibeCutQuickPanel = () => {
         </aside>
     );
 };
+
+function clampSequenceDuration(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 1;
+    return Math.max(0.5, Math.min(4, numeric));
+}
+
+function getSequenceTextRange(slot, item, duration, totalDuration) {
+    const previousDuration = Math.max(0.1, Number(item?.duration ?? ((item?.endTime ?? 0) - (item?.startTime ?? item?.start ?? 0))) || 0.1);
+    const baseDuration = slot === 'outro' ? Math.max(0, (totalDuration || previousDuration) - previousDuration) : 0;
+    const startTime = slot === 'outro' ? baseDuration : 0;
+    return {
+        startTime,
+        endTime: startTime + duration,
+    };
+}
 
 export default VibeCutQuickPanel;
