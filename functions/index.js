@@ -7,6 +7,7 @@ const billing = require("./src/billing");
 const account = require("./src/account");
 const aiJobs = require("./src/ai/jobs");
 const aiReconciliation = require("./src/ai/reconciliation");
+const videoExport = require("./src/videoExport");
 const { shouldEnforceAppCheck } = require("./src/appCheck");
 
 admin.initializeApp();
@@ -16,6 +17,9 @@ exports.stripeWebhook = billing.stripeWebhook;
 exports.requestAccountDeletion = account.requestAccountDeletion;
 exports.createAiJob = aiJobs.createAiJob;
 exports.reconcileStaleAiReservations = aiReconciliation.reconcileStaleAiReservations;
+exports.createVideoExportJob = videoExport.createVideoExportJob;
+exports.cancelVideoExportJob = videoExport.cancelVideoExportJob;
+exports.retryVideoExportJob = videoExport.retryVideoExportJob;
 
 const META_ACCESS_TOKEN = defineSecret("META_ACCESS_TOKEN");
 const META_IG_USER_ID = defineSecret("META_IG_USER_ID");

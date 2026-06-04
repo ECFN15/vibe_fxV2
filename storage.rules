@@ -67,6 +67,25 @@ service firebase.storage {
       allow list, create, update, delete: if false;
     }
 
+    match /users/{userId}/exports/{exportId}/sources/video/{fileName} {
+      allow get: if ownsPath(userId);
+      allow list: if false;
+      allow create, update: if ownsPath(userId) && isSafeVideoUpload(750 * 1024 * 1024);
+      allow delete: if ownsPath(userId);
+    }
+
+    match /users/{userId}/exports/{exportId}/sources/audio/{fileName} {
+      allow get: if ownsPath(userId);
+      allow list: if false;
+      allow create, update: if ownsPath(userId) && isSafeAudioUpload(250 * 1024 * 1024);
+      allow delete: if ownsPath(userId);
+    }
+
+    match /users/{userId}/exports/{exportId}/outputs/{fileName} {
+      allow get: if ownsPath(userId);
+      allow list, create, update, delete: if false;
+    }
+
     match /users/{userId}/exports/{allPaths=**} {
       allow get: if ownsPath(userId);
       allow list, create, update, delete: if false;

@@ -8,6 +8,9 @@ const normalizeClipFrameRate = (value) => {
     const frameRate = Number(value);
     return Number.isFinite(frameRate) && frameRate > 0 ? frameRate : null;
 };
+const normalizeOrientationRotation = (value) => (
+    ((Math.round((Number(value) || 0) / 90) * 90) % 360 + 360) % 360
+);
 
 // Snapshot keys for undo/redo
 const SNAPSHOT_KEYS = ['clips', 'transitions', 'transitionItems', 'textOverlays', 'audioTracks', 'tracks', 'selectedClipId', 'selectedTextId', 'selectedTransitionId', 'selectedAudioTrackId', 'sequencePreset'];
@@ -159,8 +162,9 @@ const useVideoStore = create((set, get) => ({
                 height: Number.isFinite(Number(clipData.height)) ? Number(clipData.height) : null,
                 displayWidth: Number.isFinite(Number(clipData.displayWidth)) ? Number(clipData.displayWidth) : null,
                 displayHeight: Number.isFinite(Number(clipData.displayHeight)) ? Number(clipData.displayHeight) : null,
-                orientationRotation: Number.isFinite(Number(clipData.orientationRotation)) ? Number(clipData.orientationRotation) : 0,
+                orientationRotation: Number.isFinite(Number(clipData.orientationRotation)) ? normalizeOrientationRotation(clipData.orientationRotation) : 0,
                 orientationSource: clipData.orientationSource || 'browser',
+                importSessionId: clipData.importSessionId || null,
                 trimStart: 0,
                 trimEnd: clipData.duration || 0,
                 thumbnails: clipData.thumbnails || [],
@@ -195,6 +199,29 @@ const useVideoStore = create((set, get) => ({
             const totalDuration = computeTotalDuration(clips, s.transitions, s.transitionItems);
             return { clips, totalDuration, currentTime: clamp(s.currentTime, 0, totalDuration), timelineEditNotice: null };
         });
+    },
+
+    applyClipRotationToImportSession: (clipId) => {
+        const state = get();
+        if (isTimelineTrackLocked(state.tracks, 'video-main')) {
+            rejectTimelineEdit(set, 'track-locked', 'Piste video verrouillee: rotation session ignoree.');
+            return 0;
+        }
+        const sourceClip = state.clips.find(c => c.id === clipId);
+        const importSessionId = sourceClip?.importSessionId;
+        if (!sourceClip || !importSessionId) return 0;
+        const sessionClips = state.clips.filter(c => c.importSessionId === importSessionId);
+        if (sessionClips.length < 2) return 0;
+        const orientationRotation = normalizeOrientationRotation(sourceClip.orientationRotation);
+        pushHistory(state);
+        set((s) => ({
+            clips: s.clips.map(c => c.importSessionId === importSessionId
+                ? { ...c, orientationRotation, orientationSource: 'session-manual' }
+                : c
+            ),
+            timelineEditNotice: null,
+        }));
+        return sessionClips.length;
     },
 
     removeClip: (id) => {

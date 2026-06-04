@@ -42,7 +42,7 @@ const VideoEditor = ({ onAiOpen }) => {
     const [isTheaterDropActive, setIsTheaterDropActive] = useState(false);
     const [isTheaterColorOpen, setIsTheaterColorOpen] = useState(false);
     const {
-        addClip, updateClip, clips, transitions, transitionItems, textOverlays,
+        addClip, updateClip, applyClipRotationToImportSession, clips, transitions, transitionItems, textOverlays,
         audioTracks, tracks, totalDuration, currentTime, isPlaying, togglePlay,
         seekTo, selectedClipId, setSelectedClipId, setSelectedTextId,
         setSelectedTransitionId, setSelectedAudioTrackId,
@@ -62,13 +62,19 @@ const VideoEditor = ({ onAiOpen }) => {
 
     const theaterClips = renderPlan.clips;
     const selectedClip = clips.find((clip) => clip.id === selectedClipId) || null;
+    const selectedImportSessionClipCount = selectedClip?.importSessionId
+        ? clips.filter((clip) => clip.importSessionId === selectedClip.importSessionId).length
+        : 0;
+    const canApplyRotationToImportSession = selectedImportSessionClipCount > 1;
     const videoExport = useVideoExportController();
 
     const handleImportClick = () => fileInputRef.current?.click();
 
     const importFiles = useCallback(async (files) => {
-        for (const file of files) {
-            if (!file.type.startsWith('video/')) continue;
+        const videoFiles = files.filter((file) => file.type.startsWith('video/'));
+        if (videoFiles.length === 0) return;
+        const importSessionId = `import-${Date.now()}-${crypto.randomUUID?.() || Math.random().toString(36).slice(2, 10)}`;
+        for (const file of videoFiles) {
             try {
                 const meta = await loadVideoFile(file);
                 const clipId = crypto.randomUUID?.() || Math.random().toString(36).slice(2, 10);
@@ -84,6 +90,7 @@ const VideoEditor = ({ onAiOpen }) => {
                     displayHeight: meta.displayHeight,
                     orientationRotation: meta.orientationRotation,
                     orientationSource: meta.orientationSource,
+                    importSessionId,
                     thumbnails: [],
                     sourceFrameRate: meta.sourceFrameRate,
                     sourceFrameRateRaw: meta.sourceFrameRateRaw,
@@ -152,6 +159,11 @@ const VideoEditor = ({ onAiOpen }) => {
         const orientationRotation = ((currentRotation + delta) % 360 + 360) % 360;
         updateClip(selectedClip.id, { orientationRotation, orientationSource: 'manual' }, { history: true });
     }, [selectedClip, updateClip]);
+
+    const handleApplyRotationToImportSession = useCallback(() => {
+        if (!selectedClip?.id) return;
+        applyClipRotationToImportSession(selectedClip.id);
+    }, [applyClipRotationToImportSession, selectedClip]);
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -296,6 +308,16 @@ const VideoEditor = ({ onAiOpen }) => {
                         </button>
                         <button
                             type="button"
+                            data-testid="vibecut-theater-rotate-session"
+                            onClick={handleApplyRotationToImportSession}
+                            disabled={!canApplyRotationToImportSession}
+                            className="vibecut-action-button inline-flex h-8 items-center justify-center rounded-sm border border-cyan-500/25 bg-cyan-500/8 px-2.5 text-[8px] font-mono uppercase tracking-widest text-cyan-100 transition hover:border-cyan-300/55 hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:border-neutral-800 disabled:bg-neutral-900/45 disabled:text-neutral-600"
+                            title={canApplyRotationToImportSession ? `Appliquer cette rotation aux ${selectedImportSessionClipCount} videos importees ensemble` : 'Importe plusieurs videos ensemble pour activer la rotation de session'}
+                        >
+                            Session
+                        </button>
+                        <button
+                            type="button"
                             data-testid="vibecut-theater-play-all"
                             onClick={handlePlayAll}
                             disabled={clips.length === 0}
@@ -324,17 +346,17 @@ const VideoEditor = ({ onAiOpen }) => {
                             type="button"
                             data-testid="vibecut-theater-download"
                             onClick={videoExport.handleExport}
-                            disabled={!videoExport.hasClips || videoExport.isExporting || videoExport.exportPreflight.errors.length > 0}
+                            disabled={!videoExport.hasClips || videoExport.isExporting || videoExport.proExportPreflight.errors.length > 0}
                             className="vibecut-action-button inline-flex h-8 items-center justify-center gap-2 rounded-sm border border-cyan-500/40 bg-cyan-500/12 px-3 text-[9px] font-mono uppercase tracking-widest text-cyan-100 transition hover:border-cyan-300 hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-35"
                             title={
-                                videoExport.exportPreflight.errors.length > 0
-                                    ? videoExport.exportPreflight.errors[0]
-                                    : `Telecharger ${videoExport.effectiveExportFormat.toUpperCase()} ${videoExport.exportFps} FPS`
+                                videoExport.proExportPreflight.errors.length > 0
+                                    ? videoExport.proExportPreflight.errors[0]
+                                    : `Export Pro MP4 ${videoExport.exportFps} FPS`
                             }
                         >
                             <Download size={12} />
                             <span className="hidden xl:inline">
-                                {videoExport.isExporting ? `Export ${videoExport.exportProgress}%` : 'Telecharger'}
+                                {videoExport.isExporting ? `Export Pro ${videoExport.exportProgress}%` : 'Export Pro'}
                             </span>
                         </button>
                         <button
@@ -404,11 +426,11 @@ const VideoEditor = ({ onAiOpen }) => {
                         type="button"
                         data-testid="vibecut-theater-mobile-download"
                         onClick={videoExport.handleExport}
-                        disabled={!videoExport.hasClips || videoExport.isExporting || videoExport.exportPreflight.errors.length > 0}
+                        disabled={!videoExport.hasClips || videoExport.isExporting || videoExport.proExportPreflight.errors.length > 0}
                         className="mb-2 flex h-9 w-full items-center justify-center gap-2 rounded-sm border border-cyan-500/35 bg-cyan-500/12 px-3 text-[9px] font-mono uppercase tracking-widest text-cyan-100 transition disabled:cursor-not-allowed disabled:opacity-35 md:hidden"
                     >
                         <Download size={12} />
-                        {videoExport.isExporting ? `Export ${videoExport.exportProgress}%` : 'Telecharger la video'}
+                        {videoExport.isExporting ? `Export Pro ${videoExport.exportProgress}%` : 'Export Pro MP4'}
                     </button>
                     <button
                         type="button"

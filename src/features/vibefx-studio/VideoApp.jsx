@@ -17,11 +17,15 @@ function VideoApp({ onBack }) {
     const {
         clips, undo, redo, canUndo, canRedo,
         sequencePreset, setSequencePreset,
-        selectedClipId, updateClip, removeClip,
+        selectedClipId, updateClip, removeClip, applyClipRotationToImportSession,
         exportFrameRate, setExportFrameRate,
     } = useVideoStore();
     const activePreset = EXPORT_PRESETS[sequencePreset] || EXPORT_PRESETS.youtube;
     const selectedClip = clips.find((clip) => clip.id === selectedClipId) || null;
+    const selectedImportSessionClipCount = selectedClip?.importSessionId
+        ? clips.filter((clip) => clip.importSessionId === selectedClip.importSessionId).length
+        : 0;
+    const canApplyRotationToImportSession = selectedImportSessionClipCount > 1;
     const sourceFpsMax = useMemo(() => {
         const fpsValues = clips
             .map((clip) => Number(clip.sourceFrameRate || clip.importFrameRate || 0))
@@ -65,6 +69,11 @@ function VideoApp({ onBack }) {
         const orientationRotation = ((currentRotation + delta) % 360 + 360) % 360;
         updateClip(selectedClip.id, { orientationRotation, orientationSource: 'manual' }, { history: true });
     }, [selectedClip, updateClip]);
+
+    const applySelectedRotationToImportSession = useCallback(() => {
+        if (!selectedClip?.id) return;
+        applyClipRotationToImportSession(selectedClip.id);
+    }, [applyClipRotationToImportSession, selectedClip]);
 
     const deleteSelectedClip = useCallback(() => {
         if (!selectedClip?.id) return;
@@ -199,6 +208,17 @@ function VideoApp({ onBack }) {
                                     aria-label="Tourner le clip selectionne a droite"
                                 >
                                     <RotateCw size={12} />
+                                </button>
+                                <button
+                                    type="button"
+                                    data-testid="header-rotate-session"
+                                    disabled={!canApplyRotationToImportSession}
+                                    onClick={applySelectedRotationToImportSession}
+                                    className="inline-flex h-7 items-center justify-center rounded-sm border border-cyan-500/25 bg-cyan-500/8 px-2 text-[8px] font-mono uppercase tracking-widest text-cyan-100 transition hover:border-cyan-300/55 hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:border-neutral-800 disabled:bg-neutral-900/50 disabled:text-neutral-600"
+                                    title={canApplyRotationToImportSession ? `Appliquer cette rotation aux ${selectedImportSessionClipCount} videos importees ensemble` : 'Importe plusieurs videos ensemble pour activer la rotation de session'}
+                                    aria-label="Appliquer la rotation a la session d'import"
+                                >
+                                    Session
                                 </button>
                                 <button
                                     type="button"

@@ -209,6 +209,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /videoExportJobs/{jobId} {
+      allow read: if ownsUidField();
+      allow write: if false;
+    }
+
     match /rightsManifests/{manifestId} {
       allow read: if ownsUidField();
       allow write: if false;

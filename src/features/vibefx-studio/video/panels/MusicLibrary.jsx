@@ -34,7 +34,7 @@ const createTrackId = () => crypto.randomUUID?.() || Math.random().toString(36).
 
 const MusicLibrary = () => {
     const { aiInterfacesEnabled } = useAiLaunchSettings();
-    const { addAudioTrack, setActivePanel, currentTime } = useVideoStore();
+    const { addAudioTrack, updateAudioTrack, setActivePanel, currentTime } = useVideoStore();
     const [mode, setMode] = useState('import');
     const [importPresetId, setImportPresetId] = useState('pixabay-manual');
     const [query, setQuery] = useState('');
@@ -99,12 +99,6 @@ const MusicLibrary = () => {
             id,
             acquiredAt,
         };
-        let waveform;
-        try {
-            waveform = await extractAudioWaveform(track.url || track.previewUrl);
-        } catch (err) {
-            waveform = buildUnavailableWaveform(err.message);
-        }
         addAudioTrack({
             id,
             name: track.title,
@@ -124,9 +118,13 @@ const MusicLibrary = () => {
             contentIdWarning: track.contentIdWarning,
             licenseSnapshotVersion: track.licenseSnapshotVersion,
             acquiredAt,
-            waveform,
+            waveform: { status: 'pending', peaks: [] },
             rightsManifest: buildTrackRightsManifest(rightsTrack),
         });
+
+        extractAudioWaveform(track.url || track.previewUrl)
+            .then((waveform) => updateAudioTrack(id, { waveform }))
+            .catch((err) => updateAudioTrack(id, { waveform: buildUnavailableWaveform(err.message) }));
     };
 
     const startVerifiedImport = (presetId) => {

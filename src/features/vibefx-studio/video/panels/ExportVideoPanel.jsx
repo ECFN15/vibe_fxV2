@@ -1,11 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { X, Download, Monitor, Smartphone, ShieldCheck, AlertTriangle } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { X, Download, Monitor, Smartphone, ShieldCheck, AlertTriangle, Server, RotateCcw, Trash2 } from 'lucide-react';
 import useVideoStore from '../store/videoStore';
 import { EXPORT_PRESETS, PlaybackEngine } from '../engine/VideoEngine';
 import { drawTextOverlays } from '../preview/VideoPreview';
 import { RIGHTS_STATUS_LABELS, buildExportRightsManifest, getRightsAudit } from '../data/musicRights';
 import { buildExportFrameSchedule, resolveTimelineRenderPlan, validateExportAudioMix, validateExportFrameCoverage, validateExportTimeline, validateTimelineRenderPlan } from '../model/timelineModel';
 import { persistExportRightsManifest } from '../services/exportRightsManifestClient';
+import { buildExportManifest, validateExportManifest } from '../export/exportManifest';
+import { retryVideoExportJob, startVideoExportJob } from '../export/exportJobService';
 
 const MIME_CANDIDATES = {
     webm: ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8', 'video/webm;codecs=vp9', 'video/webm'],
@@ -21,8 +23,28 @@ export const EXPORT_FRAME_RATE_OPTIONS = [
     { value: 60, label: '60' },
 ];
 
+const EXPORT_QUALITY_OPTIONS = [
+    { value: 'preview', label: 'Preview', description: '720p cible, controle rapide' },
+    { value: 'pro', label: 'Pro', description: 'MP4 social propre, CRF 17' },
+    { value: 'master', label: 'Master', description: 'Qualite max, fichier lourd' },
+];
+
+const EXPORT_FIT_OPTIONS = [
+    { value: 'cover', label: 'Cover' },
+    { value: 'contain', label: 'Contain' },
+    { value: 'customCrop', label: 'Crop custom' },
+    { value: 'fill', label: 'Fill avance' },
+];
+
 export function useVideoExportController() {
     const [exportMessage, setExportMessage] = useState('');
+    const [proExportMessage, setProExportMessage] = useState('');
+    const [exportQualityMode, setExportQualityMode] = useState('pro');
+    const [exportFitMode, setExportFitMode] = useState('cover');
+    const [activeExportJob, setActiveExportJob] = useState(null);
+    const [exportJobHistory, setExportJobHistory] = useState([]);
+    const [isExportJobModalOpen, setIsExportJobModalOpen] = useState(false);
+    const exportJobAbortRef = useRef(null);
     const [mimeSupport, setMimeSupport] = useState({ webm: false, mp4: false });
     const {
         sequencePreset, setSequencePreset,
@@ -61,6 +83,76 @@ export function useVideoExportController() {
     const rightsManifest = useMemo(() => buildExportRightsManifest(exportAudioTracks), [exportAudioTracks]);
     const effectiveExportFormat = exportFormat === 'mp4' && !mimeSupport.mp4 ? 'webm' : exportFormat;
     const formatFallbackActive = exportFormat !== effectiveExportFormat;
+    const proExportManifest = useMemo(() => buildExportManifest({
+        projectName,
+        userId: 'local-user',
+        renderPlan: {
+            ...exportPlan,
+            totalDuration,
+        },
+        preset,
+        sequencePreset,
+        exportFps,
+        qualityMode: exportQualityMode,
+        fitMode: exportFitMode,
+        rightsManifest,
+        frameSchedule: buildExportFrameSchedule({ totalDuration, fps: exportFps }),
+        generatedAt: 'local-preflight',
+    }), [exportFitMode, exportFps, exportPlan, exportQualityMode, preset, projectName, rightsManifest, sequencePreset, totalDuration]);
+    const proExportPreflight = useMemo(() => {
+        const fps = exportFps;
+        const frameSchedule = buildExportFrameSchedule({ totalDuration, fps });
+        const timelineAudit = validateExportTimeline({
+            clips: exportClips,
+            audioTracks: exportAudioTracks,
+            transitionItems: exportAllTransitions,
+            totalDuration,
+            fps,
+            mimeType: 'video/mp4',
+        });
+        const audioMixAudit = validateExportAudioMix({
+            playbackClips: exportPlaybackClips,
+            audioTracks: exportAudioTracks,
+            shouldMixAudio,
+            totalDuration,
+        });
+        const renderPlanAudit = validateTimelineRenderPlan({
+            plan: exportPlan,
+            totalDuration,
+            frameDuration: frameSchedule.frameDuration || (1 / fps),
+        });
+        const frameCoverageAudit = validateExportFrameCoverage({
+            frameSchedule,
+            transitionItems: exportAllTransitions,
+            totalDuration,
+        });
+        const manifestAudit = validateExportManifest(proExportManifest, { mode: 'localMock' });
+        const rightsErrors = rightsBlockers.map(({ track, issue }) => `${track.name || track.id}: ${issue}.`);
+        const errors = [
+            ...rightsErrors,
+            ...timelineAudit.errors,
+            ...audioMixAudit.errors,
+            ...renderPlanAudit.errors,
+            ...frameCoverageAudit.errors,
+            ...manifestAudit.errors,
+        ];
+        const warnings = [
+            ...timelineAudit.warnings,
+            ...audioMixAudit.warnings,
+            ...renderPlanAudit.warnings,
+            ...frameCoverageAudit.warnings,
+            ...manifestAudit.warnings,
+        ];
+
+        return {
+            errors: Array.from(new Set(errors)),
+            warnings: Array.from(new Set(warnings)),
+            frameSchedule,
+            fps,
+            manifest: proExportManifest,
+            status: errors.length > 0 ? 'blocked' : warnings.length > 0 ? 'warning' : 'ready',
+        };
+    }, [exportAllTransitions, exportAudioTracks, exportClips, exportFps, exportPlaybackClips, exportPlan, proExportManifest, rightsBlockers, shouldMixAudio, totalDuration]);
     const exportPreflight = useMemo(() => {
         const fps = exportFps;
         const frameSchedule = buildExportFrameSchedule({ totalDuration, fps });
@@ -141,9 +233,102 @@ export function useVideoExportController() {
         });
     }, []);
 
-    const handleExport = async () => {
+    const handleProExport = async () => {
+        if (proExportPreflight.errors.length > 0) {
+            setProExportMessage(`Export Pro bloque: ${proExportPreflight.errors.join(' ')}`);
+            setIsExportJobModalOpen(true);
+            return;
+        }
+
+        exportJobAbortRef.current?.abort?.();
+        const abortController = new AbortController();
+        exportJobAbortRef.current = abortController;
+        setIsExportJobModalOpen(true);
+        setProExportMessage('Export Pro MP4 lance en localMock.');
+
+        const manifest = buildExportManifest({
+            projectName,
+            userId: 'local-user',
+            renderPlan: {
+                ...exportPlan,
+                totalDuration,
+            },
+            preset,
+            sequencePreset,
+            exportFps,
+            qualityMode: exportQualityMode,
+            fitMode: exportFitMode,
+            rightsManifest,
+            frameSchedule: proExportPreflight.frameSchedule,
+        });
+
+        const updateJob = (job) => {
+            setActiveExportJob(job);
+            setExportProgress(job.progress || 0);
+            setIsExporting(!['ready', 'failed', 'cancelled'].includes(job.status));
+            setExportJobHistory((history) => upsertExportJobHistory(history, job));
+        };
+
+        setExportProgress(0);
+        setIsExporting(true);
+        const finalJob = await startVideoExportJob({
+            manifest,
+            mode: 'localMock',
+            signal: abortController.signal,
+            onUpdate: updateJob,
+        });
+        updateJob(finalJob);
+        setIsExporting(false);
+        setProExportMessage(resolveJobMessage(finalJob));
+    };
+
+    const cancelProExport = () => {
+        exportJobAbortRef.current?.abort?.();
+    };
+
+    const retryProExport = async (job = activeExportJob) => {
+        const manifest = job?.manifest || buildExportManifest({
+            projectName,
+            userId: 'local-user',
+            renderPlan: {
+                ...exportPlan,
+                totalDuration,
+            },
+            preset,
+            sequencePreset,
+            exportFps,
+            qualityMode: exportQualityMode,
+            fitMode: exportFitMode,
+            rightsManifest,
+        });
+        exportJobAbortRef.current?.abort?.();
+        const abortController = new AbortController();
+        exportJobAbortRef.current = abortController;
+        setIsExportJobModalOpen(true);
+        setIsExporting(true);
+        const finalJob = await retryVideoExportJob({
+            manifest,
+            mode: 'localMock',
+            signal: abortController.signal,
+            onUpdate: (nextJob) => {
+                setActiveExportJob(nextJob);
+                setExportProgress(nextJob.progress || 0);
+                setExportJobHistory((history) => upsertExportJobHistory(history, nextJob));
+            },
+        });
+        setActiveExportJob(finalJob);
+        setExportJobHistory((history) => upsertExportJobHistory(history, finalJob));
+        setIsExporting(false);
+        setProExportMessage(resolveJobMessage(finalJob));
+    };
+
+    const removeExportJobFromHistory = (jobId) => {
+        setExportJobHistory((history) => history.filter(job => job.id !== jobId));
+    };
+
+    const handleBrowserDraftExport = async () => {
         if (exportPreflight.errors.length > 0) {
-            setExportMessage(`Export bloque: ${exportPreflight.errors.join(' ')}`);
+            setExportMessage(`Export brouillon bloque: ${exportPreflight.errors.join(' ')}`);
             return;
         }
 
@@ -155,11 +340,11 @@ export function useVideoExportController() {
         const { fps, frameSchedule, mimeType } = exportPreflight;
         const warningNote = exportPreflight.warnings.length > 0 ? ` Checks: ${exportPreflight.warnings.join(' ')}` : '';
         const exportId = `export-${Date.now()}`;
-        if (exportPreflight.warnings.length > 0) setExportMessage(`Export prepare avec corrections.${warningNote}`);
+        if (exportPreflight.warnings.length > 0) setExportMessage(`Export brouillon prepare avec corrections.${warningNote}`);
 
         const recordCanvas = document.createElement('canvas');
         if (!recordCanvas.captureStream) {
-            setExportMessage('Export canvas indisponible sur cette session.');
+            setExportMessage('Export brouillon canvas indisponible sur cette session.');
             return;
         }
 
@@ -201,7 +386,7 @@ export function useVideoExportController() {
 
         if (mediaLoadErrors.length > 0) {
             cleanupBeforeRecord();
-            setExportMessage(`Export bloque: ${mediaLoadErrors.join(' ')}`);
+            setExportMessage(`Export brouillon bloque: ${mediaLoadErrors.join(' ')}`);
             return;
         }
 
@@ -231,7 +416,7 @@ export function useVideoExportController() {
         } catch (error) {
             console.warn('Audio export mix unavailable:', error);
             cleanupBeforeRecord();
-            setExportMessage(`Export bloque: impossible de mixer l'audio (${error.message}).`);
+            setExportMessage(`Export brouillon bloque: impossible de mixer l'audio (${error.message}).`);
             return;
         }
 
@@ -251,7 +436,7 @@ export function useVideoExportController() {
             disconnectAudio?.();
             exportEngine.dispose();
             recordCanvas.remove();
-            setExportMessage(`Export impossible: ${error.message}`);
+            setExportMessage(`Export brouillon impossible: ${error.message}`);
             return;
         }
 
@@ -263,7 +448,7 @@ export function useVideoExportController() {
         const frameDuration = frameSchedule.frameDuration;
         const maxBlankFrameStreak = Math.max(3, Math.ceil(fps * 0.15));
 
-        setExportMessage(`${mimeType.includes('mp4') ? 'Export MP4 qualite en cours.' : 'Export WebM qualite en cours. MP4 natif indisponible dans ce navigateur.'}${warningNote}`);
+        setExportMessage(`${mimeType.includes('mp4') ? 'Export rapide navigateur (brouillon) MP4 en cours.' : 'Export rapide navigateur (brouillon) WebM en cours. MP4 natif indisponible dans ce navigateur.'}${warningNote}`);
         setExportProgress(0);
         setIsExporting(true);
 
@@ -356,7 +541,7 @@ export function useVideoExportController() {
             setExportProgress(Math.min(99, Math.max(Math.round((elapsed / durationMs) * 100), Math.round(timeProgress))));
         }, 200);
 
-        setExportMessage(`${mimeType.includes('mp4') ? 'Encodage MP4 qualite en cours.' : 'Encodage WebM qualite en cours.'} Capture ${fps} FPS, bitrate eleve.${warningNote}`);
+        setExportMessage(`${mimeType.includes('mp4') ? 'Encodage brouillon MP4 navigateur.' : 'Encodage brouillon WebM navigateur.'} MediaRecorder ne garantit pas un rendu final pro.${warningNote}`);
         recorder.start(250);
         const videoTracks = stream.getVideoTracks();
         let frameIndex = 0;
@@ -405,29 +590,46 @@ export function useVideoExportController() {
     };
 
     return {
+        activeExportJob,
         audioTracks: exportAudioTracks,
+        cancelProExport,
         effectiveExportFormat,
         exportAudioTracks,
         exportFps,
         exportFormat,
         exportFrameRate,
+        exportFitMode,
+        exportJobHistory,
         exportMessage,
         exportPreflight,
         exportProgress,
+        exportQualityMode,
         formatFallbackActive,
-        handleExport,
+        handleBrowserDraftExport,
+        handleExport: handleProExport,
+        handleProExport,
         hasAudibleClipAudio,
         hasClips,
+        isExportJobModalOpen,
         isExporting,
         mimeSupport,
         preset,
+        proExportManifest,
+        proExportMessage,
+        proExportPreflight,
         projectName,
+        removeExportJobFromHistory,
+        retryProExport,
         rightsAudit,
         rightsBlockers,
         sequencePreset,
         setActivePanel,
         setExportFormat,
         setExportFrameRate,
+        setExportFitMode,
+        setExportJobHistory,
+        setExportJobModalOpen: setIsExportJobModalOpen,
+        setExportQualityMode,
         setSequencePreset,
         shouldMixAudio,
         sourceFpsMax,
@@ -437,26 +639,41 @@ export function useVideoExportController() {
 
 const ExportVideoPanel = () => {
     const {
+        activeExportJob,
+        cancelProExport,
         effectiveExportFormat,
         exportAudioTracks,
         exportFps,
         exportFormat,
         exportFrameRate,
+        exportFitMode,
+        exportJobHistory,
         exportMessage,
         exportPreflight,
         exportProgress,
+        exportQualityMode,
+        handleBrowserDraftExport,
         handleExport,
         hasAudibleClipAudio,
         hasClips,
+        isExportJobModalOpen,
         isExporting,
         mimeSupport,
         preset,
+        proExportManifest,
+        proExportMessage,
+        proExportPreflight,
+        removeExportJobFromHistory,
+        retryProExport,
         rightsAudit,
         rightsBlockers,
         sequencePreset,
         setActivePanel,
         setExportFormat,
         setExportFrameRate,
+        setExportFitMode,
+        setExportJobModalOpen,
+        setExportQualityMode,
         setSequencePreset,
         shouldMixAudio,
         sourceFpsMax,
@@ -496,8 +713,64 @@ const ExportVideoPanel = () => {
                     </div>
                 </div>
 
+                <div className="rounded-sm border border-cyan-500/20 bg-cyan-500/5 p-3 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                        <div>
+                            <span className="text-[9px] font-mono text-cyan-300 uppercase tracking-widest">Export Pro serveur</span>
+                            <p className="mt-1 text-[9px] font-mono leading-relaxed text-neutral-400">
+                                LocalMock actif: valide le workflow Cloud Run/FFmpeg sans generer de faux MP4.
+                            </p>
+                        </div>
+                        <Server size={14} className="mt-0.5 shrink-0 text-cyan-300" />
+                    </div>
+                    <div className="grid grid-cols-3 gap-1.5">
+                        {EXPORT_QUALITY_OPTIONS.map((option) => (
+                            <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => setExportQualityMode(option.value)}
+                                className={`rounded-sm border px-2 py-2 text-left transition ${
+                                    exportQualityMode === option.value
+                                        ? 'border-cyan-400/55 bg-cyan-400/12 text-cyan-100'
+                                        : 'border-neutral-800 bg-neutral-950/70 text-neutral-400 hover:border-neutral-600'
+                                }`}
+                            >
+                                <span className="block text-[9px] font-mono uppercase tracking-widest">{option.label}</span>
+                                <span className="mt-1 block text-[8px] font-mono leading-snug text-neutral-500">{option.description}</span>
+                            </button>
+                        ))}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        <label className="space-y-1">
+                            <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest">Fit</span>
+                            <select
+                                value={exportFitMode}
+                                onChange={(event) => setExportFitMode(event.target.value)}
+                                className="w-full rounded-sm border border-neutral-800 bg-neutral-950 px-2 py-2 text-[10px] font-mono uppercase tracking-widest text-neutral-200 outline-none transition hover:border-neutral-600 focus:border-cyan-400"
+                            >
+                                {EXPORT_FIT_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <div className="rounded-sm border border-neutral-800 bg-neutral-950/70 p-2">
+                            <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest">Estimation</span>
+                            <div className="mt-1 space-y-1 text-[9px] font-mono">
+                                <div className="flex justify-between gap-2">
+                                    <span className="text-neutral-500">Taille</span>
+                                    <span className="text-neutral-300">{proExportManifest.estimates.outputSize.label}</span>
+                                </div>
+                                <div className="flex justify-between gap-2">
+                                    <span className="text-neutral-500">Temps</span>
+                                    <span className="text-neutral-300">{proExportManifest.estimates.renderTime.label}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div className="space-y-2">
-                    <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest">Format</span>
+                    <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest">Fallback navigateur brouillon</span>
                     <div className="flex gap-1.5">
                         {['mp4', 'webm'].map(fmt => (
                             <button
@@ -580,6 +853,46 @@ const ExportVideoPanel = () => {
 
                 <div
                     className={`rounded-sm border p-3 space-y-1.5 ${
+                        proExportPreflight.status === 'blocked'
+                            ? 'border-red-500/25 bg-red-500/5'
+                            : proExportPreflight.status === 'warning'
+                                ? 'border-amber-500/25 bg-amber-500/5'
+                                : 'border-cyan-500/20 bg-cyan-500/5'
+                    }`}
+                    data-testid="export-pro-preflight"
+                    data-preflight-status={proExportPreflight.status}
+                >
+                    <div className="flex items-center justify-between gap-2">
+                        <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">Preflight Export Pro</span>
+                        <span
+                            className={`rounded-sm px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-widest ${
+                                proExportPreflight.status === 'blocked'
+                                    ? 'bg-red-500/10 text-red-300'
+                                    : proExportPreflight.status === 'warning'
+                                        ? 'bg-amber-500/10 text-amber-300'
+                                        : 'bg-cyan-500/10 text-cyan-200'
+                            }`}
+                        >
+                            {proExportPreflight.status === 'blocked' ? 'Bloque' : proExportPreflight.status === 'warning' ? 'Warnings' : 'Pret'}
+                        </span>
+                    </div>
+                    {proExportPreflight.errors.length > 0 ? (
+                        <p className="text-[9px] font-mono leading-relaxed text-red-300/90">
+                            {proExportPreflight.errors.slice(0, 2).join(' ')}
+                        </p>
+                    ) : proExportPreflight.warnings.length > 0 ? (
+                        <p className="text-[9px] font-mono leading-relaxed text-amber-300/85">
+                            {proExportPreflight.warnings.slice(0, 2).join(' ')}
+                        </p>
+                    ) : (
+                        <p className="text-[9px] font-mono leading-relaxed text-cyan-200/80">
+                            Manifeste MP4, sources, frames, audio, droits et cadrage verifies pour orchestration serveur.
+                        </p>
+                    )}
+                </div>
+
+                <div
+                    className={`rounded-sm border p-3 space-y-1.5 ${
                         exportPreflight.status === 'blocked'
                             ? 'border-red-500/25 bg-red-500/5'
                             : exportPreflight.status === 'warning'
@@ -590,7 +903,7 @@ const ExportVideoPanel = () => {
                     data-preflight-status={exportPreflight.status}
                 >
                     <div className="flex items-center justify-between gap-2">
-                        <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">Preflight export</span>
+                        <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">Preflight brouillon navigateur</span>
                         <span
                             className={`rounded-sm px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-widest ${
                                 exportPreflight.status === 'blocked'
@@ -665,14 +978,24 @@ const ExportVideoPanel = () => {
                     </div>
                 )}
 
-                <button
-                    onClick={handleExport}
-                    disabled={!hasClips || isExporting || exportPreflight.errors.length > 0}
-                    className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white py-2.5 text-xs font-mono font-medium hover:bg-indigo-500 transition shadow-[0_0_20px_rgba(79,70,229,0.4)] disabled:opacity-50 disabled:shadow-none uppercase tracking-wider"
-                >
-                    <Download size={14} />
-                    {isExporting ? `Export... ${exportProgress}%` : exportPreflight.errors.length > 0 ? 'Export bloque' : 'Exporter'}
-                </button>
+                <div className="space-y-2">
+                    <button
+                        onClick={handleExport}
+                        disabled={!hasClips || isExporting || proExportPreflight.errors.length > 0}
+                        className="w-full flex items-center justify-center gap-2 border border-cyan-400/50 bg-cyan-500/15 text-cyan-50 py-2.5 text-xs font-mono font-medium hover:bg-cyan-500/22 transition shadow-[0_0_20px_rgba(34,211,238,0.22)] disabled:opacity-50 disabled:shadow-none uppercase tracking-wider"
+                    >
+                        <Server size={14} />
+                        {isExporting ? `Export Pro... ${exportProgress}%` : proExportPreflight.errors.length > 0 ? 'Export Pro bloque' : 'Export Pro MP4'}
+                    </button>
+                    <button
+                        onClick={handleBrowserDraftExport}
+                        disabled={!hasClips || isExporting || exportPreflight.errors.length > 0}
+                        className="w-full flex items-center justify-center gap-2 border border-neutral-800 bg-neutral-950/80 text-neutral-300 py-2 text-[10px] font-mono font-medium hover:border-neutral-600 hover:text-white transition disabled:opacity-50 uppercase tracking-wider"
+                    >
+                        <Download size={13} />
+                        Export rapide navigateur (brouillon)
+                    </button>
+                </div>
 
                 {isExporting && (
                     <div className="h-1 bg-neutral-800 rounded-full overflow-hidden">
@@ -680,15 +1003,246 @@ const ExportVideoPanel = () => {
                     </div>
                 )}
 
-                {exportMessage && (
+                {(proExportMessage || exportMessage) && (
                     <p className="text-[9px] font-mono text-neutral-500 leading-relaxed">
-                        {exportMessage}
+                        {proExportMessage || exportMessage}
                     </p>
                 )}
+
+                {exportJobHistory.length > 0 && (
+                    <ExportJobHistory
+                        jobs={exportJobHistory}
+                        onRetry={retryProExport}
+                        onRemove={removeExportJobFromHistory}
+                    />
+                )}
             </div>
+
+            {isExportJobModalOpen && (
+                <ExportRenderModal
+                    job={activeExportJob}
+                    manifest={proExportManifest}
+                    onCancel={cancelProExport}
+                    onClose={() => setExportJobModalOpen(false)}
+                    onRetry={retryProExport}
+                />
+            )}
         </div>
     );
 };
+
+function ExportRenderModal({ job, manifest, onCancel, onClose, onRetry }) {
+    const status = job?.status || 'preparing_sources';
+    const progress = Math.max(0, Math.min(100, Number(job?.progress || 0)));
+    const isRunning = !['ready', 'failed', 'cancelled'].includes(status);
+    const elapsed = formatDurationMs(job?.elapsedMs || 0);
+    const remaining = job?.estimatedRemainingMs ? formatDurationMs(job.estimatedRemainingMs) : 'calcul';
+    const render = job?.render || manifest?.render || {};
+    const outputSize = job?.output?.sizeBytes || manifest?.estimates?.outputSize?.bytes || 0;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/78 px-3 backdrop-blur-sm">
+            <div className="w-full max-w-xl overflow-hidden rounded-sm border border-cyan-400/25 bg-neutral-950 shadow-[0_0_55px_rgba(34,211,238,0.18)]">
+                <div className="flex items-start justify-between gap-4 border-b border-neutral-800 px-4 py-3">
+                    <div>
+                        <p className="text-[9px] font-mono uppercase tracking-widest text-cyan-300">Export Pro MP4</p>
+                        <h3 className="mt-1 text-sm font-mono uppercase tracking-wider text-white">{job?.projectName || manifest?.project?.name || 'VibeCut'}</h3>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="grid h-8 w-8 place-items-center rounded-sm border border-neutral-800 text-neutral-500 transition hover:border-neutral-600 hover:text-white"
+                        aria-label="Fermer la modale export"
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
+
+                <div className="space-y-4 p-4">
+                    <div className="rounded-sm border border-neutral-800 bg-neutral-900/45 p-3">
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                            <div>
+                                <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-200">{job?.phaseLabel || 'Preparation'}</p>
+                                <p className="mt-1 text-[9px] font-mono leading-relaxed text-neutral-500">{job?.stepLabel || 'Initialisation du job localMock.'}</p>
+                            </div>
+                            <span className="shrink-0 text-lg font-mono tabular-nums text-cyan-200">{progress}%</span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-sm bg-neutral-950">
+                            <div className="h-full bg-cyan-300 transition-[width] duration-200" style={{ width: `${progress}%` }} />
+                        </div>
+                        <p className="mt-3 text-[9px] font-mono leading-relaxed text-neutral-400">
+                            Tu peux laisser cet export tourner. Le rendu final est calcule sur serveur; en localMock, seules les phases et validations sont simulees.
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        {[
+                            ['Mode', render.qualityLabel || render.qualityMode || 'Pro'],
+                            ['Format', `${render.width || 0}x${render.height || 0}`],
+                            ['FPS', render.fps || 0],
+                            ['Est.', outputSize ? formatBytes(outputSize) : 'mock'],
+                            ['Ecoule', elapsed],
+                            ['Restant', isRunning ? remaining : '-'],
+                            ['Codec', 'H.264/AAC'],
+                            ['Etat', status],
+                        ].map(([label, value]) => (
+                            <div key={label} className="rounded-sm border border-neutral-800 bg-neutral-950/80 p-2">
+                                <p className="text-[8px] font-mono uppercase tracking-widest text-neutral-600">{label}</p>
+                                <p className="mt-1 truncate text-[10px] font-mono text-neutral-200">{value}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    {job?.error && (
+                        <div className="rounded-sm border border-red-500/25 bg-red-500/8 p-3">
+                            <p className="text-[9px] font-mono uppercase tracking-widest text-red-300">{job.error.code}</p>
+                            <p className="mt-1 text-[10px] leading-relaxed text-red-100">{job.error.message}</p>
+                            <p className="mt-1 text-[9px] font-mono leading-relaxed text-red-200/75">{job.error.action}</p>
+                        </div>
+                    )}
+
+                    <div className="rounded-sm border border-neutral-800 bg-black p-3">
+                        <div className="mb-2 flex items-center justify-between">
+                            <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-500">Logs renderer</p>
+                            <span className="text-[8px] font-mono uppercase tracking-widest text-neutral-600">localMock</span>
+                        </div>
+                        <div className="max-h-36 space-y-1 overflow-y-auto pr-1 custom-scrollbar">
+                            {(job?.logs?.length ? job.logs : [{ at: new Date().toISOString(), level: 'neutral', message: 'En attente du premier evenement export.' }]).map((log, index) => (
+                                <div key={`${log.at}-${index}`} className={`text-[9px] font-mono leading-relaxed ${log.level === 'error' ? 'text-red-300' : log.level === 'success' ? 'text-emerald-300' : log.level === 'warning' ? 'text-amber-300' : 'text-neutral-400'}`}>
+                                    <span className="text-neutral-600">{formatLogTime(log.at)}</span> {log.message}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-end gap-2 border-t border-neutral-800 px-4 py-3">
+                    {isRunning ? (
+                        <button
+                            type="button"
+                            onClick={onCancel}
+                            className="rounded-sm border border-red-500/35 bg-red-500/10 px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-red-200 transition hover:bg-red-500/18"
+                        >
+                            Annuler
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => onRetry(job)}
+                            className="inline-flex items-center gap-2 rounded-sm border border-cyan-500/35 bg-cyan-500/10 px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-cyan-100 transition hover:bg-cyan-500/18"
+                        >
+                            <RotateCcw size={12} />
+                            Relancer
+                        </button>
+                    )}
+                    <button
+                        type="button"
+                        disabled={!job?.output?.downloadUrl}
+                        onClick={() => {
+                            if (job?.output?.downloadUrl) {
+                                window.open(job.output.downloadUrl, '_blank', 'noopener,noreferrer');
+                            }
+                        }}
+                        className="inline-flex items-center gap-2 rounded-sm border border-neutral-700 bg-neutral-900 px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-neutral-300 transition hover:border-neutral-500 disabled:cursor-not-allowed disabled:opacity-45"
+                        title={job?.output?.downloadUrl ? 'Telecharger le MP4' : job?.output?.storagePath ? 'MP4 disponible dans Storage, URL signee absente' : 'Aucun fichier reel en localMock'}
+                    >
+                        <Download size={12} />
+                        Telecharger MP4
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function ExportJobHistory({ jobs = [], onRetry, onRemove }) {
+    return (
+        <div className="rounded-sm border border-neutral-800 bg-neutral-950/70 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+                <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest">Historique exports</span>
+                <span className="text-[8px] font-mono text-neutral-600 uppercase tracking-widest">{jobs.length}</span>
+            </div>
+            <div className="space-y-1.5">
+                {jobs.slice(0, 5).map((job) => (
+                    <div key={job.id} className="rounded-sm border border-neutral-800 bg-neutral-900/45 p-2">
+                        <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                                <p className="truncate text-[10px] font-mono text-neutral-200">{job.projectName}</p>
+                                <p className="mt-0.5 text-[8px] font-mono uppercase tracking-widest text-neutral-600">
+                                    {job.status} / {job.render?.qualityLabel || job.qualityMode} / {formatDateTime(job.updatedAt)}
+                                </p>
+                            </div>
+                            <span className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-widest ${getJobStatusClass(job.status)}`}>
+                                {job.progress || 0}%
+                            </span>
+                        </div>
+                        <div className="mt-2 flex gap-1.5">
+                            <button
+                                type="button"
+                                onClick={() => onRetry(job)}
+                                className="inline-flex h-7 items-center gap-1 rounded-sm border border-neutral-800 px-2 text-[8px] font-mono uppercase tracking-widest text-neutral-400 transition hover:border-cyan-500/45 hover:text-cyan-100"
+                            >
+                                <RotateCcw size={10} />
+                                Retry
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => onRemove(job.id)}
+                                className="inline-flex h-7 items-center gap-1 rounded-sm border border-neutral-800 px-2 text-[8px] font-mono uppercase tracking-widest text-neutral-500 transition hover:border-red-500/35 hover:text-red-200"
+                            >
+                                <Trash2 size={10} />
+                                Supprimer
+                            </button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function upsertExportJobHistory(history = [], job = {}) {
+    if (!job?.id) return history;
+    return [job, ...history.filter(item => item.id !== job.id)].slice(0, 8);
+}
+
+function resolveJobMessage(job = {}) {
+    if (job.status === 'ready') return 'Export Pro localMock termine: workflow valide, aucun MP4 reel genere.';
+    if (job.status === 'cancelled') return 'Export Pro annule.';
+    if (job.status === 'failed') return `Export Pro echoue: ${job.error?.message || 'erreur inconnue'}`;
+    return job.stepLabel || 'Export Pro en cours.';
+}
+
+function getJobStatusClass(status = '') {
+    if (status === 'ready') return 'bg-emerald-500/10 text-emerald-300';
+    if (status === 'failed') return 'bg-red-500/10 text-red-300';
+    if (status === 'cancelled') return 'bg-amber-500/10 text-amber-300';
+    return 'bg-cyan-500/10 text-cyan-200';
+}
+
+function formatBytes(bytes = 0) {
+    const value = Number(bytes) || 0;
+    if (value <= 0) return '0 Mo';
+    return `${(value / 1024 / 1024).toFixed(value > 100 * 1024 * 1024 ? 0 : 1)} Mo`;
+}
+
+function formatDurationMs(ms = 0) {
+    const seconds = Math.max(0, Math.round((Number(ms) || 0) / 1000));
+    if (seconds < 60) return `${seconds}s`;
+    return `${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`;
+}
+
+function formatLogTime(value = '') {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '--:--:--';
+    return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function formatDateTime(value = '') {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'date inconnue';
+    return date.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
 
 function getRejectedMediaMessages(results = [], fallback = 'Media illisible') {
     return results

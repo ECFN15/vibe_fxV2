@@ -50,6 +50,47 @@ try {
     ],
     totalDuration: 5,
   });
+  useVideoStore.getState().addClip({
+    id: "session-a",
+    name: "Session A",
+    url: "/session-a.webm",
+    duration: 1,
+    orientationRotation: 270,
+    importSessionId: "import-test",
+  });
+  useVideoStore.getState().addClip({
+    id: "session-b",
+    name: "Session B",
+    url: "/session-b.webm",
+    duration: 1,
+    orientationRotation: 0,
+    importSessionId: "import-test",
+  });
+  useVideoStore.getState().addClip({
+    id: "other-session",
+    name: "Other",
+    url: "/other.webm",
+    duration: 1,
+    orientationRotation: 90,
+    importSessionId: "import-other",
+  });
+  useVideoStore.setState({ _history: [], _future: [], _historyIndex: -1 });
+  const sessionRotationCount = useVideoStore.getState().applyClipRotationToImportSession("session-a");
+  assert.equal(sessionRotationCount, 2, "session rotation should return the number of affected session clips");
+  assert.equal(useVideoStore.getState().clips.find((clip) => clip.id === "session-a").orientationRotation, 270, "source clip rotation should stay unchanged");
+  assert.equal(useVideoStore.getState().clips.find((clip) => clip.id === "session-b").orientationRotation, 270, "matching import session clip should receive source rotation");
+  assert.equal(useVideoStore.getState().clips.find((clip) => clip.id === "other-session").orientationRotation, 90, "other import sessions must not be changed");
+  assert.equal(useVideoStore.getState()._history.length, 1, "session rotation should create one undo snapshot");
+  useVideoStore.getState().undo();
+  assert.equal(useVideoStore.getState().clips.find((clip) => clip.id === "session-b").orientationRotation, 0, "undo should restore the previous session rotation");
+
+  resetStore({
+    clips: [
+      { id: "clip-a", name: "Clip A", url: "/a.webm", trimStart: 0, trimEnd: 3, duration: 3, speed: 1, volume: 100 },
+      { id: "clip-b", name: "Clip B", url: "/b.webm", trimStart: 0, trimEnd: 2, duration: 2, speed: 1, volume: 100 },
+    ],
+    totalDuration: 5,
+  });
   useVideoStore.getState().setTransition("clip-a", "clip-b", { type: "crossfade", duration: 0.5, name: "Crossfade" });
   assert.deepEqual(useVideoStore.getState().transitions, {}, "setTransition must not write legacy transition maps");
   assert.equal(useVideoStore.getState().transitionItems.length, 1, "setTransition must write a canonical cut transition item");

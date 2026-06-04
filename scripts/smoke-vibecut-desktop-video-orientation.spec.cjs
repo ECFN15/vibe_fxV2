@@ -4,7 +4,10 @@ const os = require("node:os");
 const path = require("node:path");
 
 const baseUrl = process.env.SMOKE_BASE_URL || "http://localhost:3000";
-const desktopVideo = path.join("C:", "Users", "pcpor", "OneDrive", "Bureau", "video", "MVI_0016.MP4");
+const filleKayakVideos = [
+  path.join("C:", "Users", "pcpor", "OneDrive", "Bureau", "fillekayak", "MVI_0016.MP4"),
+  path.join("C:", "Users", "pcpor", "OneDrive", "Bureau", "fillekayak", "MVI_0017.MP4"),
+];
 
 async function openVibeCut(page) {
   await page.goto(`${baseUrl}/studio`, { waitUntil: "domcontentloaded" });
@@ -20,8 +23,8 @@ async function openVibeCut(page) {
   await vibeCutTab.click();
 }
 
-test("VibeCut preserves 60 FPS desktop footage and lets a sideways vertical clip be corrected in 9:16", async ({ page }) => {
-  test.skip(!fs.existsSync(desktopVideo), "Desktop video fixture MVI_0016.MP4 is not available locally");
+test("VibeCut preserves desktop footage and applies manual rotation to the current import session", async ({ page }) => {
+  test.skip(filleKayakVideos.some((video) => !fs.existsSync(video)), "fillekayak vertical Canon fixtures are not available locally");
 
   await page.setViewportSize({ width: 1440, height: 900 });
 
@@ -43,17 +46,22 @@ test("VibeCut preserves 60 FPS desktop footage and lets a sideways vertical clip
   await page.getByTestId("sequence-preset-tiktok").click();
   await expect(page.getByTestId("sequence-preset-menu-toggle")).toContainText("9:16");
 
-  await page.locator('input[type=file][accept="video/*"]').setInputFiles(desktopVideo);
-  await page.waitForFunction(() => document.body.innerText.includes("1 CLIP"), null, { timeout: 120000 });
+  await page.locator('input[type=file][accept="video/*"]').setInputFiles(filleKayakVideos);
+  await page.waitForFunction(() => document.body.innerText.includes("2 CLIP"), null, { timeout: 120000 });
 
   const clip = page.getByTestId("video-clip-0");
+  const sessionClip = page.getByTestId("video-clip-1");
   await expect(clip).toContainText("60 FPS", { timeout: 120000 });
   await expect(clip).not.toContainText("60->30 FPS");
 
   await page.getByRole("button", { name: /Clip 1: MVI_0016/i }).first().click();
   await expect(page.getByTestId("header-rotate-left")).toBeEnabled();
+  await expect(page.getByTestId("header-rotate-session")).toBeEnabled();
   await page.getByTestId("header-rotate-left").click();
   await expect(clip).toContainText("270 DEG");
+  await expect(sessionClip).not.toContainText("270 DEG");
+  await page.getByTestId("header-rotate-session").click();
+  await expect(sessionClip).toContainText("270 DEG");
 
   await page.getByTestId("header-export-fps-select").selectOption("30");
   await expect(page.getByTestId("header-export-fps-select")).toHaveValue("30");
@@ -69,7 +77,7 @@ test("VibeCut preserves 60 FPS desktop footage and lets a sideways vertical clip
   const screenshotDir = path.join(os.tmpdir(), `vibecut-desktop-orientation-${Date.now()}`);
   fs.mkdirSync(screenshotDir, { recursive: true });
   await page.screenshot({
-    path: path.join(screenshotDir, "vibecut-mvi0016-rotated-60fps-slowmo.png"),
+    path: path.join(screenshotDir, "vibecut-fillekayak-session-rotated-60fps-slowmo.png"),
     fullPage: true,
   });
 
