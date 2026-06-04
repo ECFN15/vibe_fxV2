@@ -13,6 +13,7 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |-- .github/
 |   `-- workflows/
 |       `-- verify.yml                  # CI GitHub Actions : verify local + emulateurs + smoke routes/UI + sauvegarde studio emulateurs
+|-- .firebaserc                         # Projet Firebase par defaut : vibefx-v2
 |-- .agents/
 |   `-- skills/                         # Skills design importes + note locale Vibe_OS
 |       |-- clean-saas/

@@ -179,6 +179,8 @@ const createVideoExportJob = onCall(
     region: REGION,
     enforceAppCheck: ENFORCE_EXPORT_APP_CHECK,
     secrets: [EXPORT_SIGNING_SECRET],
+    timeoutSeconds: 3600,
+    memory: "512MiB",
   },
   async (request) => {
     const uid = assertAuthenticated(request);
