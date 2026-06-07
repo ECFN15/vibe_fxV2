@@ -509,7 +509,8 @@ const useVideoStore = create((set, get) => ({
                 params: next.params || {},
             };
         });
-        if (hasDisallowedItemOverlap(state.tracks, nextTransitionItems, target.trackId || getTrackForItemType('transition'))) {
+        const shouldValidateOverlap = (target.params?.placement || 'free') !== 'cut';
+        if (shouldValidateOverlap && hasDisallowedItemOverlap(state.tracks, nextTransitionItems, target.trackId || getTrackForItemType('transition'))) {
             rejectTimelineEdit(set, 'track-overlap', 'Overlap interdit sur cette piste: transition restauree.');
             return;
         }
@@ -959,8 +960,8 @@ function ensureTimelineTrack(tracks = [], track = {}) {
 
 const DEFAULT_TRACK_IDS = new Set(getDefaultTracks().map(track => track.id));
 const TIMELINE_TRACK_SPECS = {
-    transition: { type: 'transition', laneRole: 'transition', idPrefix: 'transition', baseName: 'Effets', order: 20, allowOverlap: false },
-    effect: { type: 'effect', laneRole: 'effect', idPrefix: 'effect', baseName: 'Filtres', order: 30, allowOverlap: true },
+    transition: { type: 'transition', laneRole: 'transition', idPrefix: 'transition', baseName: 'Transitions', order: 20, allowOverlap: false },
+    effect: { type: 'effect', laneRole: 'effect', idPrefix: 'effect', baseName: 'Effets', order: 30, allowOverlap: true },
     text: { type: 'text', laneRole: 'text', idPrefix: 'text', baseName: 'Texte', order: 40, allowOverlap: false },
     music: { type: 'audio', laneRole: 'music', idPrefix: 'music', baseName: 'Musique', order: 60, allowOverlap: false },
 };

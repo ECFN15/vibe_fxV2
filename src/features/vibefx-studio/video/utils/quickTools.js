@@ -6,30 +6,52 @@ export const QUICK_TOOL_TRANSFER_TYPE = 'application/x-vibecut-tool';
 
 export const QUICK_TOOL_GROUPS = [
     {
+        id: 'transitions',
+        label: 'Transitions',
+        accent: 'purple',
+        tools: [
+            makeTransitionTool('film-dissolve', 'Film Dissolve', 'Fondu naturel entre clips'),
+            makeTransitionTool('crossfade', 'Cross Dissolve', 'Passage transparent'),
+            makeTransitionTool('dip-black', 'Dip to Black', 'Noir cinema'),
+            makeTransitionTool('smooth-cut', 'Smooth Cut', 'Coupe adoucie'),
+            makeTransitionTool('blur-dissolve', 'Blur Dissolve', 'Fondu floute'),
+            makeTransitionTool('whip-pan', 'Whip Pan', 'Panoramique rapide'),
+            makeTransitionTool('cross-zoom', 'Cross Zoom', 'Zoom dynamique'),
+            makeTransitionTool('light-leak', 'Light Leak', 'Fuite lumineuse'),
+        ],
+    },
+    {
         id: 'effects',
         label: 'Effets',
         accent: 'cyan',
         tools: [
             {
-                id: 'effect-cyberpunk',
+                id: 'effect-clean-boost',
                 type: 'effect',
-                label: 'Cyberpunk',
-                detail: 'Contraste + neon',
-                filters: { brightness: 95, contrast: 130, saturation: 130, temperature: -20, vignette: 25, grain: 5 },
+                label: 'Clean Boost',
+                detail: 'Contraste social propre',
+                filters: { brightness: 102, contrast: 112, saturation: 106, vibrance: 14, vignette: 8 },
             },
             {
-                id: 'effect-soft-dream',
+                id: 'effect-warm-film',
                 type: 'effect',
-                label: 'Soft Dream',
-                detail: 'Glow propre',
-                filters: { brightness: 108, contrast: 85, saturation: 90, temperature: 10, vignette: 5, grain: 0 },
+                label: 'Warm Film',
+                detail: 'Chaud + grain fin',
+                filters: { exposure: 12, brightness: 104, contrast: 108, temperature: 14, saturation: 104, fade: 8, grain: 12, vignette: 8 },
             },
             {
-                id: 'effect-mono-grain',
+                id: 'effect-bleach-bypass',
                 type: 'effect',
-                label: 'Mono Grain',
-                detail: 'Noir/blanc texture',
-                filters: { brightness: 100, contrast: 115, saturation: 0, temperature: 0, vignette: 20, grain: 15 },
+                label: 'Bleach Bypass',
+                detail: 'Dramatique froid',
+                filters: { brightness: 98, contrast: 132, saturation: 62, vibrance: -12, shadows: -16, highlights: 12, temperature: -6, grain: 10 },
+            },
+            {
+                id: 'effect-high-contrast-mono',
+                type: 'effect',
+                label: 'High Contrast Mono',
+                detail: 'Noir/blanc editorial',
+                filters: { brightness: 100, contrast: 128, saturation: 0, shadows: -12, highlights: 10, grain: 8, vignette: 18 },
             },
         ],
     },
@@ -59,19 +81,6 @@ export const QUICK_TOOL_GROUPS = [
                 detail: 'Callout timeline',
                 text: { content: 'CUT POINT', fontSize: 34, bold: true, color: '#fbbf24', x: 0.24, y: 0.22, animation: 'blur-in', animationOut: 'fade' },
             },
-        ],
-    },
-    {
-        id: 'animations',
-        label: 'Animations',
-        accent: 'purple',
-        tools: [
-            makeTransitionTool('flash', 'Flash', 'Impact lumineux'),
-            makeTransitionTool('glitch', 'Glitch', 'Accident digital'),
-            makeTransitionTool('slide-up', 'Slide Up', 'Mouvement vertical'),
-            makeTransitionTool('cross-blur', 'Cross Blur', 'Flou de passage'),
-            makeTransitionTool('whip-pan', 'Whip Pan', 'Passage rapide'),
-            makeTransitionTool('scanline-sweep', 'Scanline', 'Balayage cyber'),
         ],
     },
     {
@@ -152,18 +161,24 @@ export function applyQuickToolToTimeline(storeApi, tool, options = {}) {
 
     if (tool.type === 'transition') {
         if (!state.clips.length) {
-            state.notifyTimelineEditRejected?.('quick-tool-no-video', 'Importez une video avant de placer une animation.');
+            state.notifyTimelineEditRejected?.('quick-tool-no-video', 'Importez au moins deux videos avant de placer une transition.');
             return false;
         }
-        state.addTransitionItem({
+        const cutPair = findNearestCutPair(state, startTime, tool.duration || 0.5);
+        if (!cutPair) {
+            state.notifyTimelineEditRejected?.('quick-tool-no-cut', 'Ajoutez un second clip pour placer une transition entre deux videos.');
+            return false;
+        }
+        state.setTransition(cutPair.fromId, cutPair.toId, {
             type: tool.transitionId,
             name: tool.label,
             icon: tool.icon,
             category: tool.category,
             duration: tool.duration,
-            startTime,
         });
         clearSelection(storeApi, 'transition');
+        storeApi.getState().setSelectedTransitionId?.(`cut-${cutPair.fromId}-${cutPair.toId}`);
+        storeApi.getState().seekTo?.(cutPair.start);
         storeApi.getState().setActivePanel?.('transitions');
         return true;
     }
@@ -250,6 +265,36 @@ function makeTransitionTool(transitionId, label, detail) {
         category: transition.category,
         duration: transition.defaultDuration || 0.5,
     };
+}
+
+function findNearestCutPair(state = {}, targetTime = 0, duration = 0.5) {
+    const clips = Array.isArray(state.clips) ? state.clips : [];
+    if (clips.length < 2) return null;
+    const itemByClipId = new Map((state.getTimelineModel?.().items || [])
+        ?.filter(item => item.type === 'video')
+        ?.map(item => [item.sourceId || item.id, item]) || []);
+
+    const normalizedTarget = Number.isFinite(Number(targetTime)) ? Number(targetTime) : 0;
+    const transitionDuration = Math.max(0.1, Number(duration) || 0.5);
+    const candidates = [];
+    for (let index = 0; index < clips.length - 1; index += 1) {
+        const currentClip = clips[index];
+        const nextClip = clips[index + 1];
+        const current = itemByClipId.get(currentClip.id);
+        const currentStart = Number(current?.start || 0);
+        const fallbackDuration = (currentClip.trimEnd - currentClip.trimStart) / (currentClip.speed || 1);
+        const currentDuration = Math.max(0, Number(current?.duration ?? fallbackDuration) || 0);
+        const cutStart = Math.max(currentStart, currentStart + currentDuration - transitionDuration);
+        const cutMid = cutStart + transitionDuration / 2;
+        candidates.push({
+            fromId: currentClip.id,
+            toId: nextClip.id,
+            start: cutStart,
+            distance: Math.abs(cutMid - normalizedTarget),
+        });
+    }
+
+    return candidates.sort((a, b) => a.distance - b.distance)[0] || null;
 }
 
 function makeSequenceTool(transitionId, label, detail, placement = 'current', text = {}) {

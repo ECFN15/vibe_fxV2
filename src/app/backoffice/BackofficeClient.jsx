@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { onAuthStateChanged } from "firebase/auth";
+import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
 import {
   collection,
   getDocs,
@@ -30,6 +30,7 @@ export default function BackofficeClient() {
     loading: Boolean(auth && db),
     message: auth ? "" : "Firebase Auth n'est pas initialise.",
   });
+  const [authBusy, setAuthBusy] = useState(false);
   const disabledCount = aiInterfacesEnabled ? 0 : AI_FRONT_SURFACES.length;
   const exportTelemetry = useMemo(() => aggregateVideoExportTelemetry(exportJobs), [exportJobs]);
   const billingTelemetry = useMemo(() => aggregateCloudBillingTelemetry(cloudBilling), [cloudBilling]);
@@ -99,6 +100,28 @@ export default function BackofficeClient() {
       loadExportTelemetry(currentUser);
     });
   }, [loadExportTelemetry]);
+
+  const handleDevSignIn = useCallback(async () => {
+    if (!auth) return;
+    setAuthBusy(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
+      await signInWithPopup(auth, provider);
+    } finally {
+      setAuthBusy(false);
+    }
+  }, []);
+
+  const handleSignOut = useCallback(async () => {
+    if (!auth) return;
+    setAuthBusy(true);
+    try {
+      await signOut(auth);
+    } finally {
+      setAuthBusy(false);
+    }
+  }, []);
 
   return (
     <main className="vf-backoffice">
@@ -191,6 +214,10 @@ export default function BackofficeClient() {
         loading={exportTelemetryState.loading}
         message={exportTelemetryState.message}
         onRefresh={() => loadExportTelemetry(auth?.currentUser || user)}
+        onSignIn={handleDevSignIn}
+        onSignOut={handleSignOut}
+        authBusy={authBusy}
+        canSignIn={Boolean(auth)}
       />
 
       <section className="vf-backoffice-table-panel" aria-labelledby="ai-map-title">
@@ -231,7 +258,7 @@ export default function BackofficeClient() {
   );
 }
 
-function ExportTelemetryPanel({ user, telemetry, billingTelemetry, jobs, loading, message, onRefresh }) {
+function ExportTelemetryPanel({ user, telemetry, billingTelemetry, jobs, loading, message, onRefresh, onSignIn, onSignOut, authBusy, canSignIn }) {
   return (
     <section className="vf-export-ops" aria-labelledby="export-ops-title" aria-busy={loading}>
       <header className="vf-export-ops-head">
@@ -244,6 +271,15 @@ function ExportTelemetryPanel({ user, telemetry, billingTelemetry, jobs, loading
         </div>
         <div className="vf-export-ops-actions">
           <span>{user?.email || user?.uid || "Compte non connecte"}</span>
+          {user ? (
+            <button type="button" onClick={onSignOut} disabled={authBusy || loading}>
+              Deconnecter
+            </button>
+          ) : (
+            <button type="button" onClick={onSignIn} disabled={authBusy || loading || !canSignIn}>
+              {authBusy ? "Connexion..." : "Compte dev"}
+            </button>
+          )}
           <button type="button" onClick={onRefresh} disabled={loading}>
             {loading ? "Lecture..." : "Rafraichir"}
           </button>
@@ -251,6 +287,29 @@ function ExportTelemetryPanel({ user, telemetry, billingTelemetry, jobs, loading
       </header>
 
       {message ? <p className="vf-export-ops-note">{message}</p> : null}
+
+      <div className="vf-export-total-grid" aria-label="Synthese totale exports et facture">
+        <article className="vf-export-total-card">
+          <span>Total exports visibles</span>
+          <strong>{telemetry.total?.readyExports || 0}</strong>
+          <dl>
+            <div><dt>Jobs</dt><dd>{telemetry.total?.totalJobs || 0}</dd></div>
+            <div><dt>Actifs</dt><dd>{telemetry.total?.activeJobs || 0}</dd></div>
+            <div><dt>Echecs</dt><dd>{telemetry.total?.failedJobs || 0}</dd></div>
+            <div><dt>Estimation interne</dt><dd>{formatMoney(telemetry.total?.estimatedCostEur || 0)}</dd></div>
+          </dl>
+        </article>
+        <article className="vf-export-total-card" data-billing-state={billingTelemetry.status}>
+          <span>Total Google facture</span>
+          <strong>{formatMoney(billingTelemetry.total?.netCost || 0, billingTelemetry.currency)}</strong>
+          <dl>
+            <div><dt>Cout brut</dt><dd>{formatMoney(billingTelemetry.total?.actualCost || 0, billingTelemetry.currency)}</dd></div>
+            <div><dt>Credits</dt><dd>{formatMoney(billingTelemetry.total?.credits || 0, billingTelemetry.currency)}</dd></div>
+            <div><dt>Lignes</dt><dd>{billingTelemetry.total?.rows || 0}</dd></div>
+            <div><dt>Source</dt><dd>{billingTelemetry.status === "ready" ? "BigQuery" : "Non branche"}</dd></div>
+          </dl>
+        </article>
+      </div>
 
       <div className="vf-export-metric-grid" aria-label="Synthese exports">
         {telemetry.ranges.map((range) => (

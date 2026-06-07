@@ -1,8 +1,8 @@
 const DEFAULT_TRACKS = [
     { id: 'sequence-main', type: 'transition', laneRole: 'sequence', name: 'Volets', locked: false, muted: false, visible: true, allowOverlap: true, order: 5 },
     { id: 'video-main', type: 'video', laneRole: 'video', name: 'Video', locked: false, muted: false, visible: true, allowOverlap: false, order: 10 },
-    { id: 'transition-main', type: 'transition', laneRole: 'transition', name: 'Effets', locked: false, muted: false, visible: true, allowOverlap: false, order: 20 },
-    { id: 'effect-main', type: 'effect', laneRole: 'effect', name: 'Filtres', locked: false, muted: false, visible: true, allowOverlap: true, order: 30 },
+    { id: 'transition-main', type: 'transition', laneRole: 'transition', name: 'Transitions', locked: false, muted: false, visible: true, allowOverlap: false, order: 20 },
+    { id: 'effect-main', type: 'effect', laneRole: 'effect', name: 'Effets', locked: false, muted: false, visible: true, allowOverlap: true, order: 30 },
     { id: 'text-main', type: 'text', laneRole: 'text', name: 'Texte', locked: false, muted: false, visible: true, allowOverlap: false, order: 40 },
     { id: 'audio-main', type: 'audio', laneRole: 'clip-audio', name: 'Audio clips', locked: false, muted: false, visible: true, allowOverlap: true, order: 50 },
     { id: 'music-main', type: 'audio', laneRole: 'music', name: 'Musique', locked: false, muted: false, visible: true, allowOverlap: false, order: 60 },

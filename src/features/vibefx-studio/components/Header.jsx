@@ -1,4 +1,5 @@
 import React, { useSyncExternalStore } from 'react';
+import Link from 'next/link';
 import { Camera, Sun, Moon, Zap, LayoutTemplate, Aperture, Download, Library, Film, Send, Sparkles, Music2 } from 'lucide-react';
 import SoundtrackHeaderMiniPlayer from '../soundtrack/components/SoundtrackHeaderMiniPlayer';
 
@@ -75,6 +76,11 @@ const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, 
                     )}
                     {onOpenPublications && (
                         <button onClick={onOpenPublications} className={`hidden lg:flex text-[10px] uppercase font-mono tracking-widest px-3 py-1 transition-colors duration-200 border ${isDarkMode ? 'border-neutral-800 text-neutral-500 hover:text-white hover:border-indigo-500/50' : 'border-gray-200 text-gray-500 hover:text-black'}`}>Publications</button>
+                    )}
+                    {view === 'video' && (
+                        <Link href="/backoffice" className={`hidden lg:flex text-[10px] uppercase font-mono tracking-widest px-3 py-1 transition-colors duration-200 border ${isDarkMode ? 'border-cyan-500/35 bg-cyan-500/10 text-cyan-200 hover:border-cyan-300/70 hover:text-white' : 'border-cyan-200 bg-cyan-50 text-cyan-700 hover:border-cyan-400 hover:text-cyan-900'}`}>
+                            Backoffice
+                        </Link>
                     )}
                     <button onClick={onReset} disabled={!hasImages} className={`hidden sm:block text-[10px] uppercase font-mono tracking-widest px-3 py-1 transition-colors duration-200 disabled:opacity-30 border border-transparent hover:border-red-900/50 ${isDarkMode ? 'text-neutral-500 hover:text-red-400 hover:bg-red-950/20' : 'text-gray-500 hover:text-red-600'}`}>Reset</button>
                     {onImportPublication && (

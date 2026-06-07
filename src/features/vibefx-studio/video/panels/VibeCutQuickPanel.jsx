@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Clapperboard, GripVertical, MousePointer2, Sparkles, Type, Wand2 } from 'lucide-react';
+import { Clapperboard, GripVertical, MousePointer2, Shuffle, Sparkles, Type, Wand2 } from 'lucide-react';
 import useVideoStore from '../store/videoStore';
 import {
     applyQuickToolToTimeline,
@@ -10,9 +10,9 @@ import {
 } from '../utils/quickTools';
 
 const GROUP_ICON = {
+    transitions: Shuffle,
     effects: Wand2,
     text: Type,
-    animations: Sparkles,
     volets: Clapperboard,
 };
 
@@ -34,7 +34,20 @@ const ACCENT_CLASS = {
     },
 };
 
-const VibeCutQuickPanel = () => {
+const PANEL_GROUP_MAP = {
+    transitions: 'transitions',
+    filters: 'effects',
+    text: 'text',
+};
+
+const GROUP_PANEL_MAP = {
+    transitions: 'transitions',
+    effects: 'filters',
+    text: 'text',
+    volets: null,
+};
+
+const VibeCutQuickPanel = ({ renderPanel = null } = {}) => {
     const [activeGroupId, setActiveGroupId] = useState(QUICK_TOOL_GROUPS[0]?.id || 'effects');
     const currentTime = useVideoStore((state) => state.currentTime);
     const totalDuration = useVideoStore((state) => state.totalDuration);
@@ -44,6 +57,7 @@ const VibeCutQuickPanel = () => {
     const updateTextOverlay = useVideoStore((state) => state.updateTextOverlay);
     const setSelectedTransitionId = useVideoStore((state) => state.setSelectedTransitionId);
     const setSelectedTextId = useVideoStore((state) => state.setSelectedTextId);
+    const activePanel = useVideoStore((state) => state.activePanel);
     const setActivePanel = useVideoStore((state) => state.setActivePanel);
     const activeGroup = useMemo(() => (
         QUICK_TOOL_GROUPS.find(group => group.id === activeGroupId) || QUICK_TOOL_GROUPS[0]
@@ -73,6 +87,19 @@ const VibeCutQuickPanel = () => {
         applyQuickToolToTimeline(useVideoStore, tool, { startTime: currentTime });
     };
 
+    const handleGroupSelect = (groupId) => {
+        setActiveGroupId(groupId);
+        const nextPanel = GROUP_PANEL_MAP[groupId] || null;
+        if (nextPanel && activePanel !== nextPanel) {
+            setActivePanel(nextPanel);
+            return;
+        }
+        if (!nextPanel && activePanel) setActivePanel(null);
+    };
+
+    const detailedPanel = activePanel && renderPanel ? renderPanel() : null;
+    const showQuickTools = !detailedPanel;
+
     const handleSequenceTextChange = (editor, content) => {
         if (!editor?.text?.id) return;
         updateTextOverlay(editor.text.id, { content }, { history: true });
@@ -97,7 +124,7 @@ const VibeCutQuickPanel = () => {
     return (
         <aside
             data-testid="vibecut-quick-panel"
-            className="hidden w-72 shrink-0 flex-col border-l border-neutral-800 bg-neutral-950/98 lg:flex"
+            className="hidden w-96 shrink-0 flex-col border-l border-neutral-800 bg-neutral-950/98 2xl:w-[28rem] lg:flex"
         >
             <div className="border-b border-neutral-800 px-3 py-3">
                 <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-500">VibeCut</p>
@@ -109,18 +136,18 @@ const VibeCutQuickPanel = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-1 border-b border-neutral-800 p-2">
+            <div className="grid grid-cols-4 gap-1 border-b border-neutral-800 p-2">
                 {QUICK_TOOL_GROUPS.map((group) => {
                     const Icon = GROUP_ICON[group.id] || Sparkles;
                     const accent = ACCENT_CLASS[group.accent] || ACCENT_CLASS.purple;
-                    const active = group.id === activeGroup.id;
+                    const active = group.id === (PANEL_GROUP_MAP[activePanel] || activeGroup.id);
                     return (
                         <button
                             key={group.id}
                             type="button"
                             data-testid={`quick-tool-group-${group.id}`}
                             aria-pressed={active}
-                            onClick={() => setActiveGroupId(group.id)}
+                            onClick={() => handleGroupSelect(group.id)}
                             className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-sm border px-1 text-[8px] font-mono uppercase tracking-widest transition ${
                                 active
                                     ? accent.active
@@ -134,6 +161,11 @@ const VibeCutQuickPanel = () => {
                 })}
             </div>
 
+            {detailedPanel ? (
+                <div className="min-h-0 flex-1 overflow-hidden" data-testid="vibecut-unified-panel">
+                    {detailedPanel}
+                </div>
+            ) : (
             <div className="min-h-0 flex-1 overflow-y-auto p-3 custom-scrollbar">
                 <div className="space-y-2">
                     {activeGroup.tools.map((tool) => {
@@ -249,15 +281,18 @@ const VibeCutQuickPanel = () => {
                     </div>
                 )}
             </div>
+            )}
 
+            {showQuickTools && (
             <div className="border-t border-neutral-800 p-3">
                 <div className="flex items-start gap-2 rounded-sm border border-neutral-800 bg-black/30 p-2">
                     <MousePointer2 size={12} className="mt-0.5 shrink-0 text-neutral-500" />
                     <p className="text-[8px] font-mono uppercase leading-relaxed tracking-widest text-neutral-600">
-                        Cliquez pour placer au curseur, ou glissez sur une piste de la timeline.
+                        Cliquez pour placer au curseur. Les transitions se calent sur le cut le plus proche.
                     </p>
                 </div>
             </div>
+            )}
         </aside>
     );
 };

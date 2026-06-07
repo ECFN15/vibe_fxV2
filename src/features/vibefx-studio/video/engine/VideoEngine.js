@@ -689,7 +689,10 @@ function drawSweepLine(ctx, w, h, position, color = 'rgba(0,229,255,0.85)') {
 }
 
 function getActiveTimelineTransition(transitionItems = [], globalTime) {
-    return resolveActiveTransition(transitionItems, globalTime);
+    return resolveActiveTransition(
+        transitionItems.filter((transition) => (transition?.params?.placement || 'free') !== 'cut'),
+        globalTime
+    );
 }
 
 function getTransitionStart(transition) {
@@ -812,11 +815,25 @@ function renderTransition(ctx, fromPlayer, toPlayer, progress, type, w, h) {
 
     switch (type) {
         case 'fade':
-        case 'crossfade': {
+        case 'crossfade':
+        case 'film-dissolve':
+        case 'smooth-cut':
+        case 'non-additive-dissolve': {
             ctx.globalAlpha = 1;
             ctx.drawImage(fromPlayer, 0, 0, w, h);
             ctx.globalAlpha = p;
             ctx.drawImage(toPlayer, 0, 0, w, h);
+            ctx.globalAlpha = 1;
+            break;
+        }
+
+        case 'additive-dissolve': {
+            ctx.globalAlpha = 1;
+            ctx.drawImage(fromPlayer, 0, 0, w, h);
+            ctx.globalCompositeOperation = 'screen';
+            ctx.globalAlpha = p;
+            ctx.drawImage(toPlayer, 0, 0, w, h);
+            ctx.globalCompositeOperation = 'source-over';
             ctx.globalAlpha = 1;
             break;
         }
@@ -834,7 +851,8 @@ function renderTransition(ctx, fromPlayer, toPlayer, progress, type, w, h) {
             break;
         }
 
-        case 'dip-white': {
+        case 'dip-white':
+        case 'dip-color': {
             if (p < 0.5) {
                 ctx.drawImage(fromPlayer, 0, 0, w, h);
                 ctx.fillStyle = `rgba(255,255,255,${p * 2})`;
@@ -1045,7 +1063,8 @@ function renderTransition(ctx, fromPlayer, toPlayer, progress, type, w, h) {
             break;
         }
 
-        case 'zoom-in': {
+        case 'zoom-in':
+        case 'cross-zoom': {
             const scale = 1 + p * 0.5;
             ctx.save();
             ctx.translate(w / 2, h / 2);
@@ -1201,6 +1220,7 @@ function renderTransition(ctx, fromPlayer, toPlayer, progress, type, w, h) {
             break;
         }
 
+        case 'blur-dissolve':
         case 'cross-blur':
         case 'motion-blur':
         case 'radial-blur': {
@@ -2051,54 +2071,30 @@ export class PlaybackEngine {
 
 // === TRANSITIONS ===
 export const TRANSITIONS = [
-    { id: 'fade', name: 'Fade', category: 'basic', icon: '\u25D0', defaultDuration: 0.5 },
-    { id: 'crossfade', name: 'Crossfade', category: 'basic', icon: '\u25D1', defaultDuration: 0.8 },
-    { id: 'dip-black', name: 'Dip to Black', category: 'basic', icon: '\u25FC', defaultDuration: 0.6 },
-    { id: 'dip-white', name: 'Dip to White', category: 'basic', icon: '\u25FB', defaultDuration: 0.6 },
+    { id: 'crossfade', name: 'Cross Dissolve', category: 'dissolve', icon: 'CD', defaultDuration: 0.8 },
+    { id: 'film-dissolve', name: 'Film Dissolve', category: 'dissolve', icon: 'FD', defaultDuration: 0.9 },
+    { id: 'smooth-cut', name: 'Smooth Cut', category: 'dissolve', icon: 'SC', defaultDuration: 0.45 },
+    { id: 'non-additive-dissolve', name: 'Non-Additive Dissolve', category: 'dissolve', icon: 'ND', defaultDuration: 0.75 },
+    { id: 'additive-dissolve', name: 'Additive Dissolve', category: 'dissolve', icon: 'AD', defaultDuration: 0.65 },
+    { id: 'dip-black', name: 'Dip to Black', category: 'dissolve', icon: 'DB', defaultDuration: 0.65 },
+    { id: 'dip-white', name: 'Dip to White', category: 'dissolve', icon: 'DW', defaultDuration: 0.55 },
 
-    { id: 'slide-left', name: 'Slide Left', category: 'slide', icon: '\u2190', defaultDuration: 0.5 },
-    { id: 'slide-right', name: 'Slide Right', category: 'slide', icon: '\u2192', defaultDuration: 0.5 },
-    { id: 'slide-up', name: 'Slide Up', category: 'slide', icon: '\u2191', defaultDuration: 0.5 },
-    { id: 'slide-down', name: 'Slide Down', category: 'slide', icon: '\u2193', defaultDuration: 0.5 },
+    { id: 'blur-dissolve', name: 'Blur Dissolve', category: 'blur', icon: 'BD', defaultDuration: 0.65 },
+    { id: 'cross-blur', name: 'Cross Blur', category: 'blur', icon: 'CB', defaultDuration: 0.6 },
+    { id: 'motion-blur', name: 'Motion Blur', category: 'blur', icon: 'MB', defaultDuration: 0.5 },
+    { id: 'whip-pan', name: 'Whip Pan', category: 'blur', icon: 'WP', defaultDuration: 0.42 },
 
-    { id: 'wipe-left', name: 'Wipe Left', category: 'wipe', icon: '\u258C', defaultDuration: 0.6 },
-    { id: 'wipe-right', name: 'Wipe Right', category: 'wipe', icon: '\u2590', defaultDuration: 0.6 },
-    { id: 'wipe-up', name: 'Wipe Up', category: 'wipe', icon: '\u2580', defaultDuration: 0.6 },
-    { id: 'wipe-down', name: 'Wipe Down', category: 'wipe', icon: '\u2584', defaultDuration: 0.6 },
-    { id: 'wipe-diagonal', name: 'Diagonal Wipe', category: 'wipe', icon: '\u25E9', defaultDuration: 0.7 },
-    { id: 'wipe-circle', name: 'Circle Wipe', category: 'wipe', icon: '\u25C9', defaultDuration: 0.7 },
-    { id: 'wipe-clock', name: 'Clock Wipe', category: 'wipe', icon: '\u25F7', defaultDuration: 0.8 },
-    { id: 'split-vertical', name: 'Split Vertical', category: 'wipe', icon: '\u25EB', defaultDuration: 0.7 },
-    { id: 'split-horizontal', name: 'Split Horizontal', category: 'wipe', icon: '\u25EB', defaultDuration: 0.7 },
-    { id: 'iris-diamond', name: 'Diamond Iris', category: 'wipe', icon: '\u25C7', defaultDuration: 0.75 },
-    { id: 'venetian-blinds', name: 'Venetian Blinds', category: 'wipe', icon: '\u2630', defaultDuration: 0.7 },
-    { id: 'grid-flip', name: 'Grid Flip', category: 'wipe', icon: '\u25A6', defaultDuration: 0.8 },
+    { id: 'cross-zoom', name: 'Cross Zoom', category: 'zoom', icon: 'CZ', defaultDuration: 0.55 },
+    { id: 'parallax-zoom', name: 'Parallax Zoom', category: 'zoom', icon: 'PZ', defaultDuration: 0.75 },
+    { id: 'snap-zoom', name: 'Snap Zoom', category: 'zoom', icon: 'SZ', defaultDuration: 0.45 },
 
-    { id: 'zoom-in', name: 'Zoom In', category: 'zoom', icon: '\u2295', defaultDuration: 0.5 },
-    { id: 'zoom-out', name: 'Zoom Out', category: 'zoom', icon: '\u2296', defaultDuration: 0.5 },
-    { id: 'zoom-rotate', name: 'Zoom Rotate', category: 'zoom', icon: '\u21BB', defaultDuration: 0.7 },
-    { id: 'parallax-zoom', name: 'Parallax Zoom', category: 'zoom', icon: '\u25CE', defaultDuration: 0.75 },
-    { id: 'snap-zoom', name: 'Snap Zoom', category: 'zoom', icon: '\u2316', defaultDuration: 0.45 },
-    { id: 'spin-flash', name: 'Spin Flash', category: 'zoom', icon: '\u2737', defaultDuration: 0.55 },
-    { id: 'cube-left', name: 'Cube Left', category: 'zoom', icon: '\u25E7', defaultDuration: 0.7 },
+    { id: 'light-leak', name: 'Light Leak', category: 'light', icon: 'LL', defaultDuration: 0.8 },
+    { id: 'flash', name: 'Flash Cut', category: 'light', icon: 'FC', defaultDuration: 0.3 },
+    { id: 'strobe-cut', name: 'Strobe Cut', category: 'light', icon: 'ST', defaultDuration: 0.35 },
 
-    { id: 'glitch', name: 'Glitch', category: 'glitch', icon: '\u26A1', defaultDuration: 0.4 },
-    { id: 'pixel-scatter', name: 'Pixel Scatter', category: 'glitch', icon: '\u25A6', defaultDuration: 0.5 },
-    { id: 'chromatic', name: 'Chromatic', category: 'glitch', icon: '\u25C8', defaultDuration: 0.4 },
-    { id: 'rgb-split', name: 'RGB Split', category: 'glitch', icon: '\u25C8', defaultDuration: 0.45 },
-    { id: 'strobe-cut', name: 'Strobe Cut', category: 'glitch', icon: '\u2736', defaultDuration: 0.35 },
-
-    { id: 'cross-blur', name: 'Cross Blur', category: 'blur', icon: '\u25CC', defaultDuration: 0.6 },
-    { id: 'motion-blur', name: 'Motion Blur', category: 'blur', icon: '\u224B', defaultDuration: 0.5 },
-    { id: 'radial-blur', name: 'Radial Blur', category: 'blur', icon: '\u273A', defaultDuration: 0.6 },
-    { id: 'whip-pan', name: 'Whip Pan', category: 'blur', icon: '\u21A0', defaultDuration: 0.42 },
-
-    { id: 'flash', name: 'Flash', category: 'light', icon: '\u2726', defaultDuration: 0.3 },
-    { id: 'light-leak', name: 'Light Leak', category: 'light', icon: '\u2600', defaultDuration: 0.8 },
-    { id: 'burn', name: 'Burn', category: 'light', icon: '\uD83D\uDD25', defaultDuration: 0.6 },
-    { id: 'neon-shutter', name: 'Neon Shutter', category: 'light', icon: '\u25A5', defaultDuration: 0.65 },
-    { id: 'scanline-sweep', name: 'Scanline Sweep', category: 'light', icon: '\u25AC', defaultDuration: 0.65 },
-    { id: 'ink-spread', name: 'Ink Spread', category: 'light', icon: '\u25CF', defaultDuration: 0.8 },
+    { id: 'glitch', name: 'Glitch Cut', category: 'stylized', icon: 'GC', defaultDuration: 0.4 },
+    { id: 'rgb-split', name: 'RGB Split', category: 'stylized', icon: 'RGB', defaultDuration: 0.45 },
+    { id: 'chromatic', name: 'Chromatic Shift', category: 'stylized', icon: 'CH', defaultDuration: 0.4 },
 
     { id: 'intro-neon-doors', name: 'Neon Doors', category: 'intro', icon: '\u25E7', defaultDuration: 1.0 },
     { id: 'intro-title-scan', name: 'Title Scan', category: 'intro', icon: '\u25AC', defaultDuration: 1.2 },
@@ -2111,13 +2107,11 @@ export const TRANSITIONS = [
 ];
 
 export const TRANSITION_CATEGORIES = [
-    { id: 'basic', name: 'Basic' },
-    { id: 'slide', name: 'Slide' },
-    { id: 'wipe', name: 'Wipe' },
-    { id: 'zoom', name: 'Zoom' },
-    { id: 'glitch', name: 'Glitch' },
+    { id: 'dissolve', name: 'Dissolve' },
     { id: 'blur', name: 'Blur' },
+    { id: 'zoom', name: 'Zoom' },
     { id: 'light', name: 'Light' },
+    { id: 'stylized', name: 'Stylized' },
     { id: 'intro', name: 'Intro' },
     { id: 'outro', name: 'Outro' },
 ];

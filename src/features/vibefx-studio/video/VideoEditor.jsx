@@ -26,7 +26,7 @@ const PANEL_LABELS = {
     music: 'Musique',
     speed: 'Vitesse',
     export: 'Export',
-    filters: 'Filtres',
+    filters: 'Effets',
 };
 
 function getClipTimelineLabel(clip) {
@@ -631,13 +631,7 @@ const VideoEditor = ({ onAiOpen }) => {
                     )}
                 </div>
 
-                {/* Side panel */}
-                {hasPanel && (
-                    <div className="border-l border-neutral-800 bg-neutral-950 flex flex-col overflow-hidden shrink-0 hidden lg:flex w-80 min-h-0">
-                        {renderPanel()}
-                    </div>
-                )}
-                <VibeCutQuickPanel />
+                <VibeCutQuickPanel renderPanel={renderPanel} activePanelLabel={activePanelLabel} />
                 </>
                 )}
             </div>

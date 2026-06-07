@@ -64,13 +64,13 @@ const FILTER_SECTIONS = [
 ];
 
 const VISION_PRESETS = [
-    { name: 'Clean Social', mood: 'Rec.709 net', filters: { contrast: 108, saturation: 106, vibrance: 12, vignette: 8 } },
-    { name: 'Neon Pop', mood: 'Reels punchy', filters: { contrast: 118, pivot: 45, temperature: -6, tint: 4, saturation: 112, vibrance: 28, vignette: 18 } },
-    { name: 'Cyberpunk', mood: 'Neon froid', filters: { brightness: 95, contrast: 130, pivot: 44, saturation: 130, vibrance: 18, temperature: -20, tint: 8, shadows: -10, vignette: 25, grain: 5 } },
+    { name: 'Clean Rec.709', mood: 'Base nette', filters: { contrast: 108, saturation: 106, vibrance: 12, vignette: 8 } },
+    { name: 'Vivid Contrast', mood: 'Social punchy', filters: { contrast: 118, pivot: 45, temperature: -6, tint: 4, saturation: 112, vibrance: 28, vignette: 18 } },
+    { name: 'Cool Contrast', mood: 'Froid contraste', filters: { brightness: 95, contrast: 130, pivot: 44, saturation: 116, vibrance: 18, temperature: -20, tint: 8, shadows: -10, vignette: 25, grain: 5 } },
     { name: 'Warm Film', mood: 'Lifestyle chaud', filters: { exposure: 15, contrast: 110, temperature: 14, tint: 3, saturation: 104, fade: 10, grain: 14, vignette: 10 } },
-    { name: 'Cool Tech', mood: 'Produit futuriste', filters: { contrast: 114, temperature: -16, tint: 2, highlights: 8, shadows: -6, saturation: 98, vignette: 12 } },
-    { name: 'Soft Pastel', mood: 'Doux et clair', filters: { exposure: 20, contrast: 92, saturation: 94, vibrance: 16, fade: 8, vignette: 4 } },
-    { name: 'Soft Dream', mood: 'Legacy doux', filters: { brightness: 108, contrast: 85, saturation: 90, vibrance: 14, temperature: 10, vignette: 5, grain: 0 } },
+    { name: 'Product Cool', mood: 'Produit froid', filters: { contrast: 114, temperature: -16, tint: 2, highlights: 8, shadows: -6, saturation: 98, vignette: 12 } },
+    { name: 'Soft Glow', mood: 'Doux clair', filters: { exposure: 20, contrast: 92, saturation: 94, vibrance: 16, fade: 8, vignette: 4 } },
+    { name: 'Low Contrast Film', mood: 'Noirs leves', filters: { brightness: 108, contrast: 85, saturation: 90, vibrance: 14, temperature: 10, vignette: 5, grain: 0 } },
     { name: 'High Contrast Mono', mood: 'Editorial noir/blanc', filters: { saturation: 0, contrast: 128, pivot: 50, shadows: -12, highlights: 10, grain: 8, vignette: 18 } },
     { name: 'Faded Retro', mood: 'Vintage social', filters: { contrast: 90, fade: 24, temperature: 8, saturation: 88, grain: 22, vignette: 24 } },
     { name: 'Bleach Bypass', mood: 'Dramatique froid', filters: { contrast: 132, saturation: 62, vibrance: -12, shadows: -16, highlights: 12, temperature: -6, grain: 10 } },

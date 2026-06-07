@@ -2,27 +2,27 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { X, Clock, Crosshair, Trash2 } from 'lucide-react';
 import useVideoStore from '../store/videoStore';
 import { TRANSITIONS, TRANSITION_CATEGORIES, formatTime } from '../engine/VideoEngine';
-import { getSequencePlacement, getTimelineTrackRole, normalizeTransitionItems } from '../model/timelineModel';
+import { getSequencePlacement, getTimelineTrackRole, resolveTimelineTransitions } from '../model/timelineModel';
 
 const EDITABLE_TRANSITION_CATEGORIES = TRANSITION_CATEGORIES.filter(cat => !['intro', 'outro'].includes(cat.id));
 
 const TransitionPicker = () => {
     const {
-        clips, transitionItems, selectedTransitionId, setSelectedTransitionId,
-        addTransitionItem, updateTransitionItem, removeTransitionItem,
+        clips, transitions, transitionItems, selectedTransitionId, setSelectedTransitionId,
+        updateTransitionItem, removeTransitionItem,
         setActivePanel, currentTime, totalDuration, tracks
     } = useVideoStore();
 
-    const [activeCategory, setActiveCategory] = useState('basic');
+    const [activeCategory, setActiveCategory] = useState('dissolve');
     const normalizedTransitionItems = useMemo(() => (
-        normalizeTransitionItems(transitionItems, totalDuration)
+        resolveTimelineTransitions({ clips, transitions, transitionItems, totalDuration })
             .filter(item => !getSequencePlacement(item))
-    ), [totalDuration, transitionItems]);
+    ), [clips, totalDuration, transitions, transitionItems]);
     const selectedTransition = useMemo(() => {
         if (selectedTransitionId) {
             return normalizedTransitionItems.find(item => item.id === selectedTransitionId) || null;
         }
-        return normalizedTransitionItems[0] || null;
+        return null;
     }, [normalizedTransitionItems, selectedTransitionId]);
 
     const [duration, setDuration] = useState(selectedTransition?.duration || 0.5);
@@ -37,15 +37,37 @@ const TransitionPicker = () => {
         if (selectedTransition) setDuration(selectedTransition.duration || 0.5);
     }, [selectedTransition]);
 
-    const clampTransitionStart = (start, dur) => {
-        const maxStart = Math.max(0, totalDuration - dur);
-        return Math.min(maxStart, Math.max(0, start));
+    const findNearestCutPair = (dur = 0.5) => {
+        if (clips.length < 2) return null;
+        const modelItems = useVideoStore.getState().getTimelineModel?.().items || [];
+        const itemByClipId = new Map(modelItems
+            .filter(item => item.type === 'video')
+            .map(item => [item.sourceId || item.id, item]));
+
+        const transitionDuration = Math.max(0.1, Number(dur) || 0.5);
+        return clips
+            .slice(0, -1)
+            .map((clip, index) => {
+                const nextClip = clips[index + 1];
+                const item = itemByClipId.get(clip.id);
+                const itemStart = Number(item?.start || 0);
+                const fallbackDuration = (Number(clip.trimEnd ?? clip.duration ?? 0) - Number(clip.trimStart ?? 0)) / (Number(clip.speed) || 1);
+                const itemDuration = Math.max(0, Number(item?.duration ?? fallbackDuration) || 0);
+                const start = Math.max(itemStart, itemStart + itemDuration - transitionDuration);
+                return {
+                    fromId: clip.id,
+                    toId: nextClip.id,
+                    start,
+                    distance: Math.abs((start + transitionDuration / 2) - currentTime),
+                };
+            })
+            .sort((a, b) => a.distance - b.distance)[0] || null;
     };
 
     const applyTransition = (transition) => {
         const nextDuration = duration || transition.defaultDuration || 0.5;
         if (transitionsLocked) return;
-        if (selectedTransition) {
+        if (selectedTransitionId && selectedTransition) {
             updateTransitionItem(selectedTransition.id, {
                 type: transition.id,
                 name: transition.name,
@@ -56,29 +78,38 @@ const TransitionPicker = () => {
             return;
         }
 
-        const startTime = clampTransitionStart(currentTime, nextDuration);
-        addTransitionItem({
+        const cutPair = findNearestCutPair(nextDuration);
+        if (!cutPair) {
+            useVideoStore.getState().notifyTimelineEditRejected?.('transition-no-cut', 'Ajoutez un second clip pour placer une transition entre deux videos.');
+            return;
+        }
+        useVideoStore.getState().setTransition(cutPair.fromId, cutPair.toId, {
             type: transition.id,
             name: transition.name,
             icon: transition.icon,
             category: transition.category,
             duration: nextDuration,
-            startTime,
         });
+        setSelectedTransitionId(`cut-${cutPair.fromId}-${cutPair.toId}`);
     };
 
     const addAtCursor = () => {
         if (transitionsLocked) return;
         const transition = TRANSITIONS.find(t => t.category === activeCategory) || TRANSITIONS[0];
-        const startTime = clampTransitionStart(currentTime, duration || transition.defaultDuration || 0.5);
-        addTransitionItem({
+        const nextDuration = duration || transition.defaultDuration || 0.5;
+        const cutPair = findNearestCutPair(nextDuration);
+        if (!cutPair) {
+            useVideoStore.getState().notifyTimelineEditRejected?.('transition-no-cut', 'Ajoutez un second clip pour placer une transition entre deux videos.');
+            return;
+        }
+        useVideoStore.getState().setTransition(cutPair.fromId, cutPair.toId, {
             type: transition.id,
             name: transition.name,
             icon: transition.icon,
             category: transition.category,
-            duration: duration || transition.defaultDuration || 0.5,
-            startTime,
+            duration: nextDuration,
         });
+        setSelectedTransitionId(`cut-${cutPair.fromId}-${cutPair.toId}`);
     };
 
     const updateDuration = (value) => {
@@ -119,7 +150,7 @@ const TransitionPicker = () => {
                 <div>
                     <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Transitions</h3>
                     <p className="text-[8px] font-mono uppercase tracking-wider text-neutral-600 mt-0.5">
-                        Timeline Effets entre la video et le texte
+                        Passage entre deux videos adjacentes
                     </p>
                 </div>
                 <button onClick={() => setActivePanel(null)} className="text-neutral-500 hover:text-white transition">
@@ -141,7 +172,7 @@ const TransitionPicker = () => {
 
                 {normalizedTransitionItems.length === 0 ? (
                     <p className="text-[9px] font-mono text-neutral-600 leading-relaxed">
-                        Choisissez une animation ci-dessous: elle sera creee au temps courant, puis deplacable sur la timeline Effets.
+                        Choisissez une transition ci-dessous: elle sera placee sur le cut video le plus proche.
                     </p>
                 ) : (
                     <div className="space-y-1 max-h-28 overflow-y-auto custom-scrollbar">

@@ -39,12 +39,12 @@ const VideoToolbar = ({ onImportClick, onAiOpen }) => {
     const tools = [
         { id: 'split',       icon: Scissors,  label: 'Couper',     action: handleSplit, disabled: !selectedClipId || !hasClips },
         { id: 'delete',      icon: Trash2,    label: 'Supprimer',  action: handleDelete, disabled: !selectedClipId || !hasClips },
-        { id: 'transitions', icon: Sparkles,  label: 'Transition', panel: 'transitions' },
+        { id: 'transitions', icon: Sparkles,  label: 'Transitions', panel: 'transitions' },
         { id: 'text',        icon: Type,       label: 'Texte',      panel: 'text' },
         { id: 'audio',       icon: Music,      label: 'Audio',      panel: 'audio' },
         { id: 'music',       icon: Library,    label: 'Musique',    panel: 'music' },
         { id: 'speed',       icon: Gauge,      label: 'Vitesse',    panel: 'speed' },
-        { id: 'filters',     icon: Filter,     label: 'Filtres',    panel: 'filters' },
+        { id: 'filters',     icon: Filter,     label: 'Effets',     panel: 'filters' },
         { id: 'export',      icon: Download,   label: 'Exporter',   panel: 'export' },
     ];
 

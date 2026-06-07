@@ -90,6 +90,17 @@ export function aggregateVideoExportTelemetry(jobs = [], now = new Date()) {
   });
 
   return {
+    total: {
+      totalJobs: normalizedJobs.length,
+      readyExports: normalizedJobs.filter((job) => job.status === "ready").length,
+      failedJobs: normalizedJobs.filter((job) => job.status === "failed").length,
+      cancelledJobs: normalizedJobs.filter((job) => job.status === "cancelled").length,
+      activeJobs: normalizedJobs.filter((job) => ["queued", "rendering", "finalizing"].includes(job.status)).length,
+      estimatedCostEur: sum(normalizedJobs, (job) => job.estimate.estimatedEur),
+      estimatedCostUsd: sum(normalizedJobs, (job) => job.estimate.estimatedUsd),
+      outputSizeBytes: sum(normalizedJobs, (job) => job.estimate.outputSizeBytes),
+      renderSeconds: sum(normalizedJobs, (job) => job.estimate.renderSeconds),
+    },
     ranges,
     recentJobs: normalizedJobs
       .sort((a, b) => b.createdAtDate.getTime() - a.createdAtDate.getTime())
@@ -111,6 +122,12 @@ export function aggregateCloudBillingTelemetry(cloudBilling = null, now = new Da
         netCost: 0,
         rows: 0,
       })),
+      total: {
+        actualCost: 0,
+        credits: 0,
+        netCost: 0,
+        rows: 0,
+      },
       services: [],
       recentRows: [],
     };
@@ -145,6 +162,12 @@ export function aggregateCloudBillingTelemetry(cloudBilling = null, now = new Da
     table: cloudBilling.table,
     targetProjectId: cloudBilling.targetProjectId,
     currency: cloudBilling.currency || rows.find((row) => row.currency)?.currency || "EUR",
+    total: {
+      actualCost: sum(rows, (row) => row.cost),
+      credits: sum(rows, (row) => row.credits),
+      netCost: sum(rows, (row) => row.netCost),
+      rows: rows.length,
+    },
     ranges,
     services: Array.isArray(cloudBilling.services) ? cloudBilling.services : [],
     recentRows: rows

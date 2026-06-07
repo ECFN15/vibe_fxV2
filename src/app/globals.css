@@ -3434,6 +3434,75 @@ html {
   line-height: 1.5;
 }
 
+.vf-export-total-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 18px 18px 0;
+}
+
+.vf-export-total-card {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  border: 1px solid rgba(0, 229, 255, 0.18);
+  border-radius: 8px;
+  padding: 16px;
+  background:
+    linear-gradient(180deg, rgba(0, 229, 255, 0.055), rgba(0, 0, 0, 0.16)),
+    rgba(255, 255, 255, 0.035);
+}
+
+.vf-export-total-card[data-billing-state="ready"] {
+  border-color: rgba(205, 251, 82, 0.26);
+  background:
+    linear-gradient(180deg, rgba(205, 251, 82, 0.08), rgba(0, 0, 0, 0.16)),
+    rgba(255, 255, 255, 0.035);
+}
+
+.vf-export-total-card > span {
+  color: #00e5ff;
+  font: 700 10px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.vf-export-total-card[data-billing-state="ready"] > span {
+  color: #cdfb52;
+}
+
+.vf-export-total-card > strong {
+  color: #ffffff;
+  font-size: clamp(2rem, 3.6vw, 3.4rem);
+  line-height: 0.95;
+}
+
+.vf-export-total-card dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.vf-export-total-card dl div {
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.vf-export-total-card dt {
+  color: rgba(248, 247, 255, 0.48);
+  font-size: 11px;
+}
+
+.vf-export-total-card dd {
+  margin: 3px 0 0;
+  color: #f8f7ff;
+  font: 700 13px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
 .vf-export-metric-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3685,6 +3754,7 @@ html {
 @media (max-width: 900px) {
   .vf-backoffice-hero,
   .vf-backoffice-grid,
+  .vf-export-total-grid,
   .vf-export-metric-grid,
   .vf-export-billing-grid {
     grid-template-columns: 1fr;
@@ -3701,6 +3771,10 @@ html {
 
   .vf-export-ops-head {
     flex-direction: column;
+  }
+
+  .vf-export-total-card dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .vf-export-billing-panel header {

@@ -34,8 +34,8 @@ const TRACK_ACCENT_CLASS = {
 const TRACK_CONFIG = {
     volets: { id: 'sequence-main', height: 44, label: 'Volets', color: 'purple', bgActive: 'bg-purple-500/5', borderColor: 'border-purple-500/20', canHide: false, canMute: false, canLock: false, order: 5 },
     video:  { id: 'video-main', height: 64,  label: 'Video', color: 'indigo', bgActive: 'bg-indigo-500/5', borderColor: 'border-indigo-500/20', canMute: false },
-    transitions: { id: 'transition-main', height: 52, label: 'Effet', color: 'purple', bgActive: 'bg-purple-500/5', borderColor: 'border-purple-500/20', canMute: false },
-    effects: { id: 'effect-main', height: 40, label: 'Filtres', color: 'cyan', bgActive: 'bg-cyan-500/5', borderColor: 'border-cyan-500/20', canMute: false },
+    transitions: { id: 'transition-main', height: 52, label: 'Transitions', color: 'purple', bgActive: 'bg-purple-500/5', borderColor: 'border-purple-500/20', canMute: false },
+    effects: { id: 'effect-main', height: 40, label: 'Effets', color: 'cyan', bgActive: 'bg-cyan-500/5', borderColor: 'border-cyan-500/20', canMute: false },
     text:   { id: 'text-main', height: 48,  label: 'Texte', color: 'amber', bgActive: 'bg-amber-500/5', borderColor: 'border-amber-500/20', canMute: false, role: 'text' },
     audio:  { id: 'audio-main', height: 48,  label: 'Audio', color: 'emerald', bgActive: 'bg-emerald-500/5', borderColor: 'border-emerald-500/20', canHide: false },
     music:  { id: 'music-main', height: 48,  label: 'Musique', color: 'purple', bgActive: 'bg-purple-500/5', borderColor: 'border-purple-500/20', canHide: false },
@@ -160,7 +160,6 @@ const Timeline = ({ onImportClick }) => {
         timelineModel.items
             .filter(item => item.type === 'transition')
             .filter(item => !getSequencePlacement(item))
-            .filter(item => item.params?.placement !== 'cut')
             .map(hydrateTimelineItem)
     ), [timelineModel]);
     const transitionLaneItemsByTrack = useMemo(() => (
@@ -1132,17 +1131,17 @@ const Timeline = ({ onImportClick }) => {
                             )}
                         </div>
 
-                        {/* Effect track */}
+                        {/* Transition track */}
                         <div
                             className="relative border-b border-neutral-900/80 bg-purple-950/[0.045]"
                             style={{ height: `${TRACK_CONFIG.transitions.height}px`, order: trackOrderByKey.transitions, ...TRACK_ROW_STYLE }}
                             data-track-area="transitions"
                             data-track-order={trackOrderByKey.transitions}
-                            aria-label="Timeline effets de transition"
+                            aria-label="Timeline transitions"
                         >
                             <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(168,85,247,0.05)_1px,transparent_1px)] bg-[length:16px_100%]" data-track-bg="1" />
                             <div className="absolute left-2 top-1.5 z-0 rounded-sm border border-purple-500/20 bg-neutral-950/80 px-1.5 py-0.5 text-[7px] font-mono uppercase tracking-widest text-purple-300/60 pointer-events-none">
-                                Timeline Effets
+                                Timeline Transitions
                             </div>
 
                             {(transitionLaneItemsByTrack[TRACK_CONFIG.transitions.id] || []).map(item => (
@@ -1177,7 +1176,7 @@ const Timeline = ({ onImportClick }) => {
                                     className="absolute inset-0 flex items-center justify-center group"
                                 >
                                     <span className="flex items-center gap-1.5 text-[9px] font-mono text-neutral-700 group-hover:text-purple-400/70 transition">
-                                        <Plus size={10} /> Ajouter un effet de transition
+                                        <Plus size={10} /> Ajouter une transition
                                     </span>
                                 </button>
                             )}
