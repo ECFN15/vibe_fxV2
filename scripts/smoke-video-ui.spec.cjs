@@ -486,6 +486,11 @@ test("Vibe_CUT shows WebM as the real export format when MP4 is unsupported", as
   await expect(page.getByTestId("export-audio-mix").first()).toHaveText("clips");
   await expect(page.getByTestId("export-frame-guard").first()).toHaveText("actif");
   await expect(page.getByTestId("export-preflight").first()).toHaveAttribute("data-preflight-status", /^(ready|warning)$/);
+  await page.getByRole("button", { name: "Export Pro MP4", exact: true }).click();
+  await expect(page.getByTestId("export-output-container").first()).toHaveText("mock");
+  await expect(page.getByTestId("export-output-codec").first()).toHaveText("simulation");
+  await expect(page.getByTestId("export-output-mime").first()).toHaveText("aucun fichier");
+  await page.getByRole("button", { name: "Annuler", exact: true }).click();
 });
 
 test("Vibe_CUT blocks export preflight when audio mix is unsupported", async ({ page }) => {

@@ -8,3 +8,5 @@ runConfig:
 env:
   - variable: NEXT_PUBLIC_FIREBASE_FUNCTIONS_REGION
     value: europe-west9
+  - variable: NEXT_PUBLIC_VIBECUT_EXPORT_MODE
+    value: firebase

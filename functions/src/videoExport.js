@@ -1,18 +1,63 @@
 "use strict";
 
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onTaskDispatched } = require("firebase-functions/v2/tasks");
 const { defineSecret } = require("firebase-functions/params");
+const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
+const { getFunctions } = require("firebase-admin/functions");
 const crypto = require("crypto");
 const { shouldEnforceAppCheck } = require("./appCheck");
 
 const REGION = "europe-west9";
+const TASK_QUEUE_REGION = "europe-west1";
 const ENFORCE_EXPORT_APP_CHECK = shouldEnforceAppCheck("ENFORCE_EXPORT_APP_CHECK");
 const EXPORT_SIGNING_SECRET = defineSecret("EXPORT_SIGNING_SECRET");
 const EXPORT_JOBS_COLLECTION = "videoExportJobs";
+const EXPORT_TASK_QUEUE_FUNCTION = "processVideoExportJob";
+const EXPORT_TASK_QUEUE_RESOURCE = `locations/${TASK_QUEUE_REGION}/functions/${EXPORT_TASK_QUEUE_FUNCTION}`;
 const TERMINAL_STATUSES = new Set(["ready", "failed", "cancelled"]);
 const RETRYABLE_STATUSES = new Set(["failed", "cancelled"]);
 const MAX_MANIFEST_BYTES = 750 * 1024;
+const EXPORT_QUOTAS = Object.freeze({
+  maxManifestBytes: MAX_MANIFEST_BYTES,
+  maxDurationSeconds: 180,
+  maxClips: 10,
+  maxAudioTracks: 4,
+  maxWidth: 3840,
+  maxHeight: 3840,
+  maxPixels: 3840 * 2160,
+  maxFps: 60,
+  maxVideoBitrate: 60_000_000,
+  maxAudioBitrate: 320_000,
+  maxSourceBytes: 2 * 1024 * 1024 * 1024,
+});
+const DOWNLOAD_URL_TTL_MS = 15 * 60 * 1000;
+const SUPPORTED_SERVER_TRANSITIONS = new Set(["cut", "fade", "crossfade"]);
+const SERVER_XFADE_TRANSITIONS = new Set(["fade", "crossfade"]);
+const SUPPORTED_SERVER_FIT_MODES = new Set(["cover", "contain"]);
+const SUPPORTED_SERVER_TEXT_ANIMATIONS = new Set(["none", "fade"]);
+const DEFAULT_FILTERS = Object.freeze({
+  exposure: 0,
+  brightness: 100,
+  contrast: 100,
+  pivot: 50,
+  saturation: 100,
+  vibrance: 0,
+  temperature: 0,
+  tint: 0,
+  hue: 0,
+  shadows: 0,
+  midtones: 0,
+  highlights: 0,
+  fade: 0,
+  vignette: 0,
+  grain: 0,
+});
+const BILLING_TELEMETRY_DAYS = 31;
+const BILLING_TABLE_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
+
+let cachedBigQueryClient = null;
 
 function assertAuthenticated(request) {
   const uid = request.auth?.uid;
@@ -20,6 +65,24 @@ function assertAuthenticated(request) {
     throw new HttpsError("unauthenticated", "Connexion utilisateur requise.");
   }
   return uid;
+}
+
+async function assertExportAdmin(request) {
+  const email = request.auth?.token?.email?.toLowerCase();
+  const adminEmails = (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+  const hasVerifiedAdminEmail = Boolean(email && adminEmails.includes(email));
+  let hasAdminAccessDoc = false;
+  if (email) {
+    const snapshot = await admin.firestore().collection("admins").doc(email).get();
+    hasAdminAccessDoc = snapshot.exists && snapshot.data()?.status === "active";
+  }
+  const isAdmin = request.auth?.token?.admin === true || hasVerifiedAdminEmail || hasAdminAccessDoc;
+  if (!isAdmin) {
+    throw new HttpsError("permission-denied", "Acces admin requis.");
+  }
 }
 
 function requireJobId(value) {
@@ -39,12 +102,353 @@ function validatePositiveNumber(value, field, errors) {
   }
 }
 
-function validateExportManifest(manifest) {
+function finiteNumber(value, fallback = 0) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function billingEnv(...names) {
+  for (const name of names) {
+    const value = String(process.env[name] || "").trim();
+    if (value) return value;
+  }
+  return "";
+}
+
+function parseBillingExportTable() {
+  const fullTable = billingEnv("CLOUD_BILLING_EXPORT_TABLE", "BILLING_EXPORT_TABLE");
+  if (fullTable) {
+    const parts = fullTable.split(".").map((item) => item.trim()).filter(Boolean);
+    if (parts.length === 3 && parts.every((part) => BILLING_TABLE_ID_PATTERN.test(part))) {
+      return { projectId: parts[0], datasetId: parts[1], tableId: parts[2] };
+    }
+    throw new HttpsError("failed-precondition", "CLOUD_BILLING_EXPORT_TABLE doit etre au format project.dataset.table.");
+  }
+
+  const projectId = billingEnv("CLOUD_BILLING_EXPORT_PROJECT_ID", "BILLING_EXPORT_PROJECT_ID");
+  const datasetId = billingEnv("CLOUD_BILLING_EXPORT_DATASET", "BILLING_EXPORT_DATASET");
+  const tableId = billingEnv("CLOUD_BILLING_EXPORT_TABLE_ID", "BILLING_EXPORT_TABLE_ID");
+  if (!projectId && !datasetId && !tableId) return null;
+  if (![projectId, datasetId, tableId].every((part) => BILLING_TABLE_ID_PATTERN.test(part))) {
+    throw new HttpsError("failed-precondition", "Configuration Billing Export BigQuery invalide.");
+  }
+  return { projectId, datasetId, tableId };
+}
+
+function getBillingProjectFilter() {
+  return billingEnv("CLOUD_BILLING_EXPORT_TARGET_PROJECT_ID", "BILLING_EXPORT_TARGET_PROJECT_ID", "GCLOUD_PROJECT", "GOOGLE_CLOUD_PROJECT");
+}
+
+function getBigQueryClient() {
+  if (!cachedBigQueryClient) {
+    // Loaded lazily so local tests without Billing Export configuration keep working.
+    const { BigQuery } = require("@google-cloud/bigquery");
+    cachedBigQueryClient = new BigQuery();
+  }
+  return cachedBigQueryClient;
+}
+
+function formatBillingTableName(table) {
+  return `\`${table.projectId}.${table.datasetId}.${table.tableId}\``;
+}
+
+function assertCloudBillingRow(row = {}) {
+  return {
+    usageDate: row.usageDate?.value || row.usageDate || null,
+    service: String(row.service || "Unknown"),
+    sku: String(row.sku || "Unknown"),
+    projectId: String(row.projectId || ""),
+    location: String(row.location || ""),
+    currency: String(row.currency || ""),
+    cost: finiteNumber(row.cost, 0),
+    credits: finiteNumber(row.credits, 0),
+    netCost: finiteNumber(row.netCost, 0),
+  };
+}
+
+async function getCloudBillingTelemetry() {
+  const table = parseBillingExportTable();
+  if (!table) {
+    return {
+      status: "not_configured",
+      source: "cloud-billing-bigquery",
+      message: "Billing Export BigQuery non configure: cout Google reel indisponible.",
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  const targetProjectId = getBillingProjectFilter();
+  const tableName = formatBillingTableName(table);
+  const query = `
+    SELECT
+      DATE(usage_start_time) AS usageDate,
+      service.description AS service,
+      sku.description AS sku,
+      project.id AS projectId,
+      location.location AS location,
+      currency AS currency,
+      SUM(cost) AS cost,
+      SUM(IFNULL((SELECT SUM(credit.amount) FROM UNNEST(credits) AS credit), 0)) AS credits,
+      SUM(cost) + SUM(IFNULL((SELECT SUM(credit.amount) FROM UNNEST(credits) AS credit), 0)) AS netCost
+    FROM ${tableName}
+    WHERE usage_start_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL @days DAY)
+      AND (@targetProjectId = "" OR project.id = @targetProjectId)
+      AND (
+        LOWER(service.description) LIKE "%cloud run%"
+        OR LOWER(sku.description) LIKE "%cloud run%"
+        OR LOWER(sku.description) LIKE "%run functions%"
+      )
+    GROUP BY usageDate, service, sku, projectId, location, currency
+    ORDER BY usageDate DESC, netCost DESC
+    LIMIT 500
+  `;
+
+  try {
+    const [rows] = await getBigQueryClient().query({
+      query,
+      params: {
+        days: BILLING_TELEMETRY_DAYS,
+        targetProjectId,
+      },
+    });
+    const normalizedRows = rows.map(assertCloudBillingRow);
+    const currency = normalizedRows.find((row) => row.currency)?.currency || "EUR";
+    const totalCost = normalizedRows.reduce((total, row) => total + row.cost, 0);
+    const totalCredits = normalizedRows.reduce((total, row) => total + row.credits, 0);
+    const totalNetCost = normalizedRows.reduce((total, row) => total + row.netCost, 0);
+    const services = Array.from(normalizedRows.reduce((map, row) => {
+      const current = map.get(row.service) || {
+        service: row.service,
+        cost: 0,
+        credits: 0,
+        netCost: 0,
+        currency: row.currency || currency,
+      };
+      current.cost += row.cost;
+      current.credits += row.credits;
+      current.netCost += row.netCost;
+      map.set(row.service, current);
+      return map;
+    }, new Map()).values()).sort((a, b) => b.netCost - a.netCost);
+
+    return {
+      status: "ready",
+      source: "cloud-billing-bigquery",
+      table: `${table.projectId}.${table.datasetId}.${table.tableId}`,
+      targetProjectId: targetProjectId || null,
+      days: BILLING_TELEMETRY_DAYS,
+      currency,
+      totalCost,
+      totalCredits,
+      totalNetCost,
+      services,
+      rows: normalizedRows,
+      generatedAt: new Date().toISOString(),
+    };
+  } catch (error) {
+    logger.warn("cloud_billing_export_telemetry_failed", {
+      message: error.message || "BigQuery query failed",
+      table: `${table.projectId}.${table.datasetId}.${table.tableId}`,
+      targetProjectId: targetProjectId || null,
+    });
+    return {
+      status: "error",
+      source: "cloud-billing-bigquery",
+      table: `${table.projectId}.${table.datasetId}.${table.tableId}`,
+      targetProjectId: targetProjectId || null,
+      message: error.message || "Lecture Billing Export BigQuery impossible.",
+      generatedAt: new Date().toISOString(),
+    };
+  }
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function sourceSizeBytes(source = {}) {
+  return Math.max(0, Math.round(finiteNumber(
+    source.sourceSizeBytes ?? source.metadata?.sourceSizeBytes,
+    0
+  )));
+}
+
+function estimateManifestSourceBytes(manifest = {}) {
+  return [
+    ...(manifest.clips || []).map(sourceSizeBytes),
+    ...(manifest.audioTracks || []).map(sourceSizeBytes),
+  ].reduce((sum, value) => sum + value, 0);
+}
+
+function isSafeRelativeStoragePath(storagePath) {
+  return typeof storagePath === "string" &&
+    storagePath.length <= 1024 &&
+    !storagePath.startsWith("/") &&
+    !storagePath.includes("..") &&
+    !storagePath.includes("//");
+}
+
+function validateOwnerSourceStoragePath({ storagePath, uid, mediaType, field, errors }) {
+  if (!storagePath || typeof storagePath !== "string") {
+    errors.push(`${field} requis pour le rendu serveur`);
+    return;
+  }
+  if (!isSafeRelativeStoragePath(storagePath)) {
+    errors.push(`${field} chemin Storage invalide`);
+    return;
+  }
+  const typeFolder = mediaType === "audio" ? "audio" : "video";
+  if (!uid) {
+    if (!storagePath.includes(`/sources/${typeFolder}/`)) {
+      errors.push(`${field} doit pointer vers sources/${typeFolder}`);
+    }
+    return;
+  }
+  const ownerPattern = new RegExp(`^users/${escapeRegExp(uid)}/exports/[^/]+/sources/${typeFolder}/[^/]+$`);
+  if (!ownerPattern.test(storagePath)) {
+    errors.push(`${field} doit rester owner-scoped dans users/{uid}/exports/{job}/sources/${typeFolder}/`);
+  }
+}
+
+function isOwnerOutputStoragePath(uid, storagePath) {
+  if (!uid || !isSafeRelativeStoragePath(storagePath)) return false;
+  const ownerPattern = new RegExp(`^users/${escapeRegExp(uid)}/exports/[^/]+/outputs/[^/]+$`);
+  return ownerPattern.test(storagePath);
+}
+
+function validateExportQuotas(manifest, errors) {
+  const render = manifest.render || {};
+  const project = manifest.project || {};
+  const width = finiteNumber(render.width, 0);
+  const height = finiteNumber(render.height, 0);
+  const fps = finiteNumber(render.fps, 0);
+  const duration = finiteNumber(project.duration, 0);
+  const targetBitrate = finiteNumber(render.targetBitrate, 0);
+  const audioBitrate = finiteNumber(render.audioBitrate, 0);
+  const clips = Array.isArray(manifest.clips) ? manifest.clips : [];
+  const audioTracks = Array.isArray(manifest.audioTracks) ? manifest.audioTracks : [];
+  const sourceBytes = estimateManifestSourceBytes(manifest);
+
+  if (duration > EXPORT_QUOTAS.maxDurationSeconds) {
+    errors.push(`duree export limitee a ${EXPORT_QUOTAS.maxDurationSeconds}s`);
+  }
+  if (clips.length > EXPORT_QUOTAS.maxClips) {
+    errors.push(`nombre de clips limite a ${EXPORT_QUOTAS.maxClips}`);
+  }
+  if (audioTracks.length > EXPORT_QUOTAS.maxAudioTracks) {
+    errors.push(`nombre de pistes audio limite a ${EXPORT_QUOTAS.maxAudioTracks}`);
+  }
+  if (width > EXPORT_QUOTAS.maxWidth || height > EXPORT_QUOTAS.maxHeight || width * height > EXPORT_QUOTAS.maxPixels) {
+    errors.push("resolution export au-dessus du quota MVP");
+  }
+  if (fps > EXPORT_QUOTAS.maxFps) {
+    errors.push(`fps export limite a ${EXPORT_QUOTAS.maxFps}`);
+  }
+  if (targetBitrate > EXPORT_QUOTAS.maxVideoBitrate) {
+    errors.push("bitrate video au-dessus du quota MVP");
+  }
+  if (audioBitrate > EXPORT_QUOTAS.maxAudioBitrate) {
+    errors.push("bitrate audio au-dessus du quota MVP");
+  }
+  if (sourceBytes > EXPORT_QUOTAS.maxSourceBytes) {
+    errors.push("taille source cumulee au-dessus du quota MVP");
+  }
+}
+
+function validateColorFilterCoverage(filters = {}, label, errors) {
+  Object.entries(filters || {}).forEach(([key, value]) => {
+    if (DEFAULT_FILTERS[key] === undefined && Number(value) !== 0) {
+      errors.push(`filtre colorimetrie non supporte serveur: ${label}.${key}`);
+    }
+  });
+}
+
+function validateExportRenderCoverage(manifest, errors) {
+  const clips = Array.isArray(manifest.clips) ? manifest.clips : [];
+  const fitMode = manifest.render?.fitMode || "cover";
+
+  validateServerTransitionCoverage(
+    Array.isArray(manifest.transitions) ? manifest.transitions : [],
+    clips,
+    errors
+  );
+
+  validateTextOverlayCoverage(
+    Array.isArray(manifest.textOverlays) ? manifest.textOverlays : [],
+    errors
+  );
+
+  clips.forEach((clip, index) => {
+    const label = clip.name || clip.id || `clip-${index + 1}`;
+    const speed = finiteNumber(clip.speed, 1);
+    if (Math.abs(speed - 1) > 0.001) {
+      errors.push(`vitesse clip non rendue serveur: ${label}`);
+    }
+    if (!SUPPORTED_SERVER_FIT_MODES.has(clip.fitMode || fitMode)) {
+      errors.push(`fit mode non supporte serveur: ${label}`);
+    }
+    validateColorFilterCoverage(clip.filters || {}, label, errors);
+  });
+
+}
+
+function validateServerTransitionCoverage(transitions, clips, errors) {
+  const adjacentPairs = new Set();
+  for (let index = 0; index < clips.length - 1; index += 1) {
+    const fromId = clips[index]?.id;
+    const toId = clips[index + 1]?.id;
+    if (fromId && toId) adjacentPairs.add(`${fromId}->${toId}`);
+  }
+
+  transitions.forEach((transition) => {
+    const type = transition.type || "transition";
+    const duration = finiteNumber(transition.duration, 0);
+    const pairKey = `${transition.fromItemId || ""}->${transition.toItemId || ""}`;
+    const placement = transition.params?.placement;
+    const isCutPlacement = placement === "cut" || placement === undefined;
+
+    if (!SUPPORTED_SERVER_TRANSITIONS.has(type)) {
+      errors.push(`transition non rendue serveur: ${type}`);
+      return;
+    }
+    if (duration <= 0) return;
+    if (!SERVER_XFADE_TRANSITIONS.has(type)) {
+      errors.push(`transition non rendue serveur avec duree: ${type}`);
+      return;
+    }
+    if (!isCutPlacement || !adjacentPairs.has(pairKey)) {
+      errors.push(`transition ${type} non adjacente non rendue serveur: ${pairKey}`);
+    }
+  });
+}
+
+function validateTextOverlayCoverage(textOverlays, errors) {
+  textOverlays.forEach((text, index) => {
+    const label = text.id || `text-${index + 1}`;
+    if (!String(text.content || "").trim()) {
+      errors.push(`texte vide non rendu serveur: ${label}`);
+    }
+    if (finiteNumber(text.endTime, 0) <= finiteNumber(text.startTime, 0)) {
+      errors.push(`timing texte invalide: ${label}`);
+    }
+    const animation = text.animation || "fade";
+    const animationOut = text.animationOut || "fade";
+    if (!SUPPORTED_SERVER_TEXT_ANIMATIONS.has(animation)) {
+      errors.push(`animation texte non rendue serveur: ${animation}`);
+    }
+    if (!SUPPORTED_SERVER_TEXT_ANIMATIONS.has(animationOut)) {
+      errors.push(`animation sortie texte non rendue serveur: ${animationOut}`);
+    }
+  });
+}
+
+function validateExportManifest(manifest, context = {}) {
   const errors = [];
+  const uid = context.uid || null;
   if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
     return ["manifest requis"];
   }
-  if (jsonByteSize(manifest) > MAX_MANIFEST_BYTES) {
+  if (jsonByteSize(manifest) > EXPORT_QUOTAS.maxManifestBytes) {
     errors.push("manifest trop volumineux");
   }
   if (manifest.version !== 1) {
@@ -61,6 +465,8 @@ function validateExportManifest(manifest) {
 
   const project = manifest.project || {};
   validatePositiveNumber(project.duration, "project.duration", errors);
+  validateExportQuotas(manifest, errors);
+  validateExportRenderCoverage(manifest, errors);
 
   if (!Array.isArray(manifest.clips) || !manifest.clips.length) {
     errors.push("au moins un clip est requis");
@@ -70,10 +476,37 @@ function validateExportManifest(manifest) {
         errors.push(`clips[${index}] invalide`);
         return;
       }
-      if (!clip.sourceStoragePath || typeof clip.sourceStoragePath !== "string") {
-        errors.push(`clips[${index}].sourceStoragePath requis pour le rendu serveur`);
-      }
+      validateOwnerSourceStoragePath({
+        storagePath: clip.sourceStoragePath,
+        uid,
+        mediaType: "video",
+        field: `clips[${index}].sourceStoragePath`,
+        errors,
+      });
       validatePositiveNumber(clip.duration, `clips[${index}].duration`, errors);
+      if (finiteNumber(clip.trimEnd, 0) <= finiteNumber(clip.trimStart, 0)) {
+        errors.push(`clips[${index}].trim invalide`);
+      }
+    });
+  }
+
+  if (Array.isArray(manifest.audioTracks)) {
+    manifest.audioTracks.forEach((track, index) => {
+      if (!track || typeof track !== "object") {
+        errors.push(`audioTracks[${index}] invalide`);
+        return;
+      }
+      validateOwnerSourceStoragePath({
+        storagePath: track.sourceStoragePath,
+        uid,
+        mediaType: "audio",
+        field: `audioTracks[${index}].sourceStoragePath`,
+        errors,
+      });
+      validatePositiveNumber(track.duration, `audioTracks[${index}].duration`, errors);
+      if (finiteNumber(track.trimEnd, 0) <= finiteNumber(track.trimStart, 0)) {
+        errors.push(`audioTracks[${index}].trim invalide`);
+      }
     });
   }
 
@@ -88,28 +521,117 @@ function getExportRendererUrl() {
   return String(process.env.EXPORT_RENDERER_URL || "").trim();
 }
 
+function getExportRendererAuthMode() {
+  return String(process.env.EXPORT_RENDERER_AUTH_MODE || "hmac").trim().toLowerCase();
+}
+
+function resolveRendererAuthRequirements(mode = getExportRendererAuthMode()) {
+  if (mode === "hmac") return { needsHmac: true, needsOidc: false };
+  if (mode === "hmac+oidc") return { needsHmac: true, needsOidc: true };
+  if (mode === "oidc") return { needsHmac: false, needsOidc: true };
+  throw new HttpsError("failed-precondition", `EXPORT_RENDERER_AUTH_MODE invalide: ${mode}`);
+}
+
+function getExportRenderOrchestrationMode() {
+  return String(process.env.EXPORT_RENDER_ORCHESTRATION || "sync").trim().toLowerCase();
+}
+
+function shouldUseTaskQueueOrchestration() {
+  return getExportRenderOrchestrationMode() === "taskqueue";
+}
+
 function getExportSigningSecret() {
   return String(EXPORT_SIGNING_SECRET.value() || "").trim();
 }
 
-function buildRendererSignature(body, secret) {
-  return crypto.createHmac("sha256", secret).update(body).digest("hex");
+function buildRendererSignature(body, secret, timestamp = Date.now()) {
+  return crypto.createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex");
 }
 
 function buildOutputStoragePath(uid, jobId) {
   return `users/${uid}/exports/${jobId}/outputs/export.mp4`;
 }
 
-async function createOutputDownloadUrl(storagePath) {
+function buildManifestStoragePath(uid, jobId) {
+  return `users/${uid}/exports/${jobId}/manifest/export-manifest.json`;
+}
+
+async function createOutputDownloadUrl(storagePath, expiresInMs = 60 * 60 * 1000) {
   try {
     const [url] = await admin.storage().bucket().file(storagePath).getSignedUrl({
       action: "read",
-      expires: Date.now() + 60 * 60 * 1000,
+      expires: Date.now() + expiresInMs,
     });
     return url;
   } catch {
     return null;
   }
+}
+
+async function writeManifestToStorage(storagePath, manifest) {
+  await admin.storage().bucket().file(storagePath).save(JSON.stringify(manifest), {
+    resumable: false,
+    contentType: "application/json",
+    metadata: {
+      cacheControl: "private, max-age=0, no-transform",
+    },
+  });
+}
+
+async function readManifestFromStorage(storagePath) {
+  if (!isSafeRelativeStoragePath(storagePath)) {
+    throw new HttpsError("failed-precondition", "Chemin manifeste Storage invalide.");
+  }
+  const [buffer] = await admin.storage().bucket().file(storagePath).download();
+  return JSON.parse(buffer.toString("utf8"));
+}
+
+async function resolveJobManifest(data = {}) {
+  if (data.manifest) return data.manifest;
+  if (data.manifestStoragePath) return readManifestFromStorage(data.manifestStoragePath);
+  throw new HttpsError("failed-precondition", "Manifest export absent du job source.");
+}
+
+function buildManifestSummary(manifest = {}, manifestStoragePath = null) {
+  const clips = manifest.clips || [];
+  const audioTracks = manifest.audioTracks || [];
+  const sourceSizeBytes = estimateManifestSourceBytes(manifest);
+  const estimatedCost = manifest.estimates?.cost || {};
+  return {
+    manifestVersion: manifest.version || null,
+    manifestStoragePath,
+    project: {
+      id: manifest.project?.id || null,
+      name: manifest.project?.name || "Untitled",
+      duration: finiteNumber(manifest.project?.duration, 0),
+      preset: manifest.project?.preset || null,
+    },
+    clipsCount: clips.length,
+    audioTracksCount: audioTracks.length,
+    transitionsCount: Array.isArray(manifest.transitions) ? manifest.transitions.length : 0,
+    textOverlaysCount: Array.isArray(manifest.textOverlays) ? manifest.textOverlays.length : 0,
+    sourceSizeBytes,
+    estimatedCostEur: finiteNumber(estimatedCost.eur, 0),
+    estimatedCostLabel: estimatedCost.label || null,
+  };
+}
+
+function resolveExportPlanAccess(request) {
+  return {
+    status: "allowed_mvp_stub",
+    creditsEnforced: false,
+    plan: request.auth?.token?.plan || request.auth?.token?.stripeRole || "unknown",
+    reason: "export_billing_gate_not_finalized",
+  };
+}
+
+function logExportSecurityEvent(event, payload = {}) {
+  logger.warn(event, {
+    uid: payload.uid || null,
+    jobId: payload.jobId || null,
+    errorCount: payload.errorCount || 0,
+    errors: (payload.errors || []).slice(0, 6),
+  });
 }
 
 function publicLog(message, level = "info") {
@@ -122,11 +644,13 @@ function publicLog(message, level = "info") {
 
 async function callRenderService({ jobId, uid, manifest, outputStoragePath }) {
   const rendererUrl = getExportRendererUrl();
-  const signingSecret = getExportSigningSecret();
+  const rendererAuthMode = getExportRendererAuthMode();
+  const authRequirements = resolveRendererAuthRequirements(rendererAuthMode);
   if (!rendererUrl) {
     throw new HttpsError("failed-precondition", "EXPORT_RENDERER_URL manquant.");
   }
-  if (!signingSecret) {
+  const signingSecret = authRequirements.needsHmac ? getExportSigningSecret() : "";
+  if (authRequirements.needsHmac && !signingSecret) {
     throw new HttpsError("failed-precondition", "Secret EXPORT_SIGNING_SECRET manquant.");
   }
 
@@ -135,6 +659,7 @@ async function callRenderService({ jobId, uid, manifest, outputStoragePath }) {
     throw new HttpsError("failed-precondition", "Bucket Storage Firebase manquant.");
   }
 
+  const rendererBaseUrl = rendererUrl.replace(/\/+$/, "");
   const body = JSON.stringify({
     jobId,
     uid,
@@ -142,12 +667,21 @@ async function callRenderService({ jobId, uid, manifest, outputStoragePath }) {
     outputStoragePath,
     manifest,
   });
-  const response = await fetch(`${rendererUrl.replace(/\/+$/, "")}/render`, {
+  const headers = {
+    "content-type": "application/json",
+  };
+  if (authRequirements.needsHmac) {
+    const timestamp = Date.now();
+    headers["x-vibecut-timestamp"] = String(timestamp);
+    headers["x-vibecut-signature"] = buildRendererSignature(body, signingSecret, timestamp);
+  }
+  if (authRequirements.needsOidc) {
+    headers.authorization = `Bearer ${await fetchRendererIdentityToken(rendererBaseUrl)}`;
+  }
+
+  const response = await fetch(`${rendererBaseUrl}/render`, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-vibecut-signature": buildRendererSignature(body, signingSecret),
-    },
+    headers,
     body,
   });
 
@@ -159,6 +693,259 @@ async function callRenderService({ jobId, uid, manifest, outputStoragePath }) {
     });
   }
   return data;
+}
+
+async function fetchRendererIdentityToken(audience) {
+  const tokenUrl = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity" +
+    `?audience=${encodeURIComponent(audience)}`;
+  const response = await fetch(tokenUrl, {
+    headers: {
+      "Metadata-Flavor": "Google",
+    },
+  });
+  if (!response.ok) {
+    throw new HttpsError("failed-precondition", "Token OIDC renderer indisponible.", {
+      status: response.status,
+    });
+  }
+  const token = String(await response.text()).trim();
+  if (!token) {
+    throw new HttpsError("failed-precondition", "Token OIDC renderer vide.");
+  }
+  return token;
+}
+
+async function executeRendererForJob({ ref, jobId, uid, manifest, outputStoragePath, rendererUrlConfigured }) {
+  const renderingClaimed = await markJobRenderingUnlessCancelled(ref);
+  if (!renderingClaimed) {
+    const cancelledLog = publicLog("Annulation detectee avant appel renderer Cloud Run.", "warning");
+    await ref.set({
+      status: "cancelled",
+      phase: "cancelled",
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      logs: admin.firestore.FieldValue.arrayUnion(cancelledLog),
+    }, { merge: true });
+
+    return {
+      jobId,
+      projectName: manifest.project?.name || "Untitled",
+      render: manifest.render || null,
+      estimates: manifest.estimates || null,
+      status: "cancelled",
+      phase: "cancelled",
+      progress: 0,
+      output: null,
+      warnings: [],
+      logs: [{
+        level: cancelledLog.level,
+        message: cancelledLog.message,
+        at: cancelledLog.createdAt.toDate().toISOString(),
+      }],
+      rendererConfigured: rendererUrlConfigured,
+    };
+  }
+
+  const rendererResult = await callRenderService({
+    jobId,
+    uid,
+    manifest,
+    outputStoragePath,
+  });
+  const renderedStoragePath = rendererResult.output?.storagePath || outputStoragePath;
+  const output = {
+    storagePath: renderedStoragePath,
+    downloadUrl: rendererResult.output?.downloadUrl || await createOutputDownloadUrl(renderedStoragePath),
+    sizeBytes: rendererResult.output?.sizeBytes || null,
+    contentType: "video/mp4",
+    mockOnly: false,
+  };
+  const warnings = rendererResult.warnings || [];
+  const logs = [
+    publicLog("Renderer Cloud Run termine.", "success"),
+    ...warnings.map((warning) => publicLog(String(warning), "warning")),
+  ];
+
+  if (await isJobCancellationRequested(ref)) {
+    const cancelledLog = publicLog("Renderer termine apres annulation: output ignore cote job utilisateur.", "warning");
+    await ref.set({
+      status: "cancelled",
+      phase: "cancelled",
+      progress: 100,
+      cancelledOutput: output,
+      rendererResult: {
+        mode: rendererResult.mode || "cloud-run-ffmpeg",
+        elapsedMs: rendererResult.elapsedMs || null,
+        ignoredAfterCancel: true,
+      },
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      logs: admin.firestore.FieldValue.arrayUnion(cancelledLog),
+    }, { merge: true });
+
+    return {
+      jobId,
+      projectName: manifest.project?.name || "Untitled",
+      render: manifest.render || null,
+      estimates: manifest.estimates || null,
+      status: "cancelled",
+      phase: "cancelled",
+      progress: 100,
+      output: null,
+      cancelledOutput: output,
+      warnings,
+      logs: [{
+        level: cancelledLog.level,
+        message: cancelledLog.message,
+        at: cancelledLog.createdAt.toDate().toISOString(),
+      }],
+      rendererConfigured: rendererUrlConfigured,
+    };
+  }
+
+  await ref.set({
+    status: "ready",
+    phase: "ready",
+    progress: 100,
+    output,
+    warnings,
+    rendererResult: {
+      mode: rendererResult.mode || "cloud-run-ffmpeg",
+      elapsedMs: rendererResult.elapsedMs || null,
+    },
+    completedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    logs: admin.firestore.FieldValue.arrayUnion(...logs),
+  }, { merge: true });
+
+  return {
+    jobId,
+    projectName: manifest.project?.name || "Untitled",
+    render: manifest.render || null,
+    estimates: manifest.estimates || null,
+    status: "ready",
+    phase: "ready",
+    progress: 100,
+    output,
+    warnings,
+    logs: logs.map((log) => ({
+      level: log.level,
+      message: log.message,
+      at: log.createdAt.toDate().toISOString(),
+    })),
+    rendererConfigured: rendererUrlConfigured,
+  };
+}
+
+async function enqueueVideoExportTask({ jobId, uid }) {
+  await getFunctions().taskQueue(EXPORT_TASK_QUEUE_RESOURCE).enqueue({
+    jobId,
+    uid,
+  }, {
+    dispatchDeadlineSeconds: 1800,
+  });
+}
+
+async function processStoredVideoExportJob({ jobId, uid }) {
+  const { ref, data } = await getOwnedJob(uid, jobId);
+  if (TERMINAL_STATUSES.has(data.status)) {
+    return {
+      jobId,
+      status: data.status,
+      phase: data.phase || data.status,
+      progress: data.progress || 0,
+      skipped: true,
+    };
+  }
+
+  const manifest = await resolveJobManifest(data);
+  const validationErrors = validateExportManifest(manifest, { uid });
+  if (validationErrors.length) {
+    logExportSecurityEvent("video_export_worker_manifest_rejected", {
+      uid,
+      jobId,
+      errorCount: validationErrors.length,
+      errors: validationErrors,
+    });
+    await markJobFailedUnlessCancelled(ref, new HttpsError("invalid-argument", "Manifest Export Pro source invalide.", {
+      errors: validationErrors,
+    }));
+    return {
+      jobId,
+      status: "failed",
+      phase: "failed",
+      progress: data.progress || 18,
+      errors: validationErrors,
+    };
+  }
+
+  const outputStoragePath = data.outputStoragePath || buildOutputStoragePath(uid, jobId);
+  const rendererUrlConfigured = Boolean(getExportRendererUrl());
+  try {
+    return await executeRendererForJob({
+      ref,
+      jobId,
+      uid,
+      manifest,
+      outputStoragePath,
+      rendererUrlConfigured,
+    });
+  } catch (error) {
+    await markJobFailedUnlessCancelled(ref, error);
+    throw error;
+  }
+}
+
+async function isJobCancellationRequested(ref) {
+  const snapshot = await ref.get();
+  const data = snapshot.exists ? snapshot.data() || {} : {};
+  return data.status === "cancelled" || data.phase === "cancelled" || data.cancelRequested === true;
+}
+
+async function markJobRenderingUnlessCancelled(ref) {
+  return admin.firestore().runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    const data = snapshot.exists ? snapshot.data() || {} : {};
+    if (data.status === "cancelled" || data.phase === "cancelled" || data.cancelRequested === true) {
+      return false;
+    }
+    transaction.set(ref, {
+      status: "rendering",
+      phase: "rendering",
+      progress: 35,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      logs: admin.firestore.FieldValue.arrayUnion(publicLog("Renderer Cloud Run appele.")),
+    }, { merge: true });
+    return true;
+  });
+}
+
+async function markJobFailedUnlessCancelled(ref, error) {
+  return admin.firestore().runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    const data = snapshot.exists ? snapshot.data() || {} : {};
+    if (data.status === "cancelled" || data.phase === "cancelled" || data.cancelRequested === true) {
+      transaction.set(ref, {
+        status: "cancelled",
+        phase: "cancelled",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        logs: admin.firestore.FieldValue.arrayUnion(publicLog("Erreur renderer ignoree apres annulation.", "warning")),
+      }, { merge: true });
+      return false;
+    }
+    transaction.set(ref, {
+      status: "failed",
+      phase: "failed",
+      progress: 35,
+      error: {
+        code: error.code || "render-service-failed",
+        message: error.message || "Erreur renderer Cloud Run.",
+        details: error.details || null,
+      },
+      failedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      logs: admin.firestore.FieldValue.arrayUnion(publicLog(error.message || "Erreur renderer Cloud Run.", "error")),
+    }, { merge: true });
+    return true;
+  });
 }
 
 async function getOwnedJob(uid, jobId) {
@@ -174,6 +961,78 @@ async function getOwnedJob(uid, jobId) {
   return { ref, data };
 }
 
+function timestampToIso(value) {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  if (typeof value.toDate === "function") {
+    const date = value.toDate();
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  }
+  return null;
+}
+
+function publicAdminExportJob(snapshot) {
+  const data = snapshot.data() || {};
+  return {
+    id: snapshot.id,
+    uid: data.uid || data.ownerUid || null,
+    status: data.status || "unknown",
+    phase: data.phase || data.status || "unknown",
+    progress: finiteNumber(data.progress, 0),
+    render: data.render || null,
+    output: data.output ? {
+      sizeBytes: data.output.sizeBytes || null,
+      contentType: data.output.contentType || null,
+      mockOnly: data.output.mockOnly === true,
+      hasStoragePath: Boolean(data.output.storagePath),
+      hasDownloadUrl: Boolean(data.output.downloadUrl),
+    } : null,
+    manifestSummary: data.manifestSummary || null,
+    estimates: data.estimates || null,
+    billingGate: data.billingGate || null,
+    retryOf: data.retryOf || null,
+    renderer: data.renderer || null,
+    rendererResult: data.rendererResult || null,
+    error: data.error ? {
+      code: data.error.code || null,
+      message: data.error.message || null,
+    } : null,
+    createdAt: timestampToIso(data.createdAt),
+    updatedAt: timestampToIso(data.updatedAt),
+    completedAt: timestampToIso(data.completedAt),
+    failedAt: timestampToIso(data.failedAt),
+    cancelledAt: timestampToIso(data.cancelledAt),
+  };
+}
+
+function summarizeAdminExportJobs(jobs = []) {
+  const statusCounts = jobs.reduce((counts, job) => {
+    counts[job.status] = (counts[job.status] || 0) + 1;
+    return counts;
+  }, {});
+  const outputSizeBytes = jobs.reduce((total, job) => total + finiteNumber(job.output?.sizeBytes, 0), 0);
+  const sourceSizeBytes = jobs.reduce((total, job) => total + finiteNumber(job.manifestSummary?.sourceSizeBytes, 0), 0);
+  const estimatedCostEur = jobs.reduce((total, job) => {
+    return total + finiteNumber(job.estimates?.cost?.eur ?? job.manifestSummary?.estimatedCostEur, 0);
+  }, 0);
+  const elapsedMsValues = jobs
+    .map((job) => finiteNumber(job.rendererResult?.elapsedMs, 0))
+    .filter((value) => value > 0);
+  const averageElapsedMs = elapsedMsValues.length
+    ? Math.round(elapsedMsValues.reduce((total, value) => total + value, 0) / elapsedMsValues.length)
+    : 0;
+
+  return {
+    totalJobs: jobs.length,
+    statusCounts,
+    outputSizeBytes,
+    sourceSizeBytes,
+    estimatedCostEur,
+    averageElapsedMs,
+  };
+}
+
 const createVideoExportJob = onCall(
   {
     region: REGION,
@@ -185,8 +1044,13 @@ const createVideoExportJob = onCall(
   async (request) => {
     const uid = assertAuthenticated(request);
     const manifest = request.data?.manifest;
-    const validationErrors = validateExportManifest(manifest);
+    const validationErrors = validateExportManifest(manifest, { uid });
     if (validationErrors.length) {
+      logExportSecurityEvent("video_export_manifest_rejected", {
+        uid,
+        errorCount: validationErrors.length,
+        errors: validationErrors,
+      });
       throw new HttpsError("invalid-argument", "Manifest Export Pro invalide.", {
         errors: validationErrors,
       });
@@ -195,99 +1059,75 @@ const createVideoExportJob = onCall(
     const now = admin.firestore.FieldValue.serverTimestamp();
     const ref = exportJobsRef().doc();
     const outputStoragePath = buildOutputStoragePath(uid, ref.id);
+    const manifestStoragePath = buildManifestStoragePath(uid, ref.id);
+    const manifestSummary = buildManifestSummary(manifest, manifestStoragePath);
+    const planAccess = resolveExportPlanAccess(request);
     const rendererUrlConfigured = Boolean(getExportRendererUrl());
+    await writeManifestToStorage(manifestStoragePath, manifest);
     const job = {
       uid,
       ownerUid: uid,
       status: "queued",
       phase: "queueing",
       progress: 18,
-      manifest,
+      manifestVersion: manifest.version,
+      manifestStoragePath,
+      manifestSummary,
       render: manifest.render,
       outputStoragePath,
+      estimates: manifest.estimates || null,
+      billingGate: planAccess,
       renderer: {
         mode: "cloud-run-ffmpeg",
         urlConfigured: rendererUrlConfigured,
       },
       createdAt: now,
       updatedAt: now,
-      logs: [publicLog("Job Export Pro cree et mis en file Cloud Run.")],
+      logs: [
+        publicLog("Job Export Pro cree et mis en file Cloud Run."),
+        publicLog("Controle plan/credits MVP explicite: non facture tant que le billing export n est pas finalise.", "warning"),
+      ],
     };
 
     await ref.set(job);
 
-    try {
-      await ref.set({
-        status: "rendering",
-        phase: "rendering",
-        progress: 35,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        logs: admin.firestore.FieldValue.arrayUnion(publicLog("Renderer Cloud Run appele.")),
-      }, { merge: true });
+    if (shouldUseTaskQueueOrchestration()) {
+      try {
+        await enqueueVideoExportTask({ jobId: ref.id, uid });
+      } catch (error) {
+        await markJobFailedUnlessCancelled(ref, new HttpsError("failed-precondition", "Mise en file Cloud Tasks impossible.", {
+          message: error.message || "enqueue failed",
+        }));
+        throw new HttpsError("failed-precondition", "Mise en file Cloud Tasks impossible.", {
+          message: error.message || "enqueue failed",
+        });
+      }
+      return {
+        jobId: ref.id,
+        projectName: manifest.project?.name || "Untitled",
+        render: manifest.render || null,
+        estimates: manifest.estimates || null,
+        status: "queued",
+        phase: "queueing",
+        progress: 18,
+        output: null,
+        warnings: [],
+        rendererConfigured: rendererUrlConfigured,
+        orchestration: "taskQueue",
+      };
+    }
 
-      const rendererResult = await callRenderService({
+    try {
+      return await executeRendererForJob({
+        ref,
         jobId: ref.id,
         uid,
         manifest,
         outputStoragePath,
+        rendererUrlConfigured,
       });
-      const renderedStoragePath = rendererResult.output?.storagePath || outputStoragePath;
-      const output = {
-        storagePath: renderedStoragePath,
-        downloadUrl: rendererResult.output?.downloadUrl || await createOutputDownloadUrl(renderedStoragePath),
-        sizeBytes: rendererResult.output?.sizeBytes || null,
-        contentType: "video/mp4",
-        mockOnly: false,
-      };
-      const warnings = rendererResult.warnings || [];
-      const logs = [
-        publicLog("Renderer Cloud Run termine.", "success"),
-        ...warnings.map((warning) => publicLog(String(warning), "warning")),
-      ];
-
-      await ref.set({
-        status: "ready",
-        phase: "ready",
-        progress: 100,
-        output,
-        warnings,
-        rendererResult: {
-          mode: rendererResult.mode || "cloud-run-ffmpeg",
-          elapsedMs: rendererResult.elapsedMs || null,
-        },
-        completedAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        logs: admin.firestore.FieldValue.arrayUnion(...logs),
-      }, { merge: true });
-
-      return {
-        jobId: ref.id,
-        status: "ready",
-        phase: "ready",
-        progress: 100,
-        output,
-        warnings,
-        logs: logs.map((log) => ({
-          level: log.level,
-          message: log.message,
-          at: log.createdAt.toDate().toISOString(),
-        })),
-        rendererConfigured: rendererUrlConfigured,
-      };
     } catch (error) {
-      await ref.set({
-        status: "failed",
-        phase: "failed",
-        progress: 35,
-        error: {
-          code: error.code || "render-service-failed",
-          message: error.message || "Erreur renderer Cloud Run.",
-          details: error.details || null,
-        },
-        failedAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        logs: admin.firestore.FieldValue.arrayUnion(publicLog(error.message || "Erreur renderer Cloud Run.", "error")),
-      }, { merge: true });
+      await markJobFailedUnlessCancelled(ref, error);
       throw error;
     }
   }
@@ -338,6 +1178,9 @@ const retryVideoExportJob = onCall(
   {
     region: REGION,
     enforceAppCheck: ENFORCE_EXPORT_APP_CHECK,
+    secrets: [EXPORT_SIGNING_SECRET],
+    timeoutSeconds: 3600,
+    memory: "512MiB",
   },
   async (request) => {
     const uid = assertAuthenticated(request);
@@ -346,12 +1189,16 @@ const retryVideoExportJob = onCall(
     if (!RETRYABLE_STATUSES.has(data.status)) {
       throw new HttpsError("failed-precondition", "Seuls les exports echoues ou annules peuvent etre relances.");
     }
-    if (!data.manifest) {
-      throw new HttpsError("failed-precondition", "Manifest export absent du job source.");
-    }
 
-    const validationErrors = validateExportManifest(data.manifest);
+    const manifest = await resolveJobManifest(data);
+    const validationErrors = validateExportManifest(manifest, { uid });
     if (validationErrors.length) {
+      logExportSecurityEvent("video_export_retry_manifest_rejected", {
+        uid,
+        jobId,
+        errorCount: validationErrors.length,
+        errors: validationErrors,
+      });
       throw new HttpsError("invalid-argument", "Manifest Export Pro source invalide.", {
         errors: validationErrors,
       });
@@ -359,18 +1206,28 @@ const retryVideoExportJob = onCall(
 
     const now = admin.firestore.FieldValue.serverTimestamp();
     const ref = exportJobsRef().doc();
+    const manifestStoragePath = buildManifestStoragePath(uid, ref.id);
+    const manifestSummary = buildManifestSummary(manifest, manifestStoragePath);
+    const outputStoragePath = buildOutputStoragePath(uid, ref.id);
+    const rendererUrlConfigured = Boolean(getExportRendererUrl());
+    await writeManifestToStorage(manifestStoragePath, manifest);
     await ref.set({
       uid,
       ownerUid: uid,
       status: "queued",
       phase: "queueing",
-      progress: 0,
-      manifest: data.manifest,
-      render: data.render || data.manifest.render,
+      progress: 18,
+      manifestVersion: manifest.version,
+      manifestStoragePath,
+      manifestSummary,
+      render: data.render || manifest.render,
+      outputStoragePath,
+      estimates: manifest.estimates || null,
+      billingGate: resolveExportPlanAccess(request),
       retryOf: jobId,
-      renderer: data.renderer || {
-        mode: "cloud-run-skeleton",
-        urlConfigured: Boolean(String(process.env.EXPORT_RENDERER_URL || "").trim()),
+      renderer: {
+        mode: "cloud-run-ffmpeg",
+        urlConfigured: rendererUrlConfigured,
       },
       createdAt: now,
       updatedAt: now,
@@ -381,12 +1238,141 @@ const retryVideoExportJob = onCall(
       }],
     });
 
+    if (shouldUseTaskQueueOrchestration()) {
+      try {
+        await enqueueVideoExportTask({ jobId: ref.id, uid });
+      } catch (error) {
+        await markJobFailedUnlessCancelled(ref, new HttpsError("failed-precondition", "Mise en file Cloud Tasks impossible.", {
+          message: error.message || "enqueue failed",
+        }));
+        throw new HttpsError("failed-precondition", "Mise en file Cloud Tasks impossible.", {
+          message: error.message || "enqueue failed",
+        });
+      }
+      return {
+        jobId: ref.id,
+        projectName: manifest.project?.name || "Untitled",
+        render: manifest.render || null,
+        estimates: manifest.estimates || null,
+        status: "queued",
+        phase: "queueing",
+        progress: 18,
+        output: null,
+        warnings: [],
+        rendererConfigured: rendererUrlConfigured,
+        retryOf: jobId,
+        orchestration: "taskQueue",
+      };
+    }
+
+    try {
+      const result = await executeRendererForJob({
+        ref,
+        jobId: ref.id,
+        uid,
+        manifest,
+        outputStoragePath,
+        rendererUrlConfigured,
+      });
+      return {
+        ...result,
+        retryOf: jobId,
+      };
+    } catch (error) {
+      await markJobFailedUnlessCancelled(ref, error);
+      throw error;
+    }
+  }
+);
+
+const processVideoExportJob = onTaskDispatched(
+  {
+    region: TASK_QUEUE_REGION,
+    retryConfig: {
+      maxAttempts: 2,
+      minBackoffSeconds: 30,
+    },
+    rateLimits: {
+      maxConcurrentDispatches: 2,
+    },
+    secrets: [EXPORT_SIGNING_SECRET],
+    timeoutSeconds: 1800,
+    memory: "512MiB",
+  },
+  async (request) => {
+    const jobId = requireJobId(request.data?.jobId);
+    const uid = request.data?.uid;
+    if (typeof uid !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(uid)) {
+      throw new HttpsError("invalid-argument", "uid invalide pour task export.");
+    }
+    await processStoredVideoExportJob({ jobId, uid });
+  }
+);
+
+const getVideoExportDownloadUrl = onCall(
+  {
+    region: REGION,
+    enforceAppCheck: ENFORCE_EXPORT_APP_CHECK,
+  },
+  async (request) => {
+    const uid = assertAuthenticated(request);
+    const jobId = requireJobId(request.data?.jobId);
+    const { data } = await getOwnedJob(uid, jobId);
+    if (data.status !== "ready") {
+      throw new HttpsError("failed-precondition", "Le MP4 final n'est pas encore pret.");
+    }
+
+    const storagePath = data.output?.storagePath || data.outputStoragePath;
+    if (!isOwnerOutputStoragePath(uid, storagePath)) {
+      logExportSecurityEvent("video_export_download_path_rejected", {
+        uid,
+        jobId,
+        errorCount: 1,
+        errors: ["outputStoragePath owner scope invalide"],
+      });
+      throw new HttpsError("permission-denied", "Chemin output export invalide pour cet utilisateur.");
+    }
+
+    const downloadUrl = await createOutputDownloadUrl(storagePath, DOWNLOAD_URL_TTL_MS);
+    if (!downloadUrl) {
+      throw new HttpsError("failed-precondition", "Impossible de generer l'URL de telechargement MP4.");
+    }
+
     return {
-      jobId: ref.id,
-      status: "queued",
-      phase: "queueing",
-      progress: 0,
-      retryOf: jobId,
+      jobId,
+      storagePath,
+      downloadUrl,
+      expiresAt: new Date(Date.now() + DOWNLOAD_URL_TTL_MS).toISOString(),
+      sizeBytes: data.output?.sizeBytes || null,
+      contentType: data.output?.contentType || "video/mp4",
+    };
+  }
+);
+
+const getVideoExportAdminTelemetry = onCall(
+  {
+    region: REGION,
+    enforceAppCheck: ENFORCE_EXPORT_APP_CHECK,
+  },
+  async (request) => {
+    assertAuthenticated(request);
+    await assertExportAdmin(request);
+    const requestedLimit = finiteNumber(request.data?.limit, 100);
+    const resultLimit = Math.max(1, Math.min(200, Math.round(requestedLimit)));
+    const snapshot = await exportJobsRef()
+      .orderBy("createdAt", "desc")
+      .limit(resultLimit)
+      .get();
+    const jobs = snapshot.docs.map(publicAdminExportJob);
+    const cloudBilling = await getCloudBillingTelemetry();
+
+    return {
+      scope: "admin-global",
+      limit: resultLimit,
+      jobs,
+      summary: summarizeAdminExportJobs(jobs),
+      cloudBilling,
+      generatedAt: new Date().toISOString(),
     };
   }
 );
@@ -395,5 +1381,14 @@ module.exports = {
   createVideoExportJob,
   cancelVideoExportJob,
   retryVideoExportJob,
+  processVideoExportJob,
+  getVideoExportDownloadUrl,
+  getVideoExportAdminTelemetry,
   validateExportManifest,
+  EXPORT_QUOTAS,
+  buildManifestSummary,
+  summarizeAdminExportJobs,
+  getCloudBillingTelemetry,
+  parseBillingExportTable,
+  processStoredVideoExportJob,
 };

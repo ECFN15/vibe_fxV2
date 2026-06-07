@@ -10,7 +10,7 @@ export const EXPORT_RENDER_PHASES = [
 
 export function resolveExportRenderMode() {
     const requestedMode = process.env.NEXT_PUBLIC_VIBECUT_EXPORT_MODE;
-    if (requestedMode === 'server' || requestedMode === 'firebase') return requestedMode;
+    if (requestedMode === 'server' || requestedMode === 'firebase') return 'firebase';
     return 'localMock';
 }
 
@@ -134,6 +134,9 @@ async function runFirebaseRenderer({ job, manifest, signal, onProgress }) {
         return {
             ...job,
             id: data.jobId || job.id,
+            projectName: data.projectName || manifest?.project?.name || job.projectName,
+            render: data.render || manifest?.render || job.render,
+            estimates: data.estimates || manifest?.estimates || job.estimates,
             status,
             phase: data.phase || status,
             phaseLabel: status === 'ready' ? 'Pret' : 'Rendu Firebase',

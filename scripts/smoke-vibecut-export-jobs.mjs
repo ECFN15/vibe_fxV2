@@ -5,9 +5,106 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const exportDir = path.join(process.cwd(), "src", "features", "vibefx-studio", "video", "export");
+const panelPath = path.join(process.cwd(), "src", "features", "vibefx-studio", "video", "panels", "ExportVideoPanel.jsx");
 const tempDir = await mkdtemp(path.join(os.tmpdir(), "vibecut-export-jobs-"));
 
 try {
+  const panelSource = await readFile(panelPath, "utf8");
+  assert.equal(
+    /startVideoExportJob\(\{[\s\S]*?mode:\s*['"]localMock['"]/m.test(panelSource),
+    false,
+    "ExportVideoPanel must not force localMock when starting Export Pro",
+  );
+  assert.equal(
+    /retryVideoExportJob\(\{[\s\S]*?mode:\s*['"]localMock['"]/m.test(panelSource),
+    false,
+    "ExportVideoPanel must not force localMock when retrying Export Pro",
+  );
+  assert.equal(
+    /validateExportManifest\([^)]*\{[^}]*mode:\s*['"]localMock['"]/m.test(panelSource),
+    false,
+    "ExportVideoPanel preflight must use the configured export mode",
+  );
+  assert.match(
+    panelSource,
+    /showDirectoryPicker/,
+    "ExportVideoPanel must expose File System Access API destination support",
+  );
+  assert.match(
+    panelSource,
+    /vibecut-export-destination-v1/,
+    "ExportVideoPanel must persist the desktop destination preference",
+  );
+  assert.match(
+    panelSource,
+    /function buildExportFileName/,
+    "ExportVideoPanel must generate deterministic MP4 file names",
+  );
+  assert.match(
+    panelSource,
+    /function resolveExportOutputDownloadUrl/,
+    "ExportVideoPanel must regenerate Storage download URLs when only storagePath is available",
+  );
+  assert.match(
+    panelSource,
+    /retryVideoExportJob\(\{[\s\S]*jobId:\s*job\?\.id/,
+    "ExportVideoPanel must pass jobId to retry existing Firebase jobs from the server manifest",
+  );
+  assert.match(
+    panelSource,
+    /import \{ resolveOutputMediaMetadata \} from '..\/export\/exportMediaMetadata'/,
+    "ExportVideoPanel must use the shared output media metadata normalizer",
+  );
+  assert.match(
+    panelSource,
+    /data-testid=\{label === 'Codec' \? 'export-output-codec'/,
+    "ExportVideoPanel must expose the real output codec for UI tests",
+  );
+  assert.match(
+    panelSource,
+    /label === 'Container' \? 'export-output-container'/,
+    "ExportVideoPanel must expose the real output container for UI tests",
+  );
+  assert.match(
+    panelSource,
+    /label === 'MIME' \? 'export-output-mime'/,
+    "ExportVideoPanel must expose the real output MIME type for UI tests",
+  );
+  assert.equal(
+    /\['Codec',\s*['"]H\.264\/AAC['"]\]/.test(panelSource),
+    false,
+    "ExportVideoPanel must not hardcode H.264/AAC in the render modal grid",
+  );
+
+  const renderServiceSource = await readFile(path.join(exportDir, "exportRenderService.js"), "utf8");
+  assert.match(
+    renderServiceSource,
+    /projectName:\s*data\.projectName \|\| manifest\?\.project\?\.name/,
+    "Firebase render results must preserve the project name returned by Functions",
+  );
+  assert.match(
+    renderServiceSource,
+    /render:\s*data\.render \|\| manifest\?\.render/,
+    "Firebase render results must preserve render codec/resolution metadata",
+  );
+  assert.match(
+    renderServiceSource,
+    /estimates:\s*data\.estimates \|\| manifest\?\.estimates/,
+    "Firebase render results must preserve export estimates for the modal",
+  );
+
+  const jobServiceSource = await readFile(path.join(exportDir, "exportJobService.js"), "utf8");
+  assert.match(
+    jobServiceSource,
+    /manifestSummary\.project\?\.name/,
+    "Firestore job normalization must recover project names from manifestSummary after refresh",
+  );
+  assert.match(
+    jobServiceSource,
+    /manifestSummary\.sourceSizeBytes/,
+    "Firestore job normalization must recover source size estimates from manifestSummary after refresh",
+  );
+
   const files = [
     ["exportManifest.js", "exportManifest.mjs"],
     ["exportStorageService.js", "exportStorageService.mjs"],

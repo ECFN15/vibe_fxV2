@@ -58,6 +58,20 @@ const DEFAULT_FILTERS = {
     grain: 0,
 };
 
+const EXPORT_COST_ASSUMPTIONS = {
+    cloudRunVcpu: 2,
+    cloudRunMemoryGib: 2,
+    cpuSecondUsd: 0.000024,
+    memoryGibSecondUsd: 0.0000025,
+    storageGibMonthUsd: 0.026,
+    usdToEur: 0.92,
+};
+
+const SUPPORTED_SERVER_TRANSITIONS = new Set(['cut', 'fade', 'crossfade']);
+const SERVER_XFADE_TRANSITIONS = new Set(['fade', 'crossfade']);
+const SUPPORTED_SERVER_FIT_MODES = new Set(['cover', 'contain']);
+const SUPPORTED_SERVER_TEXT_ANIMATIONS = new Set(['none', 'fade']);
+
 function finiteNumber(value, fallback = 0) {
     const numeric = Number(value);
     return Number.isFinite(numeric) ? numeric : fallback;
@@ -75,6 +89,10 @@ function compactObject(object = {}) {
     return Object.fromEntries(
         Object.entries(object).filter(([, value]) => value !== undefined)
     );
+}
+
+function sourceSizeBytes(source = {}) {
+    return Math.max(0, Math.round(finiteNumber(source.sourceSizeBytes ?? source.size ?? source.file?.size, 0)));
 }
 
 function normalizeFilters(filters = {}) {
@@ -151,6 +169,41 @@ export function estimateExportDuration(manifest = {}) {
     };
 }
 
+export function estimateExportCost(manifest = {}, assumptions = EXPORT_COST_ASSUMPTIONS) {
+    const renderSeconds = finiteNumber(manifest.estimates?.renderTime?.seconds, 0);
+    const outputBytes = finiteNumber(manifest.estimates?.outputSize?.bytes, 0);
+    const computeUsd = renderSeconds * (
+        assumptions.cloudRunVcpu * assumptions.cpuSecondUsd +
+        assumptions.cloudRunMemoryGib * assumptions.memoryGibSecondUsd
+    );
+    const storageUsdPerDay = outputBytes > 0
+        ? (outputBytes / (1024 ** 3)) * assumptions.storageGibMonthUsd / 30
+        : 0;
+    const usd = computeUsd + storageUsdPerDay;
+    const eur = usd * assumptions.usdToEur;
+
+    return {
+        renderSeconds,
+        outputSizeBytes: outputBytes,
+        usd,
+        eur,
+        label: eur > 0 ? `${eur.toFixed(eur >= 1 ? 2 : 4)} EUR est.` : '0 EUR est.',
+    };
+}
+
+export function estimateSourceSize(manifest = {}) {
+    const bytes = [
+        ...(manifest.clips || []).map((clip) => finiteNumber(clip.metadata?.sourceSizeBytes ?? clip.sourceSizeBytes, 0)),
+        ...(manifest.audioTracks || []).map((track) => finiteNumber(track.sourceSizeBytes, 0)),
+    ].reduce((sum, value) => sum + value, 0);
+
+    return {
+        bytes,
+        megabytes: bytes / 1024 / 1024,
+        label: bytes > 0 ? `${(bytes / 1024 / 1024).toFixed(bytes > 100 * 1024 * 1024 ? 0 : 1)} Mo` : 'Inconnue',
+    };
+}
+
 export function buildExportManifest({
     projectId = null,
     projectName = 'Untitled',
@@ -161,6 +214,7 @@ export function buildExportManifest({
     exportFps = 30,
     qualityMode = 'pro',
     fitMode = 'cover',
+    renderSettings = {},
     rightsManifest = [],
     frameSchedule = null,
     generatedAt = null,
@@ -192,6 +246,7 @@ export function buildExportManifest({
             height: clip.height,
             displayWidth: clip.displayWidth,
             displayHeight: clip.displayHeight,
+            sourceSizeBytes: sourceSizeBytes(clip),
             sourceFrameRate: clip.sourceFrameRate,
             importFrameRate: clip.importFrameRate,
             sourceFrameRateStatus: clip.sourceFrameRateStatus,
@@ -236,6 +291,7 @@ export function buildExportManifest({
         trimStart: finiteNumber(track.trimStart, 0),
         trimEnd: finiteNumber(track.trimEnd, track.duration || 0),
         volume: clamp(finiteNumber(track.volume, 100), 0, 100),
+        sourceSizeBytes: sourceSizeBytes(track),
         trackId: track.trackId || null,
         rightsId: track.rightsId || track.id || null,
     }));
@@ -265,6 +321,7 @@ export function buildExportManifest({
             audioBitrate: quality.audioBitrate,
             sizeMultiplier: quality.sizeMultiplier,
             fitMode,
+            ...compactObject(renderSettings),
         },
         clips,
         transitions,
@@ -281,16 +338,26 @@ export function buildExportManifest({
         },
     };
 
-    return {
+    const estimates = {
+        outputSize: estimateExportSize(manifest),
+        renderTime: estimateExportDuration(manifest),
+    };
+    const manifestWithEstimates = {
         ...manifest,
+        estimates,
+    };
+
+    return {
+        ...manifestWithEstimates,
         estimates: {
-            outputSize: estimateExportSize(manifest),
-            renderTime: estimateExportDuration(manifest),
+            ...estimates,
+            sourceSize: estimateSourceSize(manifestWithEstimates),
+            cost: estimateExportCost(manifestWithEstimates),
         },
     };
 }
 
-export function validateExportManifest(manifest = {}, { mode = 'localMock' } = {}) {
+export function validateExportManifest(manifest = {}, { mode = 'localMock', allowClientUpload = false } = {}) {
     const errors = [];
     const warnings = [];
     const render = manifest.render || {};
@@ -307,7 +374,7 @@ export function validateExportManifest(manifest = {}, { mode = 'localMock' } = {
 
     clips.forEach((clip) => {
         const label = clip.name || clip.id || 'clip';
-        if (!clip.sourceStoragePath && mode !== 'localMock') errors.push(`Source serveur manquante pour ${label}.`);
+        if (!clip.sourceStoragePath && mode !== 'localMock' && !allowClientUpload) errors.push(`Source serveur manquante pour ${label}.`);
         if (!clip.sourceStoragePath && mode === 'localMock') warnings.push(`Source ${label} non uploadee: le mock local validera seulement le workflow.`);
         if (!clip.localPreviewUrl && !clip.sourceStoragePath) errors.push(`Source originale introuvable pour ${label}.`);
         if (finiteNumber(clip.duration, 0) <= 0) errors.push(`Duree clip invalide: ${label}.`);
@@ -317,7 +384,7 @@ export function validateExportManifest(manifest = {}, { mode = 'localMock' } = {
 
     (manifest.audioTracks || []).forEach((track) => {
         const label = track.name || track.id || 'audio';
-        if (!track.sourceStoragePath && mode !== 'localMock') errors.push(`Source audio serveur manquante pour ${label}.`);
+        if (!track.sourceStoragePath && mode !== 'localMock' && !allowClientUpload) errors.push(`Source audio serveur manquante pour ${label}.`);
         if (!track.localPreviewUrl && !track.sourceStoragePath) errors.push(`Source audio introuvable pour ${label}.`);
     });
 
@@ -334,3 +401,114 @@ export function validateExportManifest(manifest = {}, { mode = 'localMock' } = {
     };
 }
 
+export function validateExportRenderCoverage(manifest = {}) {
+    const blockingErrors = [];
+    const degradedWarnings = [];
+    const supportedFeatures = [
+        'video trims',
+        'multi-clip concat',
+        'adjacent fade/crossfade transitions',
+        'cover/contain fit',
+        'orientation rotation 90/180/270',
+        'basic text overlays fade/none',
+        'FFmpeg color filters',
+        'source clip audio volume mix',
+        'external audio trim/start/volume mix',
+        'constant FPS',
+        'H.264/AAC MP4 encode',
+    ];
+    const unsupportedFeatures = [];
+    const clips = manifest.clips || [];
+
+    validateServerTransitionCoverage(manifest.transitions || [], clips, {
+        unsupportedFeatures,
+        blockingErrors,
+    });
+
+    (manifest.textOverlays || []).forEach((text) => {
+        const label = text.content || text.id || 'texte';
+        if (!String(text.content || '').trim()) {
+            unsupportedFeatures.push('textOverlays');
+            blockingErrors.push(`Texte vide non rendu serveur: ${label}.`);
+        }
+        if (finiteNumber(text.endTime, 0) <= finiteNumber(text.startTime, 0)) {
+            unsupportedFeatures.push('textOverlays');
+            blockingErrors.push(`Timing texte invalide: ${label}.`);
+        }
+        if (!SUPPORTED_SERVER_TEXT_ANIMATIONS.has(text.animation || 'fade')) {
+            unsupportedFeatures.push('textAnimation');
+            blockingErrors.push(`Animation texte non rendue serveur: ${text.animation}. Utilise fade ou none.`);
+        }
+        if (!SUPPORTED_SERVER_TEXT_ANIMATIONS.has(text.animationOut || 'fade')) {
+            unsupportedFeatures.push('textAnimationOut');
+            blockingErrors.push(`Animation sortie texte non rendue serveur: ${text.animationOut}. Utilise fade ou none.`);
+        }
+    });
+
+    clips.forEach((clip) => {
+        const label = clip.name || clip.id || 'clip';
+        const speed = finiteNumber(clip.speed, 1) || 1;
+        if (Math.abs(speed - 1) > 0.001) {
+            unsupportedFeatures.push('clipSpeed');
+            blockingErrors.push(`Vitesse clip non rendue serveur: ${label}.`);
+        }
+        if (!SUPPORTED_SERVER_FIT_MODES.has(clip.fitMode || manifest.render?.fitMode || 'cover')) {
+            unsupportedFeatures.push('fitMode');
+            blockingErrors.push(`Fit non rendu serveur sans deformation garantie: ${label}. Utilise cover ou contain.`);
+        }
+        const unsupportedFilter = Object.entries(clip.filters || {}).find(([key, value]) => DEFAULT_FILTERS[key] === undefined && finiteNumber(value, 0) !== 0);
+        if (unsupportedFilter) {
+            unsupportedFeatures.push('colorFilters');
+            blockingErrors.push(`Filtre colorimetrie non supporte serveur: ${label}.${unsupportedFilter[0]}.`);
+        }
+    });
+
+    if (!blockingErrors.length) {
+        degradedWarnings.push('Renderer serveur actuel limite au socle video + transitions fade/crossfade adjacentes + textes fade + colorimetrie FFmpeg + audio source/musique externe: trims, concat/xfade, fit cover/contain, rotation, texte basique, filtres, mix audio, FPS constant et encodage MP4.');
+    }
+
+    return {
+        supported: blockingErrors.length === 0,
+        blockingErrors: Array.from(new Set(blockingErrors)),
+        degradedWarnings: Array.from(new Set(degradedWarnings)),
+        supportedFeatures,
+        unsupportedFeatures: Array.from(new Set(unsupportedFeatures)),
+    };
+}
+
+function validateServerTransitionCoverage(transitions = [], clips = [], { unsupportedFeatures, blockingErrors }) {
+    const transitionList = Array.isArray(transitions) ? transitions : [];
+    const clipList = Array.isArray(clips) ? clips : [];
+    if (!transitionList.length) return;
+
+    const adjacentPairs = new Set();
+    for (let index = 0; index < clipList.length - 1; index += 1) {
+        const fromId = clipList[index]?.id;
+        const toId = clipList[index + 1]?.id;
+        if (fromId && toId) adjacentPairs.add(`${fromId}->${toId}`);
+    }
+
+    transitionList.forEach((transition) => {
+        const type = transition.type || 'transition';
+        const duration = finiteNumber(transition.duration, 0);
+        const pairKey = `${transition.fromItemId || ''}->${transition.toItemId || ''}`;
+        const placement = transition.params?.placement;
+        const isCutPlacement = placement === 'cut' || placement === undefined;
+
+        if (!SUPPORTED_SERVER_TRANSITIONS.has(type)) {
+            unsupportedFeatures.push(`transition:${type}`);
+            blockingErrors.push(`Transition non rendue serveur: ${type}. Utilise cut, fade ou crossfade.`);
+            return;
+        }
+        if (duration <= 0) return;
+        if (!SERVER_XFADE_TRANSITIONS.has(type)) {
+            unsupportedFeatures.push(`transition:${type}`);
+            blockingErrors.push(`Transition non rendue serveur avec duree: ${type}. Utilise fade ou crossfade.`);
+            return;
+        }
+        if (!isCutPlacement || !adjacentPairs.has(pairKey)) {
+            unsupportedFeatures.push(`transition:${type}`);
+            blockingErrors.push(`Transition ${type} non adjacente non rendue serveur: ${pairKey}.`);
+        }
+    });
+}

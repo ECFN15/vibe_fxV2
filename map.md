@@ -1,6 +1,6 @@
 # map.md - Carte vivante Vibe_fx V2
 
-Derniere mise a jour : 2026-06-03
+Derniere mise a jour : 2026-06-07
 
 ## Regle
 
@@ -42,34 +42,14 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |       |-- utilitarian/
 |       `-- vibrant-accents/
 |-- docs/
-|   |-- business-flow-test.md           # Trace de tests locaux et checklist Firebase/Meta
-|   |-- ai-music-provider-audit.md      # Audit officiel 2026-05-22 des fournisseurs musique IA/API et mapping filtres Vibe_CUT par provider
-|   |-- ai-music-provider-quality-report.md # Bilan qualite provisoire des providers IA musique, tests skip sans cles et plan d'amelioration
-|   |-- ai-music-provider-integration-megaprompt.md # Prompt Codex CLI pour auditer/integrer fournisseurs musique IA/API avec filtres provider-specifiques, tests d'import et bilan qualite
-|   |-- changes-recovery-audit.md       # Rapport local de reprise : inventaire Git, lots, risques, corrections et tests restants
-|   |-- changes-recovery-audit-megaprompt.md # Prompt d'audit/reprise des changes interrompus et classification fichier par fichier
-|   |-- completion-audit.md             # Audit prompt -> artefacts + blocages externes
-|   |-- music-sourcing-and-import-plan.md # Audit sources musique, IA, licences et architecture d'import Vibe_CUT
-|   |-- pixabay-ai-music-import.md     # Usage du scraper/import local Pixabay AI Generated avec garde-fous, manifest droits et sorties public/music
-|   |-- production-saas-audit.md        # Audit Lot 0 SaaS IA/Stripe/credits/securite avant implementation Lot 1
-|   |-- production-ai-monetization-security-megaprompt.md # Prompt roadmap SaaS : IA, credits, Stripe, dashboard, securite, export production
-|   |-- publications-vibeos-design-megaprompt.md # Prompt refonte design page Publications en cockpit Vibe_OS coherent avec mise en page
-|   |-- soundtrack-local-playlist-megaprompt.md # Prompt onglet Soundtrack full page, agregateur musique et playlists locales device-first
-|   |-- soundtrack-v2-library-pixabay-megaprompt.md # Prompt refonte Soundtrack : bibliotheque projet serveur + agregateur premium Pixabay/sources gratuites
 |   |-- studio-ai-agents-megaprompt.md  # Prompt d'integration de la colonne d'agents IA contextualisee par onglet studio
-|   |-- vibecut-ui-anomaly-audit-megaprompt.md # Prompt d'audit UI/UX complet Vibe_CUT : lecture fonctionnelle, mega tests, captures, severites et incoherences produit
-|   |-- vibecut-ui-ux-audit-2026-06-02.md # Rapport d'audit UI/UX Vibe_CUT : tests lances, captures, findings P1/P2/P3 et plan de correction mobile/musique/export
-|   |-- vibecut-export-architecture-audit-2026-06-03.md # Audit export Vibe_CUT : limites MediaRecorder, benchmark CapCut/Canva, WebCodecs, Cloud Run FFmpeg et architecture A a Z
-|   |-- vibecut-pro-export-cloud-megaprompt.md # Megaprompt implementation export pro Vibe_CUT : manifeste, UI progression, local-first, Firebase/Cloud Run/FFmpeg et roadmap config
-|   |-- vibecut-pro-export-cloud-implementation.md # Notes implementation Export Pro : localMock, limites, approximations FFmpeg et roadmap Firebase/Cloud Run
-|   |-- vibecut-frontsymmetry-icon-audit-2026-06-03.md # Audit FrontSymmetry des icones VibeCut : safe area retiree, boutons carres et actions import/export recentres
-|   |-- video-editor-bug-hunter-megaprompt.md # Prompt QA/UX avance pour stabiliser l'onglet video Vibe_CUT
-|   |-- vision-filter-rd-report.md      # Rapport R&D Vision : pipeline, garde-fous, limites corpus et roadmap
-|   |-- vision-smartphone-corpus.md     # Contrat corpus smartphone Vision : 12 cas, noms fichiers, gates perceptuels/metriques
-|   `-- vision-filter-rd-megaprompt.md # Prompt R&D colorimetrie/filtres pour l'onglet Vision
+|   |-- vibecut-export-hardening-status-2026-06-06.md # Statut par phase Export Pro : done/partial/not done, blocages live K1, emulators Java, renderer frame-by-frame et fixtures MP4
+|   |-- vibecut-export-pro-checkpoint-2026-06-06.md # Checkpoint de reprise : changements, tests executes, limites Cloud Run, backoffice couts et sequence demain
+|   |-- vibecut-export-production-hardening-megaprompt.md # Megaprompt release Export Pro renderer-first : navigateur cockpit, machines serveur source de verite, textes/animations/transitions/colorimetrie/audio, destination PC et smoke final K1
+|   `-- vibecut-export-production-runbook-2026-06-06.md # Runbook source de verite Export Pro : variables, secrets, deploy controle, Cloud Run prive/OIDC, gates, smoke K1 et rotation
 |-- functions/
 |   |-- index.js                        # Exports Functions Meta/OAuth/publication + billing Stripe + AI gateway + Export Pro video
-|   |-- package.json                    # Firebase Functions Node 20 + stripe server SDK + checks modules src
+|   |-- package.json                    # Firebase Functions Node 20 + stripe server SDK + BigQuery client Billing Export + checks modules src
 |   |-- package-lock.json
 |   `-- src/
 |       |-- account.js                  # Callable suppression compte avec auth recente : purge Storage, publications, scrub jobs/checkouts, delete Auth
@@ -79,13 +59,13 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |       |   |-- mockProvider.js          # Provider IA mock sans appel externe pour tests credits
 |       |   |-- policies.js              # Policies IA bootstrap mock + lecture aiPricingPolicies + calcul cout/marge
 |       |   |-- providerRegistry.js      # Registry providers IA global, tous productionAllowed=false par defaut
-|       |   |-- reconciliation.js        # Scheduled reconciliation des reservations IA perimees
+|       |   |-- reconciliation.js        # Scheduled reconciliation des reservations IA perimees en europe-west1, region compatible Cloud Scheduler
 |       |   `-- router.js                # Router provider/model v1 avec scoring multi-candidats et blocage production mock
 |       |-- billing.js                  # Checkout Session, webhook Stripe signe, fulfillment idempotent
 |       |-- billingEvents.js            # Classification events Checkout Stripe fulfill/failed/ignored
 |       |-- billingProducts.js          # Mapping serveur produits Stripe -> entitlements/credits
 |       |-- billingSession.js           # Validation pure priceId/metadata des sessions Checkout
-|       |-- videoExport.js              # Callables skeleton Export Pro : create/cancel/retry jobs, validation manifeste MP4/H.264/AAC et App Check
+|       |-- videoExport.js              # Callables/worker Export Pro : create/cancel/retry/download/admin telemetry avec Billing Export BigQuery optionnel, taskQueue processVideoExportJob en europe-west1, validation manifeste/quotas/paths owner-scoped, manifest JSON Storage et App Check
 |       `-- appCheck.js                 # Politique App Check : enforce par defaut hors emulateurs
 |-- public/
 |   |-- assets/
@@ -99,12 +79,12 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |   |-- next.svg
 |   |-- vercel.svg
 |   `-- window.svg
-|-- render-service/                    # MVP Cloud Run FFmpeg Export Pro Vibe_CUT : signature HMAC, download Storage, encode MP4 et upload output
+|-- render-service/                    # Cloud Run FFmpeg Export Pro Vibe_CUT : verification HMAC timestamp ou platform-iam confirme, download Storage, trims/concat/xfade adjacent/rotation, textes fade/none, colorimetrie FFmpeg, mix audio source/externe, encode MP4 et upload output
 |   |-- Dockerfile                     # Image Node 20 slim + ffmpeg + npm install deps renderer
 |   |-- package.json                   # Service Node ESM + @google-cloud/storage
-|   |-- README.md                      # Perimetre MVP, limites FFmpeg et prochaines etapes production
+|   |-- README.md                      # Contrat renderer signe, perimetre FFmpeg reel, limites codecs/transitions/animations et prochaines etapes production
 |   `-- src/
-|       `-- server.js                  # Endpoints /health et /render, validation signature/manifeste, FFmpeg concat simple et upload Storage
+|       `-- server.js                  # Endpoints /health et /render, validation signature/manifeste, FFmpeg concat + fade/crossfade adjacent et upload Storage
 |-- src/
 |   |-- app/
 |   |   |-- api/
@@ -174,7 +154,8 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |   |   |   |   `-- page.js               # Vue privee usage/jobs IA noindex
 |   |   |   `-- page.js                 # Dashboard compte noindex
 |   |   |-- backoffice/
-|   |   |   |-- BackofficeClient.jsx      # Backoffice temporaire noindex : switch local/cookie pour masquer ou restaurer les surfaces IA
+|   |   |   |-- BackofficeClient.jsx      # Backoffice noindex : switch IA + dashboard exports video via callable admin globale puis fallback compte connecte
+|   |   |   |-- exportTelemetry.js        # Helpers purs dashboard exports video : cout Cloud Run/Storage estime + facture Cloud Run Billing Export BigQuery et agregats jour/semaine/mois
 |   |   |   `-- page.js                  # Metadata noindex du backoffice provisoire avant Firebase/admin claims
 |   |   |-- editeur-image-instagram/
 |   |   |   `-- page.js                 # Page SEO editeur image Instagram
@@ -194,13 +175,24 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |   |   |   |-- page.js                 # Page studio noindex + deep-link `?workspace=layout`
 |   |   |   `-- StudioClient.jsx        # Client wrapper du studio
 |   |   |-- favicon.ico
-|   |   |-- globals.css                 # Base CSS + direction cyber/dark + page d'accueil + backoffice lancement IA
+|   |   |-- globals.css                 # Base CSS + direction cyber/dark + page d'accueil + backoffice lancement IA/export telemetry
 |   |   |-- layout.js                   # Metadata racine + imports CSS globaux
 |   |   |-- page.js                     # Unique page d'accueil SSR optimisée (FAQ + Pipeline + Launch)
 |   |   |-- robots.js                   # Robots Next.js
 |   |   |-- seo-pages.js                # Donnees metadata/contenu JSON-LD des pages SEO publiques
 |   |   `-- sitemap.js                  # Sitemap Next.js pour les pages publiques
 |   |-- features/
+|   |   |-- export/                    # Module partage Export Pro : presets sociaux/pro, validation support renderer, image canvas PNG/JPEG/WebP, queue locale et panneau Export Settings
+|   |   |   |-- components/
+|   |   |   |   `-- ExportSettingsPanel.jsx # Panneau dense type DaVinci adapte Vibe_fx : presets, tabs Video/Audio/File/Advanced, estimation, Add to Render Queue
+|   |   |   |-- lib/
+|   |   |   |   |-- exportSettings.js       # Settings pro, sanitization filename, validation supporte/bloque/futur, estimations et overrides manifest
+|   |   |   |   `-- imageExport.js         # Export canvas PNG/JPEG/WebP + comparaison visuelle simple de canvas
+|   |   |   |-- presets/
+|   |   |   |   `-- exportPresets.js       # Presets sociaux rapides, formats/containers/codecs/audio/rate control/qualite
+|   |   |   |-- renderQueue/
+|   |   |   |   `-- renderQueue.js         # Modele local queue : queued/rendering/completed/failed/cancelled + logs
+|   |   |   `-- index.js                 # Exports publics du module export
 |   |   |-- publications/
 |   |   |   |-- components/
 |   |   |   |   |-- InstagramPhonePreview.jsx
@@ -276,7 +268,7 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |-- .env.emulators.example              # Variables demo pour brancher le client aux emulateurs + connecteurs musique optionnels
 |-- .gitignore
 |-- AGENTS.md                           # Regles agents du projet
-|-- apphosting.yaml                     # Base Firebase App Hosting
+|-- apphosting.yaml                     # Base Firebase App Hosting + variables publiques App Hosting, dont NEXT_PUBLIC_VIBECUT_EXPORT_MODE=firebase
 |-- CLAUDE.md                           # Fichier genere, non encore enrichi
 |-- eslint.config.mjs
 |-- firebase.json                       # Config Firebase backend + emulateurs, sans Hosting classique
@@ -285,7 +277,7 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |-- jsconfig.json
 |-- MEGAPROMPT.md                       # Prompt maitre de conception/deploiement
 |-- next.config.mjs
-|-- package.json                        # Next.js + Firebase + lucide + three + commandes import:pixabay-ai et tests Vibe_CUT export
+|-- package.json                        # Next.js + Firebase + lucide + three + commandes import:pixabay-ai, tests Vibe_CUT export et dry-run K1
 |-- package-lock.json
 |-- README.md
 |-- seo.md                              # Agent SEO Google
@@ -299,18 +291,32 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |-- scripts/
 |   |-- audit-secrets.mjs               # Audit anti-secrets hardcodes dans les fichiers versionnables
 |   |-- audit-scope.mjs                 # Audit automatique scope Functions, SEO, modules et termes source
+|   |-- audit-vibecut-export-hardening-requirements.mjs # Audit structure par exigences du megaprompt Export Pro : phase done/partial/blocked, preuves code/docs et no-go release
 |   |-- check-deploy-target.mjs         # Refuse un deploiement sans projet Firebase dedie
+|   |-- check-vibecut-export-local-prereqs.mjs # Check prerequis locaux Export Pro : K1, ffmpeg/ffprobe via PATH/env/chemins Windows, Java emulateurs
+|   |-- check-vibecut-export-release-gate.mjs # Gate non mutant release Export Pro : echoue tant que K1 live, fixtures MP4, emulateurs Java et phases partial ne sont pas prouves
+|   |-- guard-vibecut-k1-live-smoke.mjs # Sas non mutant avant smoke live K1 : exige confirmation exacte, refuse execution live directe et verifie gates/env/prerequis
+|   |-- prepare-vibecut-k1-live-smoke.mjs # Dry-run non cloud du smoke final K1 : verifie deux sources locales, construit le manifest attendu MP4/H.264/AAC et rappelle la confirmation requise
+|   |-- run-vibecut-k1-cloud-run-live-smoke.mjs # Smoke live callable Firebase K1 : upload Storage, createVideoExportJob, attente ready, URL de download et sauvegarde K1, bloque sans confirmation + VIBECUT_EXECUTE_LIVE=1
+|   |-- run-vibecut-k1-cloud-run-direct-smoke.mjs # Smoke live direct renderer Cloud Run K1 : upload Storage, POST HMAC /render, rotation gauche 270, crossfade, texte fade et telechargement MP4 dans K1
+|   |-- render-vibecut-k1-local-mp4-smoke.mjs # Smoke local non Cloud FFmpeg : produit un MP4 K1 1080x1920 H.264/AAC avec rotation, crossfade, texte et verifie codec/duree/frames non noires
+|   |-- render-vibecut-pro-fixtures-local-smoke.mjs # Smoke local non Cloud FFmpeg : genere les MP4 fixtures pro supportees, verifie H.264/resolution/duree/audio/frames et region texte
+|   |-- render-vibecut-renderer-local-contract-smoke.mjs # Smoke local non Cloud du renderer canonique : importe buildFfmpegArgs du service Cloud Run, rend K1 + fixture combinee et verifie MP4
+|   |-- prepare-vibecut-pro-fixtures.mjs # Dry-run non cloud des fixtures pro : texte statique, animation bloquee, crossfade, colorimetrie, audio externe et pile combinee
+|   |-- smoke-backoffice-export-telemetry.mjs # Smoke test helpers dashboard exports video : estimations internes + couts Google Billing Export BigQuery sans Firebase live
 |   |-- check-e2e-readiness.mjs         # Liste les prerequis Firebase/Meta manquants avant E2E reel
 |   |-- check-emulator-readiness.mjs    # Verifie firebase-tools, Java 21+ et config emulators
 |   |-- check-pixabay-provider.mjs      # Probe reseau Pixabay Music depuis Node : detecte 403/challenge et confirme si des URL audio CDN sont exposees
 |   |-- import-pixabay-ai-music.mjs     # Scraper/import local Playwright pour https://pixabay.com/music/search/ai-generated/, limite, sans contournement challenge, avec manifest droits
 |   |-- check-vision-corpus.mjs         # Verifie les 12 fixtures smartphone locales ignorees par Git
 |   |-- audit-vision-filters.mjs        # Audit statique des profils Vision et du branchement safe smartphone, incluant temperature/halation/tint global masques
-|   |-- firebase-deploy.mjs             # Wrapper cross-platform deploy backend/functions avec cible controlee
+|   |-- firebase-deploy.mjs             # Wrapper cross-platform deploy backend/functions avec cible controlee, firebase-tools local et timeout discovery 60s
 |   |-- run-vision-corpus-test.mjs      # Lance Next local puis Playwright sur le corpus smartphone Vision local
 |   |-- run-vision-ui-test.mjs          # Lance un serveur Next local dedie puis Playwright Vision avec SMOKE_BASE_URL controle
 |   |-- run-video-ui-test.mjs           # Lance un serveur Next local dedie puis Playwright Vibe_CUT avec SMOKE_BASE_URL controle
+|   |-- run-firebase-emulators-test.mjs # Wrapper test:emulators : exige Java 21+ via VIBECUT_JAVA_HOME/JAVA_HOME/PATH/chemins Windows puis lance firebase emulators:exec
 |   |-- smoke-firebase-emulators.mjs    # Smoke test Auth/Firestore/Storage rules sous emulateurs, incluant credits/jobs/payments
+|   |-- smoke-export-professional-settings.mjs # Smoke pur du module Export Pro : presets sociaux/custom, PNG/JPEG/WebP, filename, estimation, queue, echec et comparaison canvas
 |   |-- smoke-account-deletion.mjs      # Smoke test suppression compte serveur sans droits client sensibles
 |   |-- smoke-billing-products.mjs      # Smoke test mapping produits Stripe sans exposer les price IDs cote public
 |   |-- smoke-billing-ledger.mjs        # Smoke test fulfillment Stripe idempotent et ledger credits sans emulateur
@@ -328,8 +334,15 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |   |-- smoke-studio-ui.spec.cjs        # Smoke test Playwright du flux studio -> import publication
 |   |-- smoke-video-timeline-model.mjs  # Smoke test pur du modele timeline/export Vibe_CUT : tracks/items, render plan, trous/overlaps video+transitions, fps/codec, plan de frames
 |   |-- smoke-video-store.mjs           # Smoke test pur du store Vibe_CUT : mutations timeline et refus des overlaps selon `tracks[].allowOverlap`
-|   |-- smoke-vibecut-export-manifest.mjs # Smoke test pur ExportManifest : MP4/H.264/AAC, modes qualite, sources locales vs Firebase
-|   |-- smoke-vibecut-export-jobs.mjs   # Smoke test pur services Export Pro localMock : phases, progression, ready et annulation
+|   |-- smoke-vibecut-export-manifest.mjs # Smoke test pur ExportManifest : MP4/H.264/AAC, modes qualite, sources locales vs Firebase, estimations cout/source et couverture renderer
+|   |-- smoke-vibecut-export-media-metadata.mjs # Smoke test pur metadata output front : mapping container/codec/MIME MP4/WebM/MOV/images et codecs H.264/H.265/VP9/AV1/ProRes/DNxHR
+|   |-- smoke-vibecut-export-jobs.mjs   # Smoke test services Export Pro localMock + garde-fous UI contre localMock force, choix destination PC et fallback URL Storage
+|   |-- smoke-vibecut-export-functions.mjs # Smoke test pur Functions Export Pro : quotas MVP, chemins sources owner-scoped, resume manifest et callable URL MP4
+|   |-- smoke-vibecut-render-service-contract.mjs # Smoke statique renderer Cloud Run : signature timestamp, README coherent, drawtext fade/none, colorimetrie FFmpeg, mix audio et refus des features visibles non rendues
+|   |-- smoke-vibecut-export-coverage-parity.mjs # Smoke parite coverage : compare client, Functions et renderer sur features supportees/bloquees pour eviter les derives silencieuses
+|   |-- smoke-vibecut-export-runbook.mjs # Smoke statique du runbook Export Pro : variables, secrets, OIDC, deploy Cloud Run, gates et confirmation smoke live
+|   |-- smoke-vibecut-export-status-audit.mjs # Smoke statique du statut Export Pro : empeche de masquer les phases partial/not done, Java/emulators, live K1 et renderer frame-by-frame
+|   |-- verify-vibecut-k1-cloud-output.mjs # Verificateur post-smoke non Cloud du MP4 K1 telecharge : container/codec/resolution/fps/duree/audio/frames non noires
 |   |-- smoke-vibecut-quick-tools.spec.cjs # Smoke Playwright du panneau droit VibeCut : palette Effets/Texte/Animations, drag/drop timeline et suppression haute
 |   |-- smoke-vibecut-slowmo-samples.spec.cjs # Smoke Playwright HDR/SDR MKV : import des samples Windows, presets ralentis timeline 50%/Normal et duree projet
 |   |-- smoke-vibecut-desktop-video-orientation.spec.cjs # Smoke Playwright MVI_0016 Bureau : preset 9:16, detection 60 FPS metadata, rotation header, forçage export 30 FPS et ralenti 50%
@@ -357,7 +370,7 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 - `/studio` : entree noindex vers le studio Vibe_fx importe.
 - `/pricing` : page publique indexable pour l'offre lifetime 9,99 EUR, sans abonnement ni credits IA visibles au lancement.
 - `/account`, `/account/billing`, `/account/usage` : surfaces privees noindex pour profil, facturation et usage ; les controles credits/jobs IA sont masques quand le lancement IA est desactive.
-- `/backoffice` : surface temporaire noindex non securisee Firebase, expose la cartographie des surfaces IA et un switch localStorage/cookie pour remettre ou masquer les interfaces IA en un clic pendant les tests.
+- `/backoffice` : surface temporaire noindex non securisee Firebase, expose la cartographie des surfaces IA, un switch localStorage/cookie pour remettre ou masquer les interfaces IA en un clic pendant les tests, et un dashboard exports video/couts estimes limite aux jobs lisibles par le compte connecte.
 - `/outil-publication-reseaux-sociaux`, `/editeur-image-instagram`, `/publier-instagram-facebook`, `/templates`, `/ressources/meta-oauth-publication-instagram-facebook`, `/ressources/formats-instagram` : pages SEO SSR indexables avec metadata, canonical, JSON-LD et liens internes.
 - `/api/themes`, `/api/catalog`, `/api/status`, `/api/scrape`, `/api/image/*`, `/api/proxy-image`, `/api/reclassify/*`, `/api/reset` : API internes pour la bibliotheque Midjourney et son scraping local.
 - `/api/music/free-search` : API interne d'agregation provider-first. `provider=pixabay` est conserve comme exception manuelle avec scan borne/assistant import, `provider=openverse` reste actif sans cle et est resserre sur des recherches musicales Jamendo via Openverse par styles sociaux ; `provider=archive` et `provider=wikimedia` sont retires/unsupported car trop aleatoires pour la video reseaux sociaux. `provider=jamendo` et `provider=freesound` ne sont exposes que si `JAMENDO_CLIENT_ID` ou `FREESOUND_API_KEY` existent cote serveur.
@@ -381,7 +394,7 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 - Projet cree dans `C:\Users\matth\Travail\vibe_fxV2`.
 - Les 23 skills ont ete importes avec `npx skills add C:/Users/matth/Desktop/design-skills-db/publish/refero-design-skills`.
 - Des dependances ont ete ajoutees : Next.js, React, Firebase, lucide-react, three, howler, zustand, better-sqlite3.
-- `firebase-tools` et `@playwright/test` sont des devDependencies pour rendre les commandes Firebase et le smoke test UI reproductibles localement.
+- `firebase-tools`, `@playwright/test`, `ffmpeg-static` et `ffprobe-static` sont des devDependencies pour rendre les commandes Firebase, les smokes UI et le smoke MP4 local K1 reproductibles sans installation FFmpeg globale.
 - `firebase.json` ne declare pas de cible Firebase Hosting classique : l'application Next.js passe par Firebase App Hosting via `apphosting.yaml`; `firebase:deploy:backend` et `firebase:deploy:functions` passent par `scripts/firebase-deploy.mjs`, exigent `FIREBASE_PROJECT_ID`, refusent les cibles `demo-*` et limitent les ressources deployees.
 - `postcss` est force via `overrides` en `8.5.10` pour corriger l'audit npm sans downgrader Next.
 - `.env.example` et `.env.emulators.example` sont explicitement exclus de l'ignore global `.env*` afin de rester versionnables.
@@ -459,6 +472,52 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 - `firestore.rules` interdit les ecritures client sur `users/{uid}/creditLedger`, `aiJobs`, `videoExportJobs`, `aiRateLimits`, `payments`, `checkoutSessions`, `accountDeletionRequests`, `stripeEvents`, `aiPricingPolicies`, `aiProviderPriceSnapshots`, `providerRegistry` et `securityEvents`; il autorise aussi les metadata owner-scoped `users/{uid}/soundtrackTracks/{trackId}` avec champs allowlistes. `storage.rules` ajoute uploads prives images/audio/video, fichiers projet Soundtrack `users/{uid}/soundtrack/...` limites aux MIME audio, autorise les sources d'export owner-scoped et bloque les outputs IA/export en ecriture client.
 - La landing page unique `/` est optimisée pour le Server-Side Rendering (SSR) et regroupe le hero produit, 4 cartes de fonctionnalités descriptives, une section FAQ complète, et l'animation SVG de routage `PublicationRoutePipeline`.
 - Le premier lancement prod sans IA est pilote par `src/config/aiLaunch.js` : `NEXT_PUBLIC_VIBEFX_AI_INTERFACES_ENABLED` vaut off par defaut, `/backoffice` ajoute un override localStorage/cookie, le header public pointe temporairement vers le backoffice, la page pricing expose seulement l'offre lifetime 9,99 EUR et l'espace compte masque les credits/jobs IA avec un wording utilisateur simplifie, le studio ne monte plus le rail agents IA ni les boutons AI clip, l'onglet Library/Midjourney et ses selectors sont masques, Soundtrack filtre les providers de generation IA, et `/api/music/ai-*` retourne 404 sauf flag/cookie actif.
+- Mise a jour 2026-06-05 : le backoffice ajoute un bloc Export telemetry lisant `videoExportJobs` owner-scoped via Firebase client, avec agregats jour/semaine/mois, cout Cloud Run/Storage estime, table des jobs recents et smoke `npm run test:backoffice-export-telemetry`; une vraie vue admin globale reste a faire via callable serveur/admin claims.
+- Mise a jour 2026-06-05 : le renderer Cloud Run Vibe_CUT applique maintenant `clips[].orientationRotation` via FFmpeg (`90`, `180`, `270`). Smoke live controle execute sur `K1/MVI_0126.MP4` avec rotation gauche `270`, trim 3s et sortie Storage `manual-k1-rotate-left-20260605-200305` : status renderer `ready`, output MP4 1080x1920, duree 3s, POST non signe refuse en 401.
+- Mise a jour 2026-06-05 : `docs/vibecut-export-production-hardening-megaprompt.md` est recadre pour la release Export Pro : il retire les etapes obsoletes de preuve Cloud Run simple, conserve les gates deploy/live avec confirmation, ajoute le choix de destination desktop/PC via download ou File System Access API, impose une UX de progression export, et finit par un smoke live officiel avec deux videos K1 avant `Go release beta`.
+- Mise a jour 2026-06-05 : le megaprompt Export Pro adopte une doctrine renderer-first : le navigateur devient cockpit de pilotage, le manifest canonique devient source contractuelle, le renderer serveur doit produire les textes, animations, transitions, colorimetrie, audio et video avant encodage FFmpeg, et toute feature visible non rendue serveur doit etre bloquee ou masquee avant export pro.
+- Mise a jour 2026-06-05 : Phase 1 hardening Export Pro amorcee. `ExportVideoPanel.jsx` utilise maintenant `resolveExportRenderMode()` au preflight, launch et retry au lieu de forcer `localMock`, affiche le mode actif `Rendu Cloud Firebase` / `Simulation locale`, et accepte le preflight Firebase avec upload client avant callable; `exportRenderService.js` et `exportStorageService.js` centralisent l'alias `server -> firebase`, `apphosting.yaml` declare `NEXT_PUBLIC_VIBECUT_EXPORT_MODE=firebase`, et `npm run test:vibecut-export` echoue si le panneau force de nouveau `localMock`.
+- Mise a jour 2026-06-05 : Phase 2 hardening Export Pro avancee. `exportManifest.js` ajoute estimations `sourceSize`/`cost` et `validateExportRenderCoverage()` pour bloquer les features visibles non rendues serveur (textes, transitions, vitesse, colorimetrie, audio clip/musique, fit non supporte) au lieu de les ignorer; `ExportVideoPanel.jsx` affiche compatibilite `Exportable pro`/`Bloque`, cout/taille source, etapes Preparation/Upload/Queue/Rendu/Encodage/Finalisation/Output, et details output Storage/MP4 une fois `ready`; `exportJobService.js` expose `subscribeLatestVideoExportJob()` pour restaurer le dernier job Firestore owner-scoped apres refresh en mode Firebase et l'UI expose aussi l'etat `retrying`.
+- Mise a jour 2026-06-05 : Phase 3 hardening Export Pro ajoute la destination desktop/PC. `ExportVideoPanel.jsx` propose `Telechargements` ou `Dossier PC` quand un vrai MP4 Storage est pret, genere un nom `vibecut-{projet}-{yyyyMMdd-HHmm}.mp4`, recupere une URL via `getDownloadURL()` quand le job n'a que `output.storagePath`, et utilise File System Access API seulement apres clic utilisateur; `scripts/smoke-vibecut-export-jobs.mjs` verifie ces garde-fous statiques.
+- Mise a jour 2026-06-05 : Phase 4 hardening Export Pro amorcee cote Functions. `functions/src/videoExport.js` valide les chemins `users/{uid}/exports/{job}/sources/video|audio`, applique des quotas MVP (duree, clips, audio tracks, resolution, FPS, bitrates, manifest et taille sources), stocke le manifest complet en JSON Storage avec un resume leger dans `videoExportJobs`, ajoute un stub explicite plan/credits, logge les rejets sans donnees sensibles et expose `getVideoExportDownloadUrl`; `npm run test:vibecut-export` inclut maintenant `scripts/smoke-vibecut-export-functions.mjs`.
+- Mise a jour 2026-06-05 : Phase 5 renderer-first avancee. `render-service/src/server.js` mixe maintenant les pistes audio externes via FFmpeg avec `atrim`, `adelay`, volume et `amix`, tandis que `functions/src/videoExport.js`, `exportManifest.js` et le renderer refusent encore les features visibles non rendues serveur (animations texte complexes, transitions non supportees, vitesse, fit unsupported) au lieu de les passer en warnings; `scripts/smoke-vibecut-render-service-contract.mjs` verrouille ce comportement. Le renderer frame-by-frame pour les animations/transitions complexes reste a implementer avant release complete.
+- Mise a jour 2026-06-05 : Phase 5 renderer-first ajoute le rendu serveur des textes basiques. `render-service/src/server.js` applique les overlays `textOverlays` avec FFmpeg `drawtext` (contenu, start/end, position normalisee, taille, couleur, fade in/out ou none), `functions/src/videoExport.js` et `exportManifest.js` autorisent ces textes fade/none et continuent de bloquer les animations texte complexes (`scale`, `slide`, `neon-scan`, etc.) jusqu'au renderer frame-by-frame; les smokes Export Pro couvrent texte supporte et animation texte refusee.
+- Mise a jour 2026-06-05 : Phase 5 renderer-first ajoute une colorimetrie serveur explicite. `render-service/src/server.js` mappe les filtres Vibe_CUT connus vers FFmpeg (`eq` pour exposition/luminosite/contraste/saturation/vibrance, `hue`, `colorbalance` pour temperature/teinte/ranges, `colorlevels` pour fade, `vignette`, `noise` pour grain); `functions/src/videoExport.js` et `exportManifest.js` autorisent ces cles et refusent les filtres inconnus non nuls. Le rendu colorimetrie serveur reste une implementation FFmpeg controlee, pas une promesse pixel-perfect du canvas.
+- Mise a jour 2026-06-05 : Phase 5 renderer-first ajoute les transitions serveur adjacentes `fade`/`crossfade`. `render-service/src/server.js` construit une chaine FFmpeg `xfade=transition=fade` entre clips adjacents en placement `cut`, conserve le concat pour les coupes franches et bloque les transitions non adjacentes/free ou les familles slide/wipe/zoom; `functions/src/videoExport.js`, `exportManifest.js` et les smokes valident la meme matrice.
+- Mise a jour 2026-06-06 : hardening Export Pro post-audit. La validation Functions n'interdit plus l'audio source des clips puisque le renderer FFmpeg le mixe, `retryVideoExportJob` relance maintenant un vrai rendu Cloud Run au lieu de recreer seulement un job `queued`, le client passe le `jobId` au retry serveur pour reutiliser le manifest stocke apres refresh, les signatures renderer sont liees a `x-vibecut-timestamp` avec fenetre anti-replay, et `scripts/run-video-ui-test.mjs` neutralise Firebase/App Check/Meta live pour garder le smoke Vibe_CUT local et fiable.
+- Mise a jour 2026-06-06 : `render-service/README.md` decrit maintenant le contrat reel du renderer Cloud Run (signature timestamp anti-replay, textes drawtext, transitions fade/crossfade adjacentes, colorimetrie FFmpeg, rotations et mix audio source/externe) et `scripts/smoke-vibecut-render-service-contract.mjs` verifie que la documentation ne retombe pas sur les anciennes limites concat-only.
+- Mise a jour 2026-06-06 : le modal Export Pro derive maintenant le container, le codec et le MIME depuis `render`/`output` au lieu de hardcoder MP4/H.264, `exportRenderService.js` et `exportJobService.js` preservent les metadata `projectName`/`render`/`estimates` apres callable Firebase, retry et refresh Firestore, et les smokes `test:vibecut-export` + `test:video-ui` verrouillent ces informations de sortie visibles.
+- Mise a jour 2026-06-06 : `scripts/prepare-vibecut-k1-live-smoke.mjs` prepare le smoke final K1 sans appel Cloud : verification de `MVI_0126.MP4` + `MVI_0117.MP4`, manifest 1080x1920 30fps MP4 H.264/AAC avec trim court, rotation, crossfade adjacent, texte fade et estimations source/output/cout; `npm run test:vibecut-export` l'execute en dry-run et rappelle que le live requiert `OK pour smoke live Cloud Run K1`.
+- Mise a jour 2026-06-06 : `functions/src/videoExport.js` prepare le passage Cloud Run prive avec `EXPORT_RENDERER_AUTH_MODE=oidc` ou `hmac+oidc` : la Function peut recuperer un ID token via metadata server pour l'audience renderer et l'ajouter en `Authorization: Bearer`, tout en conservant les signatures HMAC timestamp; les smokes Functions verrouillent ce chemin sans deploy ni appel cloud.
+- Mise a jour 2026-06-06 : `executeRendererForJob` relit maintenant le job Firestore apres le retour Cloud Run et conserve `cancelled` si l'utilisateur a annule pendant FFmpeg; l'output termine est trace dans `cancelledOutput` avec `ignoredAfterCancel` au lieu d'ecraser le job en `ready`, et le smoke Functions verrouille ce comportement.
+- Mise a jour 2026-06-06 : les transitions Firestore `queued -> rendering` et `renderer error -> failed` sont maintenant protegees par transaction via `markJobRenderingUnlessCancelled` et `markJobFailedUnlessCancelled`, afin qu'un cancel concurrent ne puisse plus etre ecrase par `rendering` ou `failed`; le smoke Functions interdit les catchs renderer qui ecrivent `failed` directement.
+- Mise a jour 2026-06-06 : `getVideoExportAdminTelemetry` ajoute une callable admin globale pour les jobs export video recents, protegee par custom claim `admin`, `ADMIN_EMAILS` ou `admins/{email}` actif; elle retourne des jobs sanitises, agregats statut/cout/taille/temps moyen sans fuite de paths Storage ni URLs signees. Le backoffice tente cette vue globale puis retombe sur la lecture owner-scoped, et `npm run test:backoffice-export-telemetry` verifie les deux chemins.
+- Mise a jour 2026-06-06 : `docs/vibecut-export-production-runbook-2026-06-06.md` documente la source de verite deploy Export Pro (App Hosting, Functions, Secret Manager, Cloud Run public/HMAC puis prive/OIDC, gates locaux, dry-run/live K1, rotation du secret et limites no-go); `scripts/smoke-vibecut-export-runbook.mjs` est ajoute a `npm run test:vibecut-export`.
+- Mise a jour 2026-06-06 : `scripts/prepare-vibecut-pro-fixtures.mjs` formalise les fixtures pro hors Cloud : texte statique, transition crossfade, colorimetrie FFmpeg, audio externe et pile combinee sont verifies exportables par manifest/coverage, tandis que l'animation texte avancee `neon-scan` reste explicitement bloquee jusqu'au renderer frame-by-frame; le runbook et `npm run test:vibecut-export` incluent ce constat.
+- Mise a jour 2026-06-06 : `docs/vibecut-export-hardening-status-2026-06-06.md` consolide l'audit Export Pro par phase et garde le verdict en `pre-release hardening` sans `Go release beta` tant que le smoke live K1, les MP4 finaux des fixtures pro et `npm run test:emulators` ne sont pas valides; `scripts/smoke-vibecut-export-status-audit.mjs` est ajoute a `npm run test:vibecut-export` pour verrouiller ces blocages.
+- Mise a jour 2026-06-06 : `scripts/check-vibecut-export-release-gate.mjs` ajoute un gate non mutant `npm run check:vibecut-export-release` qui echoue explicitement tant que les preuves release manquent (Phase 5/6/7 partielles, K1 live absent, Java emulateurs absent, fixtures MP4 non generees, deploy non execute).
+- Mise a jour 2026-06-06 : `scripts/render-vibecut-k1-local-mp4-smoke.mjs` ajoute `npm run test:vibecut-k1-local-mp4`, un smoke local sans Cloud qui doit produire un MP4 K1 1080x1920 H.264/AAC avec rotation, crossfade, texte et verification ffprobe/blackdetect; il est separe des tests verts tant que `ffmpeg`/`ffprobe` ne sont pas disponibles dans le PATH local.
+- Mise a jour 2026-06-06 : `scripts/check-vibecut-export-local-prereqs.mjs` ajoute `npm run check:vibecut-export-prereqs` pour verifier sans Cloud les sources K1, `ffmpeg`, `ffprobe` et Java; le smoke MP4 local accepte maintenant aussi `VIBECUT_FFMPEG_PATH`, `FFMPEG_PATH`, `VIBECUT_FFPROBE_PATH`, `FFPROBE_PATH` et des chemins Windows courants.
+- Mise a jour 2026-06-06 : `ffmpeg-static` et `ffprobe-static` sont ajoutes en devDependencies pour lever le blocage FFmpeg local; `npm run test:vibecut-k1-local-mp4` produit maintenant un MP4 K1 local verifie 1080x1920 H.264, 30 fps, 5.5s, audio present et frames non noires. Java reste absent pour `npm run test:emulators`.
+- Mise a jour 2026-06-06 : `scripts/render-vibecut-pro-fixtures-local-smoke.mjs` ajoute `npm run test:vibecut-pro-fixtures-local-mp4`, qui genere localement les MP4 des fixtures supportees `static-text`, `crossfade-transition`, `color-filters`, `external-audio` et `combined-supported`, puis verifie codec H.264, 1080x1920, duree, audio attendu, frames non noires et region texte lumineuse.
+- Mise a jour 2026-06-06 : `docs/vibecut-export-hardening-status-2026-06-06.md` distingue maintenant les fixtures pro MP4 locales validees du blocage restant des fixtures finales via renderer canonique/Cloud Run, afin de ne pas confondre preuve FFmpeg locale et release beta serveur.
+- Mise a jour 2026-06-06 : `npm run test:vibecut-export-local-mp4` regroupe les preuves MP4 locales lourdes (`test:vibecut-k1-local-mp4` + `test:vibecut-pro-fixtures-local-mp4` + `test:vibecut-renderer-local-contract`) a relancer juste avant tout smoke Cloud Run live.
+- Mise a jour 2026-06-06 : `npm run test:emulators` passe maintenant par `scripts/run-firebase-emulators-test.mjs`, qui exige Java 21+ via `VIBECUT_JAVA_HOME`, `JAVA_HOME`, PATH ou chemins Windows courants avant de lancer `firebase emulators:exec`; la machine a montre un Java trop ancien pour `firebase-tools`, donc Java 21+ reste le blocage emulateurs.
+- Mise a jour 2026-06-06 : le modal Export Pro normalise maintenant les codecs de sortie (`H.264`, `H.265/HEVC`, `VP9`, `AV1`, `AAC`, etc.) et mappe les formats futurs vers leur MIME (`video/webm`, `video/quicktime`, images) au lieu de presenter tout fallback comme MP4; `scripts/smoke-vibecut-export-jobs.mjs` verrouille ce comportement et `npm run test:video-ui` reste vert.
+- Mise a jour 2026-06-06 : `render-service/src/server.js` exporte `validateManifest`, `validateRendererCoverage` et `buildFfmpegArgs`, ne demarre plus le serveur HTTP quand il est importe par un smoke local, et lazy-load `@google-cloud/storage`; `scripts/render-vibecut-renderer-local-contract-smoke.mjs` utilise ce contrat canonique pour rendre localement K1 + une fixture combinee avec le meme graphe FFmpeg que le service Cloud Run.
+- Mise a jour 2026-06-06 : `scripts/audit-vibecut-export-hardening-requirements.mjs` ajoute une matrice locale non mutante des exigences `docs/vibecut-export-production-hardening-megaprompt.md` avec statuts `done`, `done_mvp`, `partial` et `blocked`; `npm run test:vibecut-export` l'execute pour verifier que les preuves code/docs restent coherentes et que le statut ne devient pas `Go release beta` tant que Java 21+, le smoke live K1 et les preuves Cloud Run finales manquent.
+- Mise a jour 2026-06-06 : `scripts/guard-vibecut-k1-live-smoke.mjs` ajoute `npm run guard:vibecut-k1-live`, un sas non mutant avant smoke Cloud Run K1 qui refuse de s'armer sans `VIBECUT_LIVE_CONFIRM="OK pour smoke live Cloud Run K1"`, refuse `VIBECUT_EXECUTE_LIVE=1`, verifie les sources K1, les gates MP4 locaux, les emulateurs et les variables live, puis laisse l'action Cloud unique au runbook humain.
+- Mise a jour 2026-06-06 : `scripts/verify-vibecut-k1-cloud-output.mjs` ajoute `npm run verify:vibecut-k1-cloud-output`, un gate post-smoke local qui prend `VIBECUT_CLOUD_OUTPUT_FILE` ou un chemin MP4 en argument et verifie le fichier telecharge Cloud Run : container MP4-compatible, H.264, AAC, 1080x1920, ~30 FPS, ~5.5s, audio present et frames non noires.
+- Mise a jour 2026-06-06 : `src/features/vibefx-studio/video/export/exportMediaMetadata.js` centralise la resolution front des metadata output Export Pro (container, codec, MIME) pour eviter les hardcodes dans `ExportVideoPanel.jsx`; `scripts/smoke-vibecut-export-media-metadata.mjs` execute la matrice MP4/WebM/MOV/PNG/JPEG/WebP et codecs H.264/H.265/VP9/AV1/ProRes/DNxHR/AAC/Opus, y compris les exports image sans faux codec audio.
+- Mise a jour 2026-06-06 : `functions/src/videoExport.js` ajoute l'orchestration async optionnelle `EXPORT_RENDER_ORCHESTRATION=taskQueue` avec `processVideoExportJob` en Task Queue Function; `createVideoExportJob` et `retryVideoExportJob` peuvent desormais creer le job Firestore, enqueue Cloud Tasks puis retourner `queued` rapidement, tandis que le worker relit le manifest Storage owner-scoped, respecte les jobs terminaux/cancel et lance le renderer.
+- Mise a jour 2026-06-06 : la securite renderer distingue maintenant l'auth d'appel Functions (`EXPORT_RENDERER_AUTH_MODE=hmac`, `hmac+oidc`, `oidc`) et la verification applicative Cloud Run (`EXPORT_RENDERER_VERIFY_MODE=hmac` par defaut ou `platform-iam` seulement avec `EXPORT_RENDERER_PRIVATE_IAM_CONFIRMED=true`), pour eviter un endpoint public sans HMAC tout en preparant le passage prive IAM.
+- Mise a jour 2026-06-07 : le backoffice Export telemetry separe maintenant l'estimation interne des jobs et le cout Google reel lu via Cloud Billing Export BigQuery (`CLOUD_BILLING_EXPORT_TABLE` ou variables projet/dataset/table), expose `cloudBilling` depuis `getVideoExportAdminTelemetry`, ajoute les cartes facture Cloud Run et garde un fallback explicite quand BigQuery n'est pas configure.
+- Mise a jour 2026-06-07 : deux smokes live K1 sont ajoutes. `run-vibecut-k1-cloud-run-live-smoke.mjs` teste le chemin callable Firebase complet quand un token Auth valide est fourni, et `run-vibecut-k1-cloud-run-direct-smoke.mjs` teste directement le renderer Cloud Run signe HMAC. Le smoke direct a rendu `K1/MVI_0126.MP4` + `K1/MVI_0117.MP4` avec rotation gauche 270 et crossfade sur la revision Cloud Run `vibecut-render-service-00004-mz5`; le MP4 telecharge `C:\Users\pcpor\OneDrive\Bureau\K1\vibecut-k1-cloudrun-direct-20260607T105813.mp4` passe `npm run verify:vibecut-k1-cloud-output`.
+- Mise a jour 2026-06-07 : deploy backend Firebase revalide. `scripts/firebase-deploy.mjs` utilise le binaire local `firebase-tools` via Node et augmente `FUNCTIONS_DISCOVERY_TIMEOUT`; `scripts/check-emulator-readiness.mjs` accepte `VIBECUT_JAVA_HOME`. Java 21 portable debloque `npm run test:emulators`. Les callables restent en `europe-west9`, tandis que `processVideoExportJob` et `reconcileStaleAiReservations` passent en `europe-west1` car Cloud Tasks/Scheduler ne supportent pas `europe-west9`; une cleanup policy Artifact Registry 7 jours est configuree en `europe-west1`.
+- Mise a jour 2026-06-06 : `scripts/smoke-vibecut-export-coverage-parity.mjs` verrouille la parite client/Functions/renderer sur 12 cas de couverture Export Pro : textes fade, crossfade adjacent, filtres connus, audio externe acceptes; animation texte avancee, transition non supportee/non adjacente, slow motion, fit unsupported, filtre inconnu et texte vide bloques aux trois etages.
+- Mise a jour 2026-06-06 : `scripts/render-vibecut-pro-fixtures-local-smoke.mjs` recree le dossier parent avant chaque sortie FFmpeg pour rendre le gate `npm run test:vibecut-export-local-mp4` robuste si `test-results` est nettoye pendant une passe de controles; le gate local MP4 repasse OK apres correction.
+- Mise a jour 2026-06-06 : ajout d'un module `src/features/export/` pour structurer l'Export Pro facon panneau DaVinci/Premiere adapte web : presets sociaux, formats/codecs avec statuts ready/server_required/future, reglages Video/Audio/File/Advanced, estimation taille, sanitization filename, queue locale et export image canvas PNG/JPEG/WebP; `ExportVideoPanel.jsx` branche ce panneau et alimente le manifest par overrides sans masquer que le renderer final supporte seulement MP4 H.264/AAC aujourd'hui.
+- Mise a jour 2026-06-07 : menage documentaire dans `docs/`. Les anciens prompts/audits et l'archive Export Pro legacy sont supprimes; les sources conservees sont `studio-ai-agents-megaprompt.md`, `vibecut-export-production-hardening-megaprompt.md`, `vibecut-export-hardening-status-2026-06-06.md`, `vibecut-export-production-runbook-2026-06-06.md` et `vibecut-export-pro-checkpoint-2026-06-06.md`.
 - Les CSS lourds de `vibefx-layout` et `publications` sont importes par `src/app/studio/layout.js`, pas par le layout racine, afin d'eviter de charger le studio sur les pages publiques.
 - La page Layout ajoute une section `Modele personnalise` sous les modeles standards dans `src/features/vibefx-studio/components/sidebar/LayoutSidebar.jsx` et son equivalent `src/features/vibefx-layout/components/sidebar/LayoutSidebar.jsx`; les presets JSON normalises `CUSTOM_LAYOUT_PRESETS` / `DEFAULT_CUSTOM_TEMPLATE` et la palette `CUSTOM_SHAPE_LIBRARY` vivent dans les deux `data/constants.jsx`, le moteur Canvas 2D dessine les zones custom vides ou remplies par slot dans les deux `engine/layoutRenderer.js`, le canvas reste visible sans image source quand un modele custom est actif, et l'import par zone stocke l'image localement dans `slotConfigs` tout en serialisant le payload publication sans objet `Image`. Le mode edit personnalise ajoute les utilitaires `utils/customLayout.js` des deux modules pour creer, borner, redimensionner, pousser/scanner une position libre, reduire un voisin si necessaire et masquer automatiquement les zones sans placement propre; les zones masquees restent dans le JSON et redeviennent visibles quand la place revient. Les deplacements automatiques preservent une geometrie d'origine `homeX/homeY/homeW/homeH` pour eviter qu'un bloc revienne sous forme de lamelle apres reduction temporaire. Les voisins de meme rangee ne sont plus envoyes dans les rangees basses pour ne pas casser les vignettes existantes. La palette de formes drag/drop reste exposee dans `CanvasWorkspace`.
 - Mise a jour 2026-06-02 : le dock images de la page Layout dans `src/features/vibefx-studio/components/canvas/CanvasWorkspace.jsx` expose un gros bouton `Ajouter image`, une action `Changer` par vignette, et `src/features/vibefx-studio/hooks/useImageUpload.js` gere maintenant l'ajout multi-image et le remplacement cible avec fallback FileReader. Le style Vibe_OS du dock est centralise dans `src/features/vibefx-layout/vibefx-layout.css`.

@@ -1,18 +1,15 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const root = process.cwd();
 const failures = [];
 
-function run(command, args) {
-  if (process.platform === "win32" && command === "firebase") {
-    return run("powershell", ["-NoProfile", "-Command", `firebase ${args.join(" ")}`]);
-  }
+function run(command, args, options = {}) {
   const executable = command;
-  const result = spawnSync(executable, args, { encoding: "utf8" });
+  const result = spawnSync(executable, args, { encoding: "utf8", env: options.env || process.env });
   const output = `${result.stdout || ""}${result.stderr || ""}`;
-  if (result.error || result.status !== 0) {
+  if (!options.allowFailure && (result.error || result.status !== 0)) {
     failures.push(`${command} ${args.join(" ")} failed${output.trim() ? `: ${output.trim()}` : ""}`);
   }
   return output;
@@ -22,10 +19,15 @@ function readJson(path) {
   return JSON.parse(readFileSync(join(root, path), "utf8"));
 }
 
-const firebaseVersion = run("firebase", ["--version"]).trim();
+const firebaseBin = join(root, "node_modules", "firebase-tools", "lib", "bin", "firebase.js");
+const firebaseVersion = run(process.execPath, [firebaseBin, "--version"]).trim();
 if (firebaseVersion) console.log(`firebase-tools: ${firebaseVersion}`);
 
-const javaOutput = run("java", ["-version"]);
+const javaPath = resolveJava();
+const javaEnv = javaPath && javaPath !== "java"
+  ? { ...process.env, PATH: `${join(javaPath, "..")}${process.platform === "win32" ? ";" : ":"}${process.env.PATH || ""}` }
+  : process.env;
+const javaOutput = javaPath ? run(javaPath, ["-version"], { env: javaEnv }) : "";
 const javaVersionMatch = javaOutput.match(/version "(\d+)/);
 const javaMajor = javaVersionMatch ? Number(javaVersionMatch[1]) : null;
 if (javaMajor) console.log(`java major: ${javaMajor}`);
@@ -48,6 +50,42 @@ if (failures.length) {
   console.log("\nFirebase emulator readiness failed:");
   for (const failure of failures) console.log(`- ${failure}`);
   process.exit(1);
+}
+
+function resolveJava() {
+  const javaExecutableName = process.platform === "win32" ? "java.exe" : "java";
+  const candidates = [
+    process.env.VIBECUT_JAVA_HOME ? join(process.env.VIBECUT_JAVA_HOME, "bin", javaExecutableName) : null,
+    process.env.JAVA_HOME ? join(process.env.JAVA_HOME, "bin", javaExecutableName) : null,
+    "java",
+    ...commonWindowsJavaPaths(javaExecutableName),
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (candidate !== "java" && !existsSync(candidate)) continue;
+    const output = run(candidate, ["-version"], { allowFailure: true });
+    const match = output.match(/version "(\d+)/);
+    const major = match ? Number(match[1]) : null;
+    if (major && major >= 21) return candidate;
+  }
+  return null;
+}
+
+function commonWindowsJavaPaths(javaExecutableName) {
+  if (process.platform !== "win32") return [];
+  const roots = [
+    process.env.ProgramFiles ? join(process.env.ProgramFiles, "Eclipse Adoptium") : null,
+    process.env.ProgramFiles ? join(process.env.ProgramFiles, "Java") : null,
+    process.env["ProgramFiles(x86)"] ? join(process.env["ProgramFiles(x86)"], "Java") : null,
+  ].filter(Boolean);
+  const candidates = [];
+  for (const root of roots) {
+    if (!existsSync(root)) continue;
+    for (const entry of readdirSync(root, { withFileTypes: true })) {
+      if (entry.isDirectory()) candidates.push(join(root, entry.name, "bin", javaExecutableName));
+    }
+  }
+  return candidates;
 }
 
 console.log("Firebase emulator readiness OK");

@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import path from "node:path";
 
 const mode = process.argv[2];
 const projectId = String(process.env.FIREBASE_PROJECT_ID || "").trim();
@@ -20,8 +21,9 @@ if (readiness.status !== 0) {
   process.exit(readiness.status || 1);
 }
 
-const firebaseBin = process.platform === "win32" ? "firebase.cmd" : "firebase";
-const result = spawnSync(firebaseBin, [
+const firebaseBin = path.join(process.cwd(), "node_modules", "firebase-tools", "lib", "bin", "firebase.js");
+const result = spawnSync(process.execPath, [
+  firebaseBin,
   "deploy",
   "--project",
   projectId,
@@ -29,6 +31,10 @@ const result = spawnSync(firebaseBin, [
   onlyByMode[mode],
 ], {
   stdio: "inherit",
+  env: {
+    ...process.env,
+    FUNCTIONS_DISCOVERY_TIMEOUT: process.env.FUNCTIONS_DISCOVERY_TIMEOUT || "60",
+  },
   shell: false,
 });
 

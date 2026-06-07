@@ -20,6 +20,9 @@ exports.reconcileStaleAiReservations = aiReconciliation.reconcileStaleAiReservat
 exports.createVideoExportJob = videoExport.createVideoExportJob;
 exports.cancelVideoExportJob = videoExport.cancelVideoExportJob;
 exports.retryVideoExportJob = videoExport.retryVideoExportJob;
+exports.processVideoExportJob = videoExport.processVideoExportJob;
+exports.getVideoExportDownloadUrl = videoExport.getVideoExportDownloadUrl;
+exports.getVideoExportAdminTelemetry = videoExport.getVideoExportAdminTelemetry;
 
 const META_ACCESS_TOKEN = defineSecret("META_ACCESS_TOKEN");
 const META_IG_USER_ID = defineSecret("META_IG_USER_ID");

@@ -1,13 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Download, Monitor, Smartphone, ShieldCheck, AlertTriangle, Server, RotateCcw, Trash2 } from 'lucide-react';
+import { X, Download, Monitor, Smartphone, ShieldCheck, AlertTriangle, Server, RotateCcw, Trash2, FolderOpen } from 'lucide-react';
 import useVideoStore from '../store/videoStore';
 import { EXPORT_PRESETS, PlaybackEngine } from '../engine/VideoEngine';
 import { drawTextOverlays } from '../preview/VideoPreview';
 import { RIGHTS_STATUS_LABELS, buildExportRightsManifest, getRightsAudit } from '../data/musicRights';
 import { buildExportFrameSchedule, resolveTimelineRenderPlan, validateExportAudioMix, validateExportFrameCoverage, validateExportTimeline, validateTimelineRenderPlan } from '../model/timelineModel';
 import { persistExportRightsManifest } from '../services/exportRightsManifestClient';
-import { buildExportManifest, validateExportManifest } from '../export/exportManifest';
-import { retryVideoExportJob, startVideoExportJob } from '../export/exportJobService';
+import { buildExportManifest, validateExportManifest, validateExportRenderCoverage } from '../export/exportManifest';
+import { getVideoExportDownloadUrl, retryVideoExportJob, startVideoExportJob, subscribeLatestVideoExportJob } from '../export/exportJobService';
+import { resolveOutputMediaMetadata } from '../export/exportMediaMetadata';
+import { resolveExportRenderMode } from '../export/exportRenderService';
+import ExportSettingsPanel from '../../../export/components/ExportSettingsPanel';
+import { buildProfessionalRenderOverrides, createDefaultProfessionalExportSettings, createRenderQueueItem, exportCanvasImage } from '../../../export';
 
 const MIME_CANDIDATES = {
     webm: ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8', 'video/webm;codecs=vp9', 'video/webm'],
@@ -36,6 +40,19 @@ const EXPORT_FIT_OPTIONS = [
     { value: 'fill', label: 'Fill avance' },
 ];
 
+const EXPORT_PROGRESS_STEPS = [
+    { id: 'preparing_sources', label: 'Preparation' },
+    { id: 'uploading_sources', label: 'Upload sources' },
+    { id: 'queueing', status: 'queued', label: 'Job cree' },
+    { id: 'rendering', status: 'rendering', label: 'Rendu Cloud' },
+    { id: 'retrying', status: 'retrying', label: 'Retry' },
+    { id: 'encoding', label: 'Encodage MP4' },
+    { id: 'finalizing', status: 'finalizing', label: 'Finalisation' },
+    { id: 'ready', status: 'ready', label: 'Output pret' },
+];
+
+const EXPORT_DESTINATION_PREF_KEY = 'vibecut-export-destination-v1';
+
 export function useVideoExportController() {
     const [exportMessage, setExportMessage] = useState('');
     const [proExportMessage, setProExportMessage] = useState('');
@@ -43,9 +60,12 @@ export function useVideoExportController() {
     const [exportFitMode, setExportFitMode] = useState('cover');
     const [activeExportJob, setActiveExportJob] = useState(null);
     const [exportJobHistory, setExportJobHistory] = useState([]);
+    const [professionalRenderQueue, setProfessionalRenderQueue] = useState([]);
     const [isExportJobModalOpen, setIsExportJobModalOpen] = useState(false);
     const exportJobAbortRef = useRef(null);
     const [mimeSupport, setMimeSupport] = useState({ webm: false, mp4: false });
+    const exportRenderMode = useMemo(() => resolveExportRenderMode(), []);
+    const exportModeCopy = useMemo(() => resolveExportModeCopy(exportRenderMode), [exportRenderMode]);
     const {
         sequencePreset, setSequencePreset,
         exportFormat, setExportFormat,
@@ -53,8 +73,13 @@ export function useVideoExportController() {
         isExporting, exportProgress,
         setActivePanel, totalDuration, clips, transitions, transitionItems,
         audioTracks, textOverlays, setIsExporting, setExportProgress,
-        projectName, tracks
+        projectName, tracks, previewCanvas
     } = useVideoStore();
+    const [professionalExportSettings, setProfessionalExportSettings] = useState(() => createDefaultProfessionalExportSettings({
+        fileName: projectName || 'vibecut-export',
+        presetId: 'instagram-story-reels',
+        timelineFps: 30,
+    }));
 
     const preset = EXPORT_PRESETS[sequencePreset] || EXPORT_PRESETS.youtube;
     const exportPlan = useMemo(() => resolveTimelineRenderPlan({
@@ -95,10 +120,11 @@ export function useVideoExportController() {
         exportFps,
         qualityMode: exportQualityMode,
         fitMode: exportFitMode,
+        renderSettings: buildProfessionalRenderOverrides(professionalExportSettings),
         rightsManifest,
         frameSchedule: buildExportFrameSchedule({ totalDuration, fps: exportFps }),
         generatedAt: 'local-preflight',
-    }), [exportFitMode, exportFps, exportPlan, exportQualityMode, preset, projectName, rightsManifest, sequencePreset, totalDuration]);
+    }), [exportFitMode, exportFps, exportPlan, exportQualityMode, preset, professionalExportSettings, projectName, rightsManifest, sequencePreset, totalDuration]);
     const proExportPreflight = useMemo(() => {
         const fps = exportFps;
         const frameSchedule = buildExportFrameSchedule({ totalDuration, fps });
@@ -126,10 +152,15 @@ export function useVideoExportController() {
             transitionItems: exportAllTransitions,
             totalDuration,
         });
-        const manifestAudit = validateExportManifest(proExportManifest, { mode: 'localMock' });
+        const manifestAudit = validateExportManifest(proExportManifest, {
+            mode: exportRenderMode,
+            allowClientUpload: exportRenderMode === 'firebase',
+        });
+        const renderCoverage = validateExportRenderCoverage(proExportManifest);
         const rightsErrors = rightsBlockers.map(({ track, issue }) => `${track.name || track.id}: ${issue}.`);
         const errors = [
             ...rightsErrors,
+            ...renderCoverage.blockingErrors,
             ...timelineAudit.errors,
             ...audioMixAudit.errors,
             ...renderPlanAudit.errors,
@@ -141,6 +172,7 @@ export function useVideoExportController() {
             ...audioMixAudit.warnings,
             ...renderPlanAudit.warnings,
             ...frameCoverageAudit.warnings,
+            ...renderCoverage.degradedWarnings,
             ...manifestAudit.warnings,
         ];
 
@@ -150,9 +182,12 @@ export function useVideoExportController() {
             frameSchedule,
             fps,
             manifest: proExportManifest,
+            mode: exportRenderMode,
+            modeLabel: exportModeCopy.label,
+            renderCoverage,
             status: errors.length > 0 ? 'blocked' : warnings.length > 0 ? 'warning' : 'ready',
         };
-    }, [exportAllTransitions, exportAudioTracks, exportClips, exportFps, exportPlaybackClips, exportPlan, proExportManifest, rightsBlockers, shouldMixAudio, totalDuration]);
+    }, [exportAllTransitions, exportAudioTracks, exportClips, exportFps, exportModeCopy.label, exportPlaybackClips, exportPlan, exportRenderMode, proExportManifest, rightsBlockers, shouldMixAudio, totalDuration]);
     const exportPreflight = useMemo(() => {
         const fps = exportFps;
         const frameSchedule = buildExportFrameSchedule({ totalDuration, fps });
@@ -233,6 +268,32 @@ export function useVideoExportController() {
         });
     }, []);
 
+    useEffect(() => {
+        if (exportRenderMode !== 'firebase') return undefined;
+        let cleanup = () => {};
+        let disposed = false;
+        subscribeLatestVideoExportJob({
+            onUpdate: (job) => {
+                if (disposed || !job) return;
+                setActiveExportJob(job);
+                setExportProgress(job.progress || 0);
+                setIsExporting(!['ready', 'failed', 'cancelled'].includes(job.status));
+                setExportJobHistory((history) => upsertExportJobHistory(history, job));
+            },
+            onError: (error) => {
+                if (disposed) return;
+                setProExportMessage(`Suivi Firestore indisponible: ${error.message || 'lecture du job impossible'}`);
+            },
+        }).then((unsubscribe) => {
+            cleanup = unsubscribe;
+            if (disposed) cleanup();
+        });
+        return () => {
+            disposed = true;
+            cleanup();
+        };
+    }, [exportRenderMode, setExportProgress, setIsExporting]);
+
     const handleProExport = async () => {
         if (proExportPreflight.errors.length > 0) {
             setProExportMessage(`Export Pro bloque: ${proExportPreflight.errors.join(' ')}`);
@@ -244,7 +305,7 @@ export function useVideoExportController() {
         const abortController = new AbortController();
         exportJobAbortRef.current = abortController;
         setIsExportJobModalOpen(true);
-        setProExportMessage('Export Pro MP4 lance en localMock.');
+        setProExportMessage(`Export Pro MP4 lance: ${exportModeCopy.label}.`);
 
         const manifest = buildExportManifest({
             projectName,
@@ -258,6 +319,7 @@ export function useVideoExportController() {
             exportFps,
             qualityMode: exportQualityMode,
             fitMode: exportFitMode,
+            renderSettings: buildProfessionalRenderOverrides(professionalExportSettings),
             rightsManifest,
             frameSchedule: proExportPreflight.frameSchedule,
         });
@@ -273,7 +335,7 @@ export function useVideoExportController() {
         setIsExporting(true);
         const finalJob = await startVideoExportJob({
             manifest,
-            mode: 'localMock',
+            mode: exportRenderMode,
             signal: abortController.signal,
             onUpdate: updateJob,
         });
@@ -299,6 +361,7 @@ export function useVideoExportController() {
             exportFps,
             qualityMode: exportQualityMode,
             fitMode: exportFitMode,
+            renderSettings: buildProfessionalRenderOverrides(professionalExportSettings),
             rightsManifest,
         });
         exportJobAbortRef.current?.abort?.();
@@ -306,24 +369,97 @@ export function useVideoExportController() {
         exportJobAbortRef.current = abortController;
         setIsExportJobModalOpen(true);
         setIsExporting(true);
-        const finalJob = await retryVideoExportJob({
-            manifest,
-            mode: 'localMock',
-            signal: abortController.signal,
-            onUpdate: (nextJob) => {
-                setActiveExportJob(nextJob);
-                setExportProgress(nextJob.progress || 0);
-                setExportJobHistory((history) => upsertExportJobHistory(history, nextJob));
-            },
-        });
-        setActiveExportJob(finalJob);
-        setExportJobHistory((history) => upsertExportJobHistory(history, finalJob));
-        setIsExporting(false);
-        setProExportMessage(resolveJobMessage(finalJob));
+        if (job?.id) {
+            const retryingJob = {
+                ...job,
+                status: 'retrying',
+                phase: 'retrying',
+                phaseLabel: 'Relance export',
+                stepLabel: 'Nouveau job export en preparation',
+                progress: Math.max(0, Math.min(18, Number(job.progress || 0))),
+            };
+            setActiveExportJob(retryingJob);
+            setExportProgress(retryingJob.progress);
+            setExportJobHistory((history) => upsertExportJobHistory(history, retryingJob));
+        }
+        try {
+            const finalJob = await retryVideoExportJob({
+                jobId: job?.id,
+                manifest,
+                mode: exportRenderMode,
+                signal: abortController.signal,
+                onUpdate: (nextJob) => {
+                    setActiveExportJob(nextJob);
+                    setExportProgress(nextJob.progress || 0);
+                    setExportJobHistory((history) => upsertExportJobHistory(history, nextJob));
+                },
+            });
+            setActiveExportJob(finalJob);
+            setExportJobHistory((history) => upsertExportJobHistory(history, finalJob));
+            setProExportMessage(resolveJobMessage(finalJob));
+        } catch (error) {
+            const failedJob = {
+                ...(job || {}),
+                status: 'failed',
+                phase: 'failed',
+                phaseLabel: 'Echec relance',
+                stepLabel: error.message || 'Relance export impossible',
+                progress: Math.max(0, Math.min(35, Number(job?.progress || 0))),
+                error: {
+                    code: error.code || 'export-retry-failed',
+                    message: error.message || 'Relance export impossible.',
+                    action: error.action || 'Verifie le job export et relance.',
+                },
+            };
+            setActiveExportJob(failedJob);
+            setExportJobHistory((history) => upsertExportJobHistory(history, failedJob));
+            setProExportMessage(resolveJobMessage(failedJob));
+        } finally {
+            setIsExporting(false);
+        }
     };
 
     const removeExportJobFromHistory = (jobId) => {
         setExportJobHistory((history) => history.filter(job => job.id !== jobId));
+    };
+
+    const addProfessionalRenderQueueItem = ({ settings, validation, size } = {}) => {
+        if (validation?.status === 'blocked') {
+            setProExportMessage(`Render queue bloque: ${[...(validation.errors || []), ...(validation.blockers || [])].slice(0, 2).join(' ')}`);
+            return;
+        }
+        const queueItem = createRenderQueueItem({
+            settings,
+            manifest: proExportManifest,
+            source: 'professional-export-panel',
+        });
+        setProfessionalRenderQueue((queue) => [queueItem, ...queue].slice(0, 8));
+        setProExportMessage(`Ajoute a la render queue: ${settings?.file?.fileName || 'export'} (${size?.label || proExportManifest.estimates.outputSize.label}).`);
+    };
+
+    const handleImageSnapshotExport = async () => {
+        if (!previewCanvas) {
+            setProExportMessage('Export image bloque: canvas preview indisponible.');
+            return;
+        }
+        const requestedFormat = professionalExportSettings.video?.format;
+        const format = ['png', 'jpeg', 'webp'].includes(requestedFormat)
+            ? requestedFormat
+            : professionalExportSettings.image?.format || 'png';
+        try {
+            const result = await exportCanvasImage(previewCanvas, {
+                format,
+                quality: professionalExportSettings.image?.quality ?? 0.92,
+                fileName: professionalExportSettings.file?.fileName || projectName || 'vibefx-export',
+                transparentBackground: professionalExportSettings.image?.transparentBackground === true,
+            });
+            const url = URL.createObjectURL(result.blob);
+            triggerBrowserDownload(url, result.fileName);
+            URL.revokeObjectURL(url);
+            setProExportMessage(`Export image termine: ${result.fileName} (${(result.blob.size / 1024 / 1024).toFixed(2)} Mo).`);
+        } catch (error) {
+            setProExportMessage(`Export image echoue: ${error.message || 'erreur inconnue'}`);
+        }
     };
 
     const handleBrowserDraftExport = async () => {
@@ -599,6 +735,8 @@ export function useVideoExportController() {
         exportFormat,
         exportFrameRate,
         exportFitMode,
+        exportModeCopy,
+        exportRenderMode,
         exportJobHistory,
         exportMessage,
         exportPreflight,
@@ -617,7 +755,11 @@ export function useVideoExportController() {
         proExportManifest,
         proExportMessage,
         proExportPreflight,
+        professionalExportSettings,
+        professionalRenderQueue,
         projectName,
+        addProfessionalRenderQueueItem,
+        handleImageSnapshotExport,
         removeExportJobFromHistory,
         retryProExport,
         rightsAudit,
@@ -630,10 +772,12 @@ export function useVideoExportController() {
         setExportJobHistory,
         setExportJobModalOpen: setIsExportJobModalOpen,
         setExportQualityMode,
+        setProfessionalExportSettings,
         setSequencePreset,
         shouldMixAudio,
         sourceFpsMax,
         totalDuration,
+        previewCanvas,
     };
 }
 
@@ -649,9 +793,11 @@ const ExportVideoPanel = () => {
         exportFitMode,
         exportJobHistory,
         exportMessage,
+        exportModeCopy,
         exportPreflight,
         exportProgress,
         exportQualityMode,
+        exportRenderMode,
         handleBrowserDraftExport,
         handleExport,
         hasAudibleClipAudio,
@@ -663,6 +809,10 @@ const ExportVideoPanel = () => {
         proExportManifest,
         proExportMessage,
         proExportPreflight,
+        professionalExportSettings,
+        professionalRenderQueue,
+        addProfessionalRenderQueueItem,
+        handleImageSnapshotExport,
         removeExportJobFromHistory,
         retryProExport,
         rightsAudit,
@@ -674,10 +824,12 @@ const ExportVideoPanel = () => {
         setExportFitMode,
         setExportJobModalOpen,
         setExportQualityMode,
+        setProfessionalExportSettings,
         setSequencePreset,
         shouldMixAudio,
         sourceFpsMax,
         totalDuration,
+        previewCanvas,
     } = useVideoExportController();
 
     return (
@@ -713,15 +865,32 @@ const ExportVideoPanel = () => {
                     </div>
                 </div>
 
+                <ExportSettingsPanel
+                    value={professionalExportSettings}
+                    durationSeconds={totalDuration}
+                    onChange={setProfessionalExportSettings}
+                    onAddToQueue={addProfessionalRenderQueueItem}
+                    queue={professionalRenderQueue}
+                />
+
                 <div className="rounded-sm border border-cyan-500/20 bg-cyan-500/5 p-3 space-y-3">
                     <div className="flex items-start justify-between gap-3">
                         <div>
                             <span className="text-[9px] font-mono text-cyan-300 uppercase tracking-widest">Export Pro serveur</span>
                             <p className="mt-1 text-[9px] font-mono leading-relaxed text-neutral-400">
-                                LocalMock actif: valide le workflow Cloud Run/FFmpeg sans generer de faux MP4.
+                                {exportModeCopy.description}
                             </p>
                         </div>
-                        <Server size={14} className="mt-0.5 shrink-0 text-cyan-300" />
+                        <div className="flex shrink-0 items-center gap-2">
+                            <span
+                                className={`rounded-sm px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-widest ${exportModeCopy.className}`}
+                                data-testid="export-pro-mode"
+                                data-export-mode={exportRenderMode}
+                            >
+                                {exportModeCopy.label}
+                            </span>
+                            <Server size={14} className="text-cyan-300" />
+                        </div>
                     </div>
                     <div className="grid grid-cols-3 gap-1.5">
                         {EXPORT_QUALITY_OPTIONS.map((option) => (
@@ -757,12 +926,24 @@ const ExportVideoPanel = () => {
                             <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest">Estimation</span>
                             <div className="mt-1 space-y-1 text-[9px] font-mono">
                                 <div className="flex justify-between gap-2">
+                                    <span className="text-neutral-500">Duree</span>
+                                    <span className="text-neutral-300">{totalDuration.toFixed(1)}s</span>
+                                </div>
+                                <div className="flex justify-between gap-2">
                                     <span className="text-neutral-500">Taille</span>
                                     <span className="text-neutral-300">{proExportManifest.estimates.outputSize.label}</span>
                                 </div>
                                 <div className="flex justify-between gap-2">
+                                    <span className="text-neutral-500">Sources</span>
+                                    <span className="text-neutral-300">{proExportManifest.estimates.sourceSize.label}</span>
+                                </div>
+                                <div className="flex justify-between gap-2">
                                     <span className="text-neutral-500">Temps</span>
                                     <span className="text-neutral-300">{proExportManifest.estimates.renderTime.label}</span>
+                                </div>
+                                <div className="flex justify-between gap-2">
+                                    <span className="text-neutral-500">Cout</span>
+                                    <span className="text-neutral-300">{proExportManifest.estimates.cost.label}</span>
                                 </div>
                             </div>
                         </div>
@@ -827,8 +1008,11 @@ const ExportVideoPanel = () => {
                                 ['Resolution', `${preset.width} x ${preset.height}`],
                                 ['Sequence', `${preset.name} ${preset.label}`],
                                 ['FPS', `${exportFps}`],
+                                ['Clips', `${proExportManifest.clips.length}`],
                                 ['Source FPS', sourceFpsMax > exportFps ? `${sourceFpsMax}->${exportFps} FPS` : `${sourceFpsMax || exportFps} FPS preserve`],
                                 ['Duree', `${totalDuration.toFixed(1)}s`],
+                                ['Taille sources', proExportManifest.estimates.sourceSize.label],
+                                ['Cout estime', proExportManifest.estimates.cost.label],
                                 ['Audio export', shouldMixAudio ? [
                                     hasAudibleClipAudio ? 'clips' : '',
                                     exportAudioTracks.length > 0 ? 'musique' : '',
@@ -863,7 +1047,7 @@ const ExportVideoPanel = () => {
                     data-preflight-status={proExportPreflight.status}
                 >
                     <div className="flex items-center justify-between gap-2">
-                        <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">Preflight Export Pro</span>
+                        <span className="text-[9px] font-mono uppercase tracking-widest text-neutral-400">Compatibilite Export Pro</span>
                         <span
                             className={`rounded-sm px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-widest ${
                                 proExportPreflight.status === 'blocked'
@@ -873,7 +1057,7 @@ const ExportVideoPanel = () => {
                                         : 'bg-cyan-500/10 text-cyan-200'
                             }`}
                         >
-                            {proExportPreflight.status === 'blocked' ? 'Bloque' : proExportPreflight.status === 'warning' ? 'Warnings' : 'Pret'}
+                            {proExportPreflight.status === 'blocked' ? 'Bloque' : proExportPreflight.status === 'warning' ? 'A verifier' : 'Exportable pro'}
                         </span>
                     </div>
                     {proExportPreflight.errors.length > 0 ? (
@@ -886,9 +1070,16 @@ const ExportVideoPanel = () => {
                         </p>
                     ) : (
                         <p className="text-[9px] font-mono leading-relaxed text-cyan-200/80">
-                            Manifeste MP4, sources, frames, audio, droits et cadrage verifies pour orchestration serveur.
+                            Exportable pro: le renderer serveur couvre les features actives de ce projet.
                         </p>
                     )}
+                    <div className="mt-2 flex flex-wrap gap-1">
+                        {(proExportPreflight.renderCoverage?.supportedFeatures || []).slice(0, 4).map((feature) => (
+                            <span key={feature} className="rounded-sm border border-neutral-800 bg-neutral-950/70 px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-widest text-neutral-500">
+                                {feature}
+                            </span>
+                        ))}
+                    </div>
                 </div>
 
                 <div
@@ -995,6 +1186,14 @@ const ExportVideoPanel = () => {
                         <Download size={13} />
                         Export rapide navigateur (brouillon)
                     </button>
+                    <button
+                        onClick={handleImageSnapshotExport}
+                        disabled={!previewCanvas || isExporting}
+                        className="w-full flex items-center justify-center gap-2 border border-neutral-800 bg-black text-neutral-300 py-2 text-[10px] font-mono font-medium hover:border-cyan-500/45 hover:text-cyan-100 transition disabled:opacity-50 uppercase tracking-wider"
+                    >
+                        <Download size={13} />
+                        Export image canvas PNG/JPEG/WebP
+                    </button>
                 </div>
 
                 {isExporting && (
@@ -1025,20 +1224,114 @@ const ExportVideoPanel = () => {
                     onCancel={cancelProExport}
                     onClose={() => setExportJobModalOpen(false)}
                     onRetry={retryProExport}
+                    renderMode={exportRenderMode}
                 />
             )}
         </div>
     );
 };
 
-function ExportRenderModal({ job, manifest, onCancel, onClose, onRetry }) {
+function ExportRenderModal({ job, manifest, onCancel, onClose, onRetry, renderMode = 'localMock' }) {
     const status = job?.status || 'preparing_sources';
+    const activeMode = job?.mode || renderMode;
     const progress = Math.max(0, Math.min(100, Number(job?.progress || 0)));
     const isRunning = !['ready', 'failed', 'cancelled'].includes(status);
+    const isOutputReady = status === 'ready' && Boolean(job?.output?.downloadUrl || job?.output?.storagePath);
     const elapsed = formatDurationMs(job?.elapsedMs || 0);
     const remaining = job?.estimatedRemainingMs ? formatDurationMs(job.estimatedRemainingMs) : 'calcul';
     const render = job?.render || manifest?.render || {};
     const outputSize = job?.output?.sizeBytes || manifest?.estimates?.outputSize?.bytes || 0;
+    const output = job?.output || {};
+    const outputMeta = resolveOutputMediaMetadata({ render, output, activeMode });
+    const activePhase = job?.phase || status;
+    const supportsDirectoryPicker = typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function';
+    const directoryHandleRef = useRef(null);
+    const [destinationMode, setDestinationMode] = useState('downloads');
+    const [directoryLabel, setDirectoryLabel] = useState('');
+    const [downloadState, setDownloadState] = useState({ busy: false, message: '' });
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        try {
+            const saved = JSON.parse(window.localStorage.getItem(EXPORT_DESTINATION_PREF_KEY) || '{}');
+            if (saved.mode === 'folder' && supportsDirectoryPicker) {
+                setDestinationMode('folder');
+                setDirectoryLabel(saved.label || '');
+            }
+        } catch {
+            // Preference locale non critique.
+        }
+    }, [supportsDirectoryPicker]);
+
+    const persistDestinationPreference = (mode, label = '') => {
+        setDestinationMode(mode);
+        setDirectoryLabel(label);
+        if (typeof window === 'undefined') return;
+        try {
+            window.localStorage.setItem(EXPORT_DESTINATION_PREF_KEY, JSON.stringify({ mode, label }));
+        } catch {
+            // Preference locale best-effort.
+        }
+    };
+
+    const chooseDirectory = async () => {
+        if (!supportsDirectoryPicker) {
+            setDownloadState({ busy: false, message: 'Choix de dossier indisponible dans ce navigateur. Utilise le telechargement standard.' });
+            return null;
+        }
+        try {
+            const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+            directoryHandleRef.current = handle;
+            persistDestinationPreference('folder', handle.name || 'Dossier choisi');
+            setDownloadState({ busy: false, message: `Dossier choisi: ${handle.name || 'PC'}.` });
+            return handle;
+        } catch (error) {
+            setDownloadState({ busy: false, message: error?.name === 'AbortError' ? 'Choix de dossier annule.' : error.message || 'Choix de dossier annule.' });
+            return null;
+        }
+    };
+
+    const handleDownloadOutput = async (target = 'downloads') => {
+        if (!isOutputReady) {
+            setDownloadState({ busy: false, message: 'Aucun MP4 Storage pret a recuperer.' });
+            return;
+        }
+        setDownloadState({ busy: true, message: target === 'folder' ? 'Preparation enregistrement dossier...' : 'Preparation telechargement...' });
+        const fileName = buildExportFileName({
+            projectName: job?.projectName || manifest?.project?.name,
+            jobId: job?.id,
+        });
+
+        try {
+            const url = await resolveExportOutputDownloadUrl(job);
+            if (target === 'folder') {
+                let directoryHandle = directoryHandleRef.current;
+                if (!directoryHandle) directoryHandle = await chooseDirectory();
+                if (!directoryHandle) {
+                    setDownloadState({ busy: false, message: 'Enregistrement dossier annule.' });
+                    return;
+                }
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`Telechargement Storage refuse (${response.status}).`);
+                const blob = await response.blob();
+                const fileHandle = await directoryHandle.getFileHandle(fileName, { create: true });
+                const writable = await fileHandle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+                setDownloadState({ busy: false, message: `MP4 enregistre: ${fileName}.` });
+                return;
+            }
+
+            triggerBrowserDownload(url, fileName);
+            persistDestinationPreference('downloads');
+            setDownloadState({ busy: false, message: `Telechargement lance: ${fileName}.` });
+        } catch (error) {
+            setDownloadState({
+                busy: false,
+                message: error.message || 'Impossible de recuperer le MP4 Storage.',
+            });
+        }
+    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/78 px-3 backdrop-blur-sm">
@@ -1063,7 +1356,7 @@ function ExportRenderModal({ job, manifest, onCancel, onClose, onRetry }) {
                         <div className="mb-2 flex items-center justify-between gap-3">
                             <div>
                                 <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-200">{job?.phaseLabel || 'Preparation'}</p>
-                                <p className="mt-1 text-[9px] font-mono leading-relaxed text-neutral-500">{job?.stepLabel || 'Initialisation du job localMock.'}</p>
+                                <p className="mt-1 text-[9px] font-mono leading-relaxed text-neutral-500">{job?.stepLabel || 'Initialisation du job export.'}</p>
                             </div>
                             <span className="shrink-0 text-lg font-mono tabular-nums text-cyan-200">{progress}%</span>
                         </div>
@@ -1071,8 +1364,23 @@ function ExportRenderModal({ job, manifest, onCancel, onClose, onRetry }) {
                             <div className="h-full bg-cyan-300 transition-[width] duration-200" style={{ width: `${progress}%` }} />
                         </div>
                         <p className="mt-3 text-[9px] font-mono leading-relaxed text-neutral-400">
-                            Tu peux laisser cet export tourner. Le rendu final est calcule sur serveur; en localMock, seules les phases et validations sont simulees.
+                            {resolveExportModeModalCopy(activeMode)}
                         </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                        {EXPORT_PROGRESS_STEPS.map((step) => {
+                            const stepState = getExportStepState({ step, status, activePhase, progress });
+                            return (
+                                <div
+                                    key={step.id}
+                                    className={`rounded-sm border px-2 py-1.5 ${getStepStateClass(stepState)}`}
+                                    data-step-state={stepState}
+                                >
+                                    <p className="text-[8px] font-mono uppercase tracking-widest">{step.label}</p>
+                                </div>
+                            );
+                        })}
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -1080,15 +1388,22 @@ function ExportRenderModal({ job, manifest, onCancel, onClose, onRetry }) {
                             ['Mode', render.qualityLabel || render.qualityMode || 'Pro'],
                             ['Format', `${render.width || 0}x${render.height || 0}`],
                             ['FPS', render.fps || 0],
-                            ['Est.', outputSize ? formatBytes(outputSize) : 'mock'],
+                            ['Container', outputMeta.container],
+                            ['Taille', outputSize ? `${formatBytes(outputSize)}${output.sizeBytes ? '' : ' est.'}` : 'mock'],
                             ['Ecoule', elapsed],
                             ['Restant', isRunning ? remaining : '-'],
-                            ['Codec', 'H.264/AAC'],
+                            ['Codec', outputMeta.codec],
+                            ['MIME', outputMeta.contentType],
                             ['Etat', status],
                         ].map(([label, value]) => (
                             <div key={label} className="rounded-sm border border-neutral-800 bg-neutral-950/80 p-2">
                                 <p className="text-[8px] font-mono uppercase tracking-widest text-neutral-600">{label}</p>
-                                <p className="mt-1 truncate text-[10px] font-mono text-neutral-200">{value}</p>
+                                <p
+                                    className="mt-1 truncate text-[10px] font-mono text-neutral-200"
+                                    data-testid={label === 'Codec' ? 'export-output-codec' : label === 'Container' ? 'export-output-container' : label === 'MIME' ? 'export-output-mime' : undefined}
+                                >
+                                    {value}
+                                </p>
                             </div>
                         ))}
                     </div>
@@ -1104,7 +1419,7 @@ function ExportRenderModal({ job, manifest, onCancel, onClose, onRetry }) {
                     <div className="rounded-sm border border-neutral-800 bg-black p-3">
                         <div className="mb-2 flex items-center justify-between">
                             <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-500">Logs renderer</p>
-                            <span className="text-[8px] font-mono uppercase tracking-widest text-neutral-600">localMock</span>
+                            <span className="text-[8px] font-mono uppercase tracking-widest text-neutral-600">{resolveExportModeCopy(activeMode).label}</span>
                         </div>
                         <div className="max-h-36 space-y-1 overflow-y-auto pr-1 custom-scrollbar">
                             {(job?.logs?.length ? job.logs : [{ at: new Date().toISOString(), level: 'neutral', message: 'En attente du premier evenement export.' }]).map((log, index) => (
@@ -1114,6 +1429,130 @@ function ExportRenderModal({ job, manifest, onCancel, onClose, onRetry }) {
                             ))}
                         </div>
                     </div>
+
+                    {isOutputReady && (
+                        <div className="rounded-sm border border-emerald-500/20 bg-emerald-500/[0.06] p-3">
+                            <p className="text-[9px] font-mono uppercase tracking-widest text-emerald-300">Fichier final pret</p>
+                            <div className="mt-2 space-y-1 text-[9px] font-mono leading-relaxed">
+                                <div className="flex justify-between gap-3">
+                                    <span className="text-emerald-200/70">Statut</span>
+                                    <span className="text-emerald-100">{status}</span>
+                                </div>
+                                <div className="flex justify-between gap-3">
+                                    <span className="text-emerald-200/70">Taille {outputMeta.container}</span>
+                                    <span className="text-emerald-100">{formatBytes(output.sizeBytes || 0)}</span>
+                                </div>
+                                <div className="flex justify-between gap-3">
+                                    <span className="text-emerald-200/70">Codec</span>
+                                    <span className="text-emerald-100">{outputMeta.codec}</span>
+                                </div>
+                                <div className="flex justify-between gap-3">
+                                    <span className="text-emerald-200/70">MIME</span>
+                                    <span className="text-emerald-100">{outputMeta.contentType}</span>
+                                </div>
+                                <div className="flex justify-between gap-3">
+                                    <span className="text-emerald-200/70">Rendu</span>
+                                    <span className="text-emerald-100">{elapsed}</span>
+                                </div>
+                                {output.storagePath && (
+                                    <div className="pt-1">
+                                        <span className="text-emerald-200/70">Storage</span>
+                                        <p className="mt-0.5 break-all text-emerald-50/90">{output.storagePath}</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {isOutputReady && (
+                        <div className="rounded-sm border border-neutral-800 bg-neutral-950/70 p-3">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                    <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-300">Destination PC</p>
+                                    <p className="mt-1 text-[9px] font-mono leading-relaxed text-neutral-500">
+                                        {destinationMode === 'folder' && supportsDirectoryPicker
+                                            ? directoryLabel || 'Dossier a choisir'
+                                            : 'Telechargements par defaut'}
+                                    </p>
+                                </div>
+                                <span className="rounded-sm border border-neutral-800 bg-black px-2 py-1 text-[8px] font-mono uppercase tracking-widest text-neutral-500">
+                                    {buildExportFileName({ projectName: job?.projectName || manifest?.project?.name, jobId: job?.id })}
+                                </span>
+                            </div>
+
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                <button
+                                    type="button"
+                                    onClick={() => persistDestinationPreference('downloads')}
+                                    className={`flex min-h-14 items-center gap-2 rounded-sm border px-3 py-2 text-left transition ${
+                                        destinationMode === 'downloads'
+                                            ? 'border-cyan-400/45 bg-cyan-500/10 text-cyan-100'
+                                            : 'border-neutral-800 bg-black text-neutral-400 hover:border-neutral-600'
+                                    }`}
+                                >
+                                    <Download size={14} />
+                                    <span>
+                                        <span className="block text-[9px] font-mono uppercase tracking-widest">Telechargements</span>
+                                        <span className="block text-[9px] font-mono text-neutral-500">Navigateur</span>
+                                    </span>
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={!supportsDirectoryPicker}
+                                    onClick={() => {
+                                        if (supportsDirectoryPicker) persistDestinationPreference('folder', directoryLabel);
+                                    }}
+                                    className={`flex min-h-14 items-center gap-2 rounded-sm border px-3 py-2 text-left transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                                        destinationMode === 'folder' && supportsDirectoryPicker
+                                            ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-100'
+                                            : 'border-neutral-800 bg-black text-neutral-400 hover:border-neutral-600'
+                                    }`}
+                                >
+                                    <FolderOpen size={14} />
+                                    <span>
+                                        <span className="block text-[9px] font-mono uppercase tracking-widest">Dossier PC</span>
+                                        <span className="block text-[9px] font-mono text-neutral-500">{supportsDirectoryPicker ? directoryLabel || 'A choisir' : 'Indisponible'}</span>
+                                    </span>
+                                </button>
+                            </div>
+
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    disabled={downloadState.busy}
+                                    onClick={() => handleDownloadOutput('downloads')}
+                                    className="inline-flex items-center gap-2 rounded-sm border border-neutral-700 bg-neutral-900 px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-neutral-300 transition hover:border-neutral-500 disabled:cursor-not-allowed disabled:opacity-45"
+                                >
+                                    <Download size={12} />
+                                    Telecharger
+                                </button>
+                                {supportsDirectoryPicker && (
+                                    <button
+                                        type="button"
+                                        disabled={downloadState.busy}
+                                        onClick={() => handleDownloadOutput('folder')}
+                                        className="inline-flex items-center gap-2 rounded-sm border border-emerald-500/35 bg-emerald-500/10 px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-emerald-100 transition hover:bg-emerald-500/18 disabled:cursor-not-allowed disabled:opacity-45"
+                                    >
+                                        <FolderOpen size={12} />
+                                        Enregistrer dossier
+                                    </button>
+                                )}
+                                {supportsDirectoryPicker && (
+                                    <button
+                                        type="button"
+                                        disabled={downloadState.busy}
+                                        onClick={chooseDirectory}
+                                        className="inline-flex items-center gap-2 rounded-sm border border-neutral-800 px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-neutral-400 transition hover:border-neutral-600 disabled:cursor-not-allowed disabled:opacity-45"
+                                    >
+                                        Choisir dossier
+                                    </button>
+                                )}
+                            </div>
+                            {downloadState.message && (
+                                <p className="mt-2 text-[9px] font-mono leading-relaxed text-neutral-400">{downloadState.message}</p>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex flex-wrap items-center justify-end gap-2 border-t border-neutral-800 px-4 py-3">
@@ -1137,14 +1576,10 @@ function ExportRenderModal({ job, manifest, onCancel, onClose, onRetry }) {
                     )}
                     <button
                         type="button"
-                        disabled={!job?.output?.downloadUrl}
-                        onClick={() => {
-                            if (job?.output?.downloadUrl) {
-                                window.open(job.output.downloadUrl, '_blank', 'noopener,noreferrer');
-                            }
-                        }}
+                        disabled={!isOutputReady || downloadState.busy}
+                        onClick={() => handleDownloadOutput(destinationMode === 'folder' && supportsDirectoryPicker ? 'folder' : 'downloads')}
                         className="inline-flex items-center gap-2 rounded-sm border border-neutral-700 bg-neutral-900 px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-neutral-300 transition hover:border-neutral-500 disabled:cursor-not-allowed disabled:opacity-45"
-                        title={job?.output?.downloadUrl ? 'Telecharger le MP4' : job?.output?.storagePath ? 'MP4 disponible dans Storage, URL signee absente' : 'Aucun fichier reel en localMock'}
+                        title={isOutputReady ? 'Recuperer le MP4 final' : 'Aucun MP4 reel disponible'}
                     >
                         <Download size={12} />
                         Telecharger MP4
@@ -1207,10 +1642,113 @@ function upsertExportJobHistory(history = [], job = {}) {
 }
 
 function resolveJobMessage(job = {}) {
-    if (job.status === 'ready') return 'Export Pro localMock termine: workflow valide, aucun MP4 reel genere.';
+    if (job.status === 'ready' && job.mode === 'localMock') return 'Export Pro localMock termine: workflow valide, aucun MP4 reel genere.';
+    if (job.status === 'ready') return 'Export Pro Firebase termine: MP4 final disponible.';
     if (job.status === 'cancelled') return 'Export Pro annule.';
     if (job.status === 'failed') return `Export Pro echoue: ${job.error?.message || 'erreur inconnue'}`;
     return job.stepLabel || 'Export Pro en cours.';
+}
+
+function resolveExportModeCopy(mode = 'localMock') {
+    if (mode === 'firebase') {
+        return {
+            label: 'Rendu Cloud Firebase',
+            description: 'Mode Firebase actif: sources uploadees dans Storage, job cree par callable, rendu final produit par le renderer Cloud Run.',
+            className: 'border border-cyan-400/30 bg-cyan-500/10 text-cyan-100',
+        };
+    }
+    return {
+        label: 'Simulation locale',
+        description: 'Simulation locale active: valide le workflow Cloud Run/FFmpeg sans generer de faux MP4.',
+        className: 'border border-amber-400/25 bg-amber-500/10 text-amber-200',
+    };
+}
+
+function resolveExportModeModalCopy(mode = 'localMock') {
+    if (mode === 'firebase') {
+        return 'Tu peux laisser cet export tourner. Le navigateur pilote le job; le MP4 final est calcule par le renderer serveur depuis le manifeste canonique.';
+    }
+    return 'Tu peux laisser cet export tourner. En simulation locale, seules les phases et validations sont simulees; aucun MP4 reel n est genere.';
+}
+
+function getExportStepState({ step, status, activePhase, progress = 0 } = {}) {
+    if (status === 'failed') return activePhase === step.id || step.status === status ? 'error' : 'pending';
+    if (status === 'cancelled') return activePhase === step.id || step.status === status ? 'cancelled' : 'pending';
+    if (step.status === status || step.id === activePhase) return status === 'ready' ? 'done' : 'active';
+    const index = EXPORT_PROGRESS_STEPS.findIndex(item => item.id === step.id);
+    const activeIndex = EXPORT_PROGRESS_STEPS.findIndex(item => item.id === activePhase || item.status === status);
+    if (status === 'ready' || progress >= 100) return 'done';
+    if (activeIndex >= 0 && index >= 0 && index < activeIndex) return 'done';
+    return 'pending';
+}
+
+function getStepStateClass(state = 'pending') {
+    if (state === 'done') return 'border-emerald-500/20 bg-emerald-500/8 text-emerald-300';
+    if (state === 'active') return 'border-cyan-400/35 bg-cyan-500/10 text-cyan-100';
+    if (state === 'error') return 'border-red-500/30 bg-red-500/10 text-red-200';
+    if (state === 'cancelled') return 'border-amber-500/30 bg-amber-500/10 text-amber-200';
+    return 'border-neutral-800 bg-neutral-950/70 text-neutral-600';
+}
+
+function buildExportFileName({ projectName = '', jobId = '' } = {}) {
+    const stamp = formatExportFileDate(new Date());
+    const safeProjectName = sanitizeExportFilePart(projectName);
+    if (safeProjectName) return `vibecut-${safeProjectName}-${stamp}.mp4`;
+    return `vibecut-export-${sanitizeExportFilePart(jobId) || stamp}.mp4`;
+}
+
+function sanitizeExportFilePart(value = '') {
+    return String(value)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 48);
+}
+
+function formatExportFileDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}${month}${day}-${hours}${minutes}`;
+}
+
+async function resolveExportOutputDownloadUrl(job = {}) {
+    if (job?.output?.downloadUrl) return job.output.downloadUrl;
+    if (!job?.output?.storagePath && !job?.id) throw new Error('Chemin Storage output absent.');
+
+    if (job?.output?.storagePath) {
+        try {
+            const [{ firebaseReady, storage }, { getDownloadURL, ref }] = await Promise.all([
+                import('@/lib/firebase'),
+                import('firebase/storage'),
+            ]);
+            if (!firebaseReady || !storage) {
+                throw new Error('Firebase Storage non configure pour regenerer une URL de download.');
+            }
+            return await getDownloadURL(ref(storage, job.output.storagePath));
+        } catch (error) {
+            if (!job?.id) throw error;
+        }
+    }
+
+    const download = await getVideoExportDownloadUrl({ jobId: job.id });
+    if (!download?.downloadUrl) throw new Error('URL de telechargement MP4 absente.');
+    return download.downloadUrl;
+}
+
+function triggerBrowserDownload(url, fileName) {
+    if (typeof document === 'undefined') return;
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
 }
 
 function getJobStatusClass(status = '') {

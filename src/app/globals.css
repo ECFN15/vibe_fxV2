@@ -3359,9 +3359,334 @@ html {
   font: 700 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
+.vf-export-ops {
+  width: min(1180px, 100%);
+  margin: 12px auto 0;
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  border-radius: 8px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(12, 14, 26, 0.96), rgba(5, 6, 14, 0.98));
+  box-shadow: 0 0 34px rgba(0, 229, 255, 0.07);
+}
+
+.vf-export-ops-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.vf-export-ops-head h2 {
+  margin: 4px 0 0;
+  color: #ffffff;
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+}
+
+.vf-export-ops-head p {
+  max-width: 680px;
+  margin: 8px 0 0;
+  color: rgba(248, 247, 255, 0.68);
+  line-height: 1.6;
+}
+
+.vf-export-ops-actions {
+  display: grid;
+  gap: 10px;
+  justify-items: end;
+  min-width: min(260px, 100%);
+}
+
+.vf-export-ops-actions span {
+  max-width: 260px;
+  overflow: hidden;
+  color: rgba(248, 247, 255, 0.58);
+  font: 700 10px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.vf-export-ops-actions button {
+  min-height: 40px;
+  border: 1px solid rgba(205, 251, 82, 0.42);
+  border-radius: 999px;
+  padding: 0 16px;
+  color: #000000;
+  background: #cdfb52;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.vf-export-ops-actions button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.vf-export-ops-note {
+  margin: 0;
+  padding: 12px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(248, 247, 255, 0.68);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.vf-export-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 18px;
+}
+
+.vf-export-billing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 0 18px 18px;
+}
+
+.vf-export-metric-card {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.vf-export-billing-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  border: 1px solid rgba(205, 251, 82, 0.18);
+  border-radius: 8px;
+  padding: 16px;
+  background:
+    linear-gradient(180deg, rgba(205, 251, 82, 0.06), rgba(0, 0, 0, 0.16)),
+    rgba(255, 255, 255, 0.035);
+}
+
+.vf-export-metric-card > span,
+.vf-export-billing-card > span,
+.vf-export-ops th,
+.vf-export-status,
+.vf-export-billing-panel header span {
+  font: 700 10px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.vf-export-metric-card > span {
+  color: #00e5ff;
+}
+
+.vf-export-billing-card > span,
+.vf-export-billing-panel header span {
+  color: #cdfb52;
+}
+
+.vf-export-metric-card > strong {
+  color: #ffffff;
+  font-size: clamp(2.4rem, 4vw, 4rem);
+  line-height: 0.9;
+}
+
+.vf-export-billing-card > strong {
+  color: #ffffff;
+  font-size: clamp(1.8rem, 3vw, 3rem);
+  line-height: 0.96;
+}
+
+.vf-export-metric-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.vf-export-billing-card dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.vf-export-metric-card dl div {
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.vf-export-billing-card dl div {
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.vf-export-metric-card dt {
+  color: rgba(248, 247, 255, 0.48);
+  font-size: 11px;
+}
+
+.vf-export-billing-card dt {
+  color: rgba(248, 247, 255, 0.48);
+  font-size: 11px;
+}
+
+.vf-export-metric-card dd {
+  margin: 3px 0 0;
+  color: #f8f7ff;
+  font: 700 13px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.vf-export-billing-card dd {
+  margin: 3px 0 0;
+  color: #f8f7ff;
+  font: 700 13px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.vf-export-billing-panel {
+  margin: 0 18px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.vf-export-billing-panel header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.vf-export-billing-panel header strong {
+  display: block;
+  margin-top: 4px;
+  color: #ffffff;
+  font-size: 18px;
+}
+
+.vf-export-billing-panel header small {
+  max-width: 520px;
+  color: rgba(248, 247, 255, 0.56);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: right;
+}
+
+.vf-export-service-list {
+  display: grid;
+}
+
+.vf-export-service-list div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.vf-export-service-list div:last-child {
+  border-bottom: 0;
+}
+
+.vf-export-service-list span,
+.vf-export-billing-panel > p {
+  color: rgba(248, 247, 255, 0.68);
+  font-size: 13px;
+}
+
+.vf-export-service-list strong {
+  color: #cdfb52;
+  font: 800 13px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.vf-export-billing-panel > p {
+  margin: 0;
+  padding: 16px;
+}
+
+.vf-export-ops-table-wrap {
+  overflow-x: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.vf-export-ops table {
+  width: 100%;
+  min-width: 920px;
+  border-collapse: collapse;
+}
+
+.vf-export-ops th,
+.vf-export-ops td {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: left;
+  vertical-align: top;
+}
+
+.vf-export-ops th {
+  color: #00e5ff;
+}
+
+.vf-export-ops td {
+  color: rgba(248, 247, 255, 0.78);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.vf-export-ops code {
+  color: #cdfb52;
+  font: 700 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.vf-export-status {
+  display: inline-flex;
+  width: max-content;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 6px 9px;
+  color: rgba(248, 247, 255, 0.74);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.vf-export-status[data-status="ready"] {
+  border-color: rgba(205, 251, 82, 0.34);
+  color: #cdfb52;
+  background: rgba(205, 251, 82, 0.08);
+}
+
+.vf-export-status[data-status="failed"] {
+  border-color: rgba(255, 79, 129, 0.34);
+  color: #ff8aae;
+  background: rgba(255, 79, 129, 0.08);
+}
+
+.vf-export-status[data-status="rendering"],
+.vf-export-status[data-status="queued"],
+.vf-export-status[data-status="finalizing"] {
+  border-color: rgba(0, 229, 255, 0.34);
+  color: #00e5ff;
+  background: rgba(0, 229, 255, 0.08);
+}
+
 @media (max-width: 900px) {
   .vf-backoffice-hero,
-  .vf-backoffice-grid {
+  .vf-backoffice-grid,
+  .vf-export-metric-grid,
+  .vf-export-billing-grid {
     grid-template-columns: 1fr;
   }
 
@@ -3372,5 +3697,22 @@ html {
   .vf-backoffice-table-panel header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .vf-export-ops-head {
+    flex-direction: column;
+  }
+
+  .vf-export-billing-panel header {
+    flex-direction: column;
+  }
+
+  .vf-export-billing-panel header small {
+    text-align: left;
+  }
+
+  .vf-export-ops-actions {
+    justify-items: stretch;
+    width: 100%;
   }
 }

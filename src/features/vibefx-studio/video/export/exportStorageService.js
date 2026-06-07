@@ -7,7 +7,7 @@ const MAX_FIREBASE_SOURCE_BYTES = 750 * 1024 * 1024;
 
 export function resolveExportStorageMode() {
     const requestedMode = process.env.NEXT_PUBLIC_VIBECUT_EXPORT_MODE;
-    if (requestedMode === EXPORT_STORAGE_MODES.firebase) return EXPORT_STORAGE_MODES.firebase;
+    if (requestedMode === EXPORT_STORAGE_MODES.firebase || requestedMode === 'server') return EXPORT_STORAGE_MODES.firebase;
     return EXPORT_STORAGE_MODES.localMock;
 }
 
@@ -136,8 +136,8 @@ async function prepareFirebaseSources({ manifest, onProgress }) {
             onProgress: (sourceProgress) => {
                 const totalProgress = 6 + Math.round(((completed + sourceProgress) / uploadTargets.length) * 8);
                 onProgress?.({
-                    phase: 'preparing_sources',
-                    phaseLabel: 'Preparation des sources',
+                    phase: 'uploading_sources',
+                    phaseLabel: 'Upload sources',
                     stepLabel: `Upload Firebase ${completed + 1}/${uploadTargets.length}: ${target.source.name || target.source.id || target.kind}`,
                     progress: Math.min(14, totalProgress),
                 });

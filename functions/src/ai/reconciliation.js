@@ -5,7 +5,7 @@ const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const { finalizeJobFailure } = require("./jobs");
 
-const REGION = "europe-west9";
+const REGION = "europe-west1";
 const STALE_AI_RESERVATION_MS = 20 * 60 * 1000;
 const MAX_RECONCILE_JOBS = 50;
 
