@@ -145,20 +145,20 @@ const TransitionPicker = () => {
     }
 
     return (
-        <div className="flex flex-col h-full">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
-                <div>
+        <div className="flex h-full min-w-0 flex-col">
+            <div className="flex min-w-0 items-center justify-between gap-2 px-3 py-3 border-b border-neutral-800">
+                <div className="min-w-0">
                     <h3 className="text-[10px] font-mono uppercase tracking-widest text-neutral-400">Transitions</h3>
                     <p className="text-[8px] font-mono uppercase tracking-wider text-neutral-600 mt-0.5">
                         Passage entre deux videos adjacentes
                     </p>
                 </div>
-                <button onClick={() => setActivePanel(null)} className="text-neutral-500 hover:text-white transition">
+                <button onClick={() => setActivePanel(null)} className="shrink-0 text-neutral-500 hover:text-white transition">
                     <X size={14} />
                 </button>
             </div>
 
-            <div className="px-3 py-2 border-b border-neutral-800/50 space-y-2">
+            <div className="min-w-0 px-3 py-2 border-b border-neutral-800/50 space-y-2">
                 <div className="flex items-center justify-between gap-2">
                     <span className="text-[8px] font-mono text-neutral-600 uppercase tracking-widest">Placees</span>
                     <button
@@ -217,7 +217,7 @@ const TransitionPicker = () => {
                 </div>
             )}
 
-            <div className="flex items-center gap-3 px-4 py-2 border-b border-neutral-800/30">
+            <div className="flex min-w-0 items-center gap-2 px-3 py-2 border-b border-neutral-800/30">
                 <Clock size={11} className="text-neutral-600 shrink-0" />
                 <span className="text-[9px] font-mono text-neutral-500 uppercase shrink-0">Duree</span>
                 <input
@@ -230,7 +230,7 @@ const TransitionPicker = () => {
                 <span className="text-[10px] font-mono text-neutral-400 tabular-nums w-8 text-right">{duration.toFixed(1)}s</span>
             </div>
 
-            <div className="flex gap-1 px-3 py-2 overflow-x-auto border-b border-neutral-800/30 scrollbar-hide">
+            <div className="flex min-w-0 gap-1 overflow-x-auto border-b border-neutral-800/30 px-3 py-2 scrollbar-hide">
                 {EDITABLE_TRANSITION_CATEGORIES.map(cat => (
                     <button
                         key={cat.id}
@@ -246,8 +246,8 @@ const TransitionPicker = () => {
                 ))}
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-3">
-                <div className="grid grid-cols-3 gap-2">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-2.5">
+                <div className="grid grid-cols-2 gap-2 2xl:grid-cols-3">
                     {filteredTransitions.map(transition => {
                         const isActive = selectedTransition?.type === transition.id;
                         return (
@@ -256,7 +256,7 @@ const TransitionPicker = () => {
                                 onClick={() => applyTransition(transition)}
                                 disabled={transitionsLocked}
                                 aria-label={transition.name}
-                                className={`flex flex-col items-center gap-1.5 p-2.5 rounded-sm border transition-all group ${
+                                className={`flex flex-col items-center gap-1.5 p-2 rounded-sm border transition-all group ${
                                     isActive
                                         ? 'bg-purple-600/20 border-purple-500/40 text-purple-300'
                                         : 'bg-neutral-900/50 border-neutral-800 text-neutral-400 hover:border-purple-500/50 hover:bg-neutral-900 hover:text-white'

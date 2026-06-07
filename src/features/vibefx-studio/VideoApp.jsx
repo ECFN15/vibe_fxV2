@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ChevronDown, Film, Monitor, Smartphone, Sparkles, Trash2, Undo2, Redo2, RotateCcw, RotateCw } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowLeft, ChevronDown, Film, Monitor, Shield, Smartphone, Sparkles, Trash2, Undo2, Redo2, RotateCcw, RotateCw } from 'lucide-react';
 import { useAiLaunchSettings } from '@/hooks/useAiLaunchSettings';
 import VideoEditor from './video/VideoEditor';
 import useVideoStore from './video/store/videoStore';
@@ -254,7 +255,16 @@ function VideoApp({ onBack }) {
                         )}
                     </div>
 
-                    <div className="flex w-24 shrink-0 justify-end">
+                    <div className="flex shrink-0 items-center justify-end gap-2">
+                        <Link
+                            href="/backoffice"
+                            data-testid="vibecut-header-backoffice"
+                            className="inline-flex h-7 items-center justify-center gap-1.5 rounded-sm border border-cyan-500/35 bg-cyan-500/10 px-2.5 text-[8px] font-mono uppercase tracking-widest text-cyan-100 transition hover:border-cyan-300/65 hover:bg-cyan-500/16 hover:text-white"
+                            title="Ouvrir le backoffice"
+                        >
+                            <Shield size={11} />
+                            <span className="hidden sm:inline">Backoffice</span>
+                        </Link>
                         {aiInterfacesEnabled && (
                             <button
                                 type="button"

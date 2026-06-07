@@ -1183,15 +1183,34 @@ function getCutTransitionForPair(transitions = {}, transitionItems = [], fromId,
         || null;
 }
 
+function getClipPlaybackDuration(clip = {}) {
+    const trimStart = Number(clip.trimStart) || 0;
+    const trimEnd = Number(clip.trimEnd ?? clip.duration ?? 0) || 0;
+    const speed = Number(clip.speed) || 1;
+    return Math.max(0, (trimEnd - trimStart) / speed);
+}
+
+function getCutTransitionConfiguredDuration(transition = null) {
+    if (!transition) return 0;
+    return Math.max(0.1, Number(transition.duration ?? transition.defaultDuration ?? 0.5) || 0.5);
+}
+
+function resolveCutTransitionOverlap(transition = null, currentDuration = 0, nextDuration = currentDuration) {
+    if (!transition) return 0;
+    const configuredDuration = getCutTransitionConfiguredDuration(transition);
+    const availableDuration = Math.max(0, Math.min(Number(currentDuration) || 0, Number(nextDuration) || 0));
+    return Math.min(configuredDuration, availableDuration);
+}
+
 function computeTotalDuration(clips, transitions = {}, transitionItems = []) {
     if (clips.length === 0) return 0;
     let total = getIntroOffset(transitionItems);
     clips.forEach((clip, i) => {
-        const clipDur = (clip.trimEnd - clip.trimStart) / (clip.speed || 1);
+        const clipDur = getClipPlaybackDuration(clip);
         total += clipDur;
         if (i < clips.length - 1) {
             const tr = getCutTransitionForPair(transitions, transitionItems, clip.id, clips[i + 1].id);
-            if (tr) total -= tr.duration || 0;
+            total -= resolveCutTransitionOverlap(tr, clipDur, getClipPlaybackDuration(clips[i + 1]));
         }
     });
     const outroDuration = transitionItems

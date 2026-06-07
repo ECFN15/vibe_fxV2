@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
+import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup } from "firebase/auth";
 import {
   collection,
   getDocs,
@@ -41,7 +41,7 @@ export default function BackofficeClient() {
       setCloudBilling(null);
       setExportTelemetryState({
         loading: false,
-        message: firebaseReady ? "Connecte un compte Firebase pour voir les exports." : "Firebase n'est pas configure.",
+        message: firebaseReady ? "Clique sur Rafraichir pour ouvrir l'acces Google dev et charger les exports." : "Firebase n'est pas configure.",
       });
       return;
     }
@@ -101,27 +101,38 @@ export default function BackofficeClient() {
     });
   }, [loadExportTelemetry]);
 
-  const handleDevSignIn = useCallback(async () => {
-    if (!auth) return;
+  const ensureDevUser = useCallback(async () => {
+    if (!auth) {
+      setExportTelemetryState({
+        loading: false,
+        message: "Firebase Auth n'est pas initialise: impossible d'ouvrir l'acces dev.",
+      });
+      return null;
+    }
+    const currentUser = auth.currentUser || user;
+    if (currentUser) return currentUser;
     setAuthBusy(true);
     try {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
-      await signInWithPopup(auth, provider);
+      const credential = await signInWithPopup(auth, provider);
+      return credential.user || auth.currentUser || null;
+    } catch (error) {
+      setExportTelemetryState({
+        loading: false,
+        message: `Connexion dev impossible: ${error.message || "popup Google refusee."}`,
+      });
+      return null;
     } finally {
       setAuthBusy(false);
     }
-  }, []);
+  }, [user]);
 
-  const handleSignOut = useCallback(async () => {
-    if (!auth) return;
-    setAuthBusy(true);
-    try {
-      await signOut(auth);
-    } finally {
-      setAuthBusy(false);
-    }
-  }, []);
+  const handleTelemetryRefresh = useCallback(async () => {
+    const currentUser = auth?.currentUser || user || await ensureDevUser();
+    if (!currentUser) return;
+    await loadExportTelemetry(currentUser);
+  }, [ensureDevUser, loadExportTelemetry, user]);
 
   return (
     <main className="vf-backoffice">
@@ -213,9 +224,7 @@ export default function BackofficeClient() {
         jobs={exportJobs}
         loading={exportTelemetryState.loading}
         message={exportTelemetryState.message}
-        onRefresh={() => loadExportTelemetry(auth?.currentUser || user)}
-        onSignIn={handleDevSignIn}
-        onSignOut={handleSignOut}
+        onRefresh={handleTelemetryRefresh}
         authBusy={authBusy}
         canSignIn={Boolean(auth)}
       />
@@ -258,7 +267,7 @@ export default function BackofficeClient() {
   );
 }
 
-function ExportTelemetryPanel({ user, telemetry, billingTelemetry, jobs, loading, message, onRefresh, onSignIn, onSignOut, authBusy, canSignIn }) {
+function ExportTelemetryPanel({ user, telemetry, billingTelemetry, jobs, loading, message, onRefresh, authBusy, canSignIn }) {
   return (
     <section className="vf-export-ops" aria-labelledby="export-ops-title" aria-busy={loading}>
       <header className="vf-export-ops-head">
@@ -270,18 +279,9 @@ function ExportTelemetryPanel({ user, telemetry, billingTelemetry, jobs, loading
           </p>
         </div>
         <div className="vf-export-ops-actions">
-          <span>{user?.email || user?.uid || "Compte non connecte"}</span>
-          {user ? (
-            <button type="button" onClick={onSignOut} disabled={authBusy || loading}>
-              Deconnecter
-            </button>
-          ) : (
-            <button type="button" onClick={onSignIn} disabled={authBusy || loading || !canSignIn}>
-              {authBusy ? "Connexion..." : "Compte dev"}
-            </button>
-          )}
-          <button type="button" onClick={onRefresh} disabled={loading}>
-            {loading ? "Lecture..." : "Rafraichir"}
+          <span>{user?.email || user?.uid || "Acces dev non connecte"}</span>
+          <button type="button" onClick={onRefresh} disabled={authBusy || loading || !canSignIn}>
+            {authBusy ? "Connexion..." : loading ? "Lecture..." : "Rafraichir"}
           </button>
         </div>
       </header>
@@ -290,7 +290,7 @@ function ExportTelemetryPanel({ user, telemetry, billingTelemetry, jobs, loading
 
       <div className="vf-export-total-grid" aria-label="Synthese totale exports et facture">
         <article className="vf-export-total-card">
-          <span>Total exports visibles</span>
+          <span>Estimation interne exports</span>
           <strong>{telemetry.total?.readyExports || 0}</strong>
           <dl>
             <div><dt>Jobs</dt><dd>{telemetry.total?.totalJobs || 0}</dd></div>
@@ -300,7 +300,7 @@ function ExportTelemetryPanel({ user, telemetry, billingTelemetry, jobs, loading
           </dl>
         </article>
         <article className="vf-export-total-card" data-billing-state={billingTelemetry.status}>
-          <span>Total Google facture</span>
+          <span>Facture Google BigQuery</span>
           <strong>{formatMoney(billingTelemetry.total?.netCost || 0, billingTelemetry.currency)}</strong>
           <dl>
             <div><dt>Cout brut</dt><dd>{formatMoney(billingTelemetry.total?.actualCost || 0, billingTelemetry.currency)}</dd></div>

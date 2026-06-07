@@ -107,6 +107,28 @@ function hasActiveClipFilters(filters = {}) {
     return Object.entries(DEFAULT_FILTERS).some(([key, defaultValue]) => finiteNumber(normalized[key], defaultValue) !== defaultValue);
 }
 
+function getClipPlaybackDuration(clip = {}) {
+    const speed = finiteNumber(clip.speed, 1) || 1;
+    const trimStart = finiteNumber(clip.trimStart, 0);
+    const trimEnd = finiteNumber(clip.trimEnd, clip.duration || 0);
+    return Math.max(0, (trimEnd - trimStart) / speed);
+}
+
+function getCutTransitionConfiguredDuration(transition = null) {
+    if (!transition) return 0;
+    return Math.max(0.1, finiteNumber(transition.duration, 0.5));
+}
+
+function resolveCutTransitionOverlap(transition = null, currentDuration = 0, nextDuration = currentDuration) {
+    if (!transition) return 0;
+    const configuredDuration = getCutTransitionConfiguredDuration(transition);
+    const availableDuration = Math.max(0, Math.min(
+        finiteNumber(currentDuration, 0),
+        finiteNumber(nextDuration, currentDuration)
+    ));
+    return Math.min(configuredDuration, availableDuration);
+}
+
 export function normalizeTransitionItem(item = {}, totalDuration = 0) {
     const start = finiteNumber(item.start ?? item.startTime, 0);
     const rawDuration = finiteNumber(item.duration ?? ((item.endTime ?? 0) - start), 0.5);
@@ -162,20 +184,18 @@ export function resolveTimelineTransitions({ clips = [], transitions = {}, trans
     let cursor = getIntroOffset(transitionItems);
 
     clips.forEach((clip, index) => {
-        const speed = finiteNumber(clip.speed, 1) || 1;
-        const trimStart = finiteNumber(clip.trimStart, 0);
-        const trimEnd = finiteNumber(clip.trimEnd, clip.duration || 0);
-        const duration = Math.max(0, (trimEnd - trimStart) / speed);
+        const duration = getClipPlaybackDuration(clip);
         const nextClip = clips[index + 1];
         const key = nextClip ? `${clip.id}->${nextClip.id}` : '';
         const transition = nextClip ? getCutTransitionForPair({ transitions, transitionItems, current: clip, next: nextClip, key }) : null;
-        const transitionDuration = transition ? Math.max(0.1, finiteNumber(transition.duration, 0.5)) : 0;
+        const transitionDuration = getCutTransitionConfiguredDuration(transition);
+        const transitionOverlap = resolveCutTransitionOverlap(transition, duration, getClipPlaybackDuration(nextClip));
 
         if (transition && nextClip) {
             resolved.push(normalizeTransitionItem({
                 id: transition.id || `cut-${clip.id}-${nextClip.id}`,
                 type: transition.type || 'crossfade',
-                start: cursor + Math.max(0, duration - transitionDuration),
+                start: cursor + Math.max(0, duration - transitionOverlap),
                 duration: transitionDuration,
                 fromItemId: clip.id,
                 toItemId: nextClip.id,
@@ -191,7 +211,7 @@ export function resolveTimelineTransitions({ clips = [], transitions = {}, trans
             }, totalDuration));
         }
 
-        cursor += duration - transitionDuration;
+        cursor += duration - transitionOverlap;
     });
 
     normalizeTransitionItems(transitionItems, totalDuration).forEach((item) => {
@@ -271,10 +291,7 @@ export function buildTimelineSnapPoints({
 
     let cursor = getIntroOffset(transitionItems);
     clips.forEach((clip, index) => {
-        const speed = finiteNumber(clip.speed, 1) || 1;
-        const trimStart = finiteNumber(clip.trimStart, 0);
-        const trimEnd = finiteNumber(clip.trimEnd, clip.duration || 0);
-        const duration = Math.max(0, (trimEnd - trimStart) / speed);
+        const duration = getClipPlaybackDuration(clip);
         const clipLabel = clip.name || `Clip ${index + 1}`;
 
         addPoint(cursor, 'clip-start', `${clipLabel} in`);
@@ -283,7 +300,7 @@ export function buildTimelineSnapPoints({
         const nextClip = clips[index + 1];
         const key = nextClip ? `${clip.id}->${nextClip.id}` : '';
         const transition = nextClip ? getCutTransitionForPair({ transitions, transitionItems, current: clip, next: nextClip, key }) : null;
-        cursor += duration - (transition ? finiteNumber(transition.duration, 0) : 0);
+        cursor += duration - resolveCutTransitionOverlap(transition, duration, getClipPlaybackDuration(nextClip));
     });
 
     resolveTimelineTransitions({ clips, transitions, transitionItems, totalDuration })
@@ -416,7 +433,7 @@ export function buildTimelineModel({
         const speed = finiteNumber(clip.speed, 1) || 1;
         const trimStart = finiteNumber(clip.trimStart, 0);
         const trimEnd = finiteNumber(clip.trimEnd, clip.duration || 0);
-        const duration = Math.max(0, (trimEnd - trimStart) / speed);
+        const duration = getClipPlaybackDuration(clip);
 
         items.push({
             id: clip.id,
@@ -475,7 +492,7 @@ export function buildTimelineModel({
         const nextClip = clips[index + 1];
         const key = nextClip ? `${clip.id}->${nextClip.id}` : '';
         const transition = nextClip ? getCutTransitionForPair({ transitions, transitionItems, current: clip, next: nextClip, key }) : null;
-        cursor += duration - (transition ? finiteNumber(transition.duration, 0) : 0);
+        cursor += duration - resolveCutTransitionOverlap(transition, duration, getClipPlaybackDuration(nextClip));
     });
 
     resolveTimelineTransitions({ clips, transitions, transitionItems, totalDuration }).forEach(item => {

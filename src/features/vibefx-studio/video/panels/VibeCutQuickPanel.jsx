@@ -124,9 +124,10 @@ const VibeCutQuickPanel = ({ renderPanel = null } = {}) => {
     return (
         <aside
             data-testid="vibecut-quick-panel"
-            className="hidden w-96 shrink-0 flex-col border-l border-neutral-800 bg-neutral-950/98 2xl:w-[28rem] lg:flex"
+            style={{ width: 'clamp(18rem, 16.5vw, 20rem)', maxWidth: 'clamp(18rem, 16.5vw, 20rem)', flexBasis: 'clamp(18rem, 16.5vw, 20rem)' }}
+            className="hidden min-w-0 shrink-0 flex-col overflow-hidden border-l border-neutral-800 bg-neutral-950/98 lg:flex"
         >
-            <div className="border-b border-neutral-800 px-3 py-3">
+            <div className="border-b border-neutral-800 px-2.5 py-2.5">
                 <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-500">VibeCut</p>
                 <div className="mt-1 flex items-center justify-between gap-2">
                     <h2 className="text-[11px] font-mono uppercase tracking-widest text-neutral-200">Outils rapides</h2>
@@ -136,7 +137,7 @@ const VibeCutQuickPanel = ({ renderPanel = null } = {}) => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-4 gap-1 border-b border-neutral-800 p-2">
+            <div className="grid grid-cols-4 gap-1 border-b border-neutral-800 p-1.5">
                 {QUICK_TOOL_GROUPS.map((group) => {
                     const Icon = GROUP_ICON[group.id] || Sparkles;
                     const accent = ACCENT_CLASS[group.accent] || ACCENT_CLASS.purple;
@@ -148,7 +149,7 @@ const VibeCutQuickPanel = ({ renderPanel = null } = {}) => {
                             data-testid={`quick-tool-group-${group.id}`}
                             aria-pressed={active}
                             onClick={() => handleGroupSelect(group.id)}
-                            className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-sm border px-1 text-[8px] font-mono uppercase tracking-widest transition ${
+                            className={`flex min-h-10 flex-col items-center justify-center gap-0.5 rounded-sm border px-1 text-[7px] font-mono uppercase tracking-widest transition ${
                                 active
                                     ? accent.active
                                     : 'border-neutral-800 bg-neutral-900/45 text-neutral-500 hover:border-neutral-600 hover:text-neutral-200'
@@ -166,7 +167,7 @@ const VibeCutQuickPanel = ({ renderPanel = null } = {}) => {
                     {detailedPanel}
                 </div>
             ) : (
-            <div className="min-h-0 flex-1 overflow-y-auto p-3 custom-scrollbar">
+            <div className="min-h-0 flex-1 overflow-y-auto p-2 custom-scrollbar">
                 <div className="space-y-2">
                     {activeGroup.tools.map((tool) => {
                         const accent = ACCENT_CLASS[activeGroup.accent] || ACCENT_CLASS.purple;
@@ -187,13 +188,13 @@ const VibeCutQuickPanel = ({ renderPanel = null } = {}) => {
                                     event.dataTransfer.setData(QUICK_TOOL_TRANSFER_TYPE, getQuickToolPayload(tool));
                                     event.dataTransfer.setData('text/plain', tool.label);
                                 }}
-                                className={`group w-full rounded-sm border border-neutral-800 bg-neutral-900/55 p-3 text-left transition ${accent.card}`}
+                                className={`group w-full rounded-sm border border-neutral-800 bg-neutral-900/55 p-2.5 text-left transition ${accent.card}`}
                             >
                                 <span className="flex items-start gap-2">
                                     <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${accent.dot}`} />
                                     <span className="min-w-0 flex-1">
                                         <span className="flex items-center justify-between gap-2">
-                                            <span className="truncate text-[10px] font-mono uppercase tracking-widest text-neutral-200">
+                                            <span className="truncate text-[9px] font-mono uppercase tracking-widest text-neutral-200">
                                                 {tool.label}
                                             </span>
                                             <span className="flex shrink-0 items-center gap-1">
@@ -205,7 +206,7 @@ const VibeCutQuickPanel = ({ renderPanel = null } = {}) => {
                                                 <GripVertical size={12} className="text-neutral-600 transition group-hover:text-neutral-300" />
                                             </span>
                                         </span>
-                                        <span className="mt-1 block text-[9px] font-mono uppercase tracking-wider text-neutral-600">
+                                        <span className="mt-1 block text-[8px] font-mono uppercase tracking-wider text-neutral-600">
                                             {tool.detail}
                                         </span>
                                     </span>
@@ -216,7 +217,7 @@ const VibeCutQuickPanel = ({ renderPanel = null } = {}) => {
                 </div>
 
                 {activeGroup.id === 'volets' && sequenceEditors.length > 0 && (
-                    <div className="mt-4 space-y-3 border-t border-neutral-800 pt-3">
+                    <div className="mt-3 space-y-2 border-t border-neutral-800 pt-3">
                         <div className="flex items-center justify-between gap-2">
                             <span className="text-[8px] font-mono uppercase tracking-widest text-neutral-500">Reglage volet</span>
                             <span className="text-[8px] font-mono uppercase tracking-widest text-purple-300/70">
@@ -284,7 +285,7 @@ const VibeCutQuickPanel = ({ renderPanel = null } = {}) => {
             )}
 
             {showQuickTools && (
-            <div className="border-t border-neutral-800 p-3">
+            <div className="border-t border-neutral-800 p-2">
                 <div className="flex items-start gap-2 rounded-sm border border-neutral-800 bg-black/30 p-2">
                     <MousePointer2 size={12} className="mt-0.5 shrink-0 text-neutral-500" />
                     <p className="text-[8px] font-mono uppercase leading-relaxed tracking-widest text-neutral-600">
