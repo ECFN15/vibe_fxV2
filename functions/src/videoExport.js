@@ -1433,7 +1433,7 @@ const getVideoExportDownloadUrl = onCall(
 const getVideoExportAdminTelemetry = onCall(
   {
     region: REGION,
-    enforceAppCheck: ENFORCE_EXPORT_APP_CHECK,
+    enforceAppCheck: false, // Admin-only via assertExportAdmin — App Check non requis
   },
   async (request) => {
     assertAuthenticated(request);
