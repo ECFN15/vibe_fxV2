@@ -341,6 +341,15 @@ function ExportTelemetryPanel({ user, telemetry, billingTelemetry, jobs, loading
         </div>
       </header>
 
+      {!user && (
+        <div className="vf-export-signin-banner">
+          <p>Connecte-toi avec ton compte Google admin pour voir les jobs et les couts.</p>
+          <button type="button" onClick={onRefresh} disabled={authBusy}>
+            {authBusy ? "Connexion en cours..." : "Se connecter avec Google"}
+          </button>
+        </div>
+      )}
+
       {message ? <p className="vf-export-ops-note">{message}</p> : null}
 
       {alerts.length > 0 && (

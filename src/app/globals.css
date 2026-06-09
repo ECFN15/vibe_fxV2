@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --background: #000000;
   --foreground: #f7fbff;
   --vf-surface: #090911;
@@ -120,19 +120,48 @@ html {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  color: var(--vf-home-text);
+  color: var(--vf-home-text, #f8f7ff);
   font-weight: 900;
 }
 
 .vf-brand-mark {
-  width: 18px;
-  height: 18px;
-  border: 1px solid var(--vf-home-signal);
-  border-radius: 6px;
+  --vf-brand-signal: var(--vf-home-signal, var(--account-signal, var(--vf-signal, #00e5ff)));
+  --vf-brand-play: var(--vf-home-play, #cdfb52);
+  position: relative;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  border: 1px solid var(--vf-brand-signal);
+  border-radius: 7px;
   background:
-    linear-gradient(135deg, transparent 0 45%, var(--vf-home-signal) 46% 54%, transparent 55%),
+    radial-gradient(circle at 72% 26%, var(--vf-brand-play) 0 2px, transparent 3px),
+    linear-gradient(135deg, transparent 0 42%, var(--vf-brand-signal) 43% 52%, transparent 53%),
     rgba(0, 229, 255, .08);
   box-shadow: 0 0 22px rgba(0, 229, 255, .55);
+}
+
+.vf-brand-mark::before,
+.vf-brand-mark::after {
+  content: "";
+  position: absolute;
+  bottom: 5px;
+  width: 7px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--vf-brand-play);
+  box-shadow: 0 0 12px rgba(205, 251, 82, .52);
+}
+
+.vf-brand-mark::before {
+  left: 6px;
+  transform: rotate(-23deg);
+  transform-origin: bottom center;
+}
+
+.vf-brand-mark::after {
+  right: 6px;
+  transform: rotate(23deg);
+  transform-origin: bottom center;
 }
 
 .vf-nav-links {
@@ -229,15 +258,19 @@ html {
 
 .vf-nav-cta {
   min-height: 42px;
+  min-width: 118px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: 1px solid rgba(205, 251, 82, .7);
   border-radius: 999px;
-  padding: 0 18px;
+  padding: 0 22px;
   color: #05070a;
   background: var(--vf-home-play);
   box-shadow: 0 5px 0 #7f9a2d, 0 0 24px rgba(205, 251, 82, .32);
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
   font-weight: 900;
   transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
 }
@@ -2065,8 +2098,8 @@ html {
 
 .vf-pricing-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: 1fr;
+  gap: 16px;
 }
 
 .vf-price-card,
@@ -2083,8 +2116,10 @@ html {
 .vf-price-card {
   min-width: 0;
   display: grid;
-  gap: 14px;
-  padding: 20px;
+  grid-template-columns: minmax(220px, .72fr) minmax(320px, 1fr) minmax(190px, .46fr);
+  gap: clamp(18px, 3vw, 34px);
+  align-items: center;
+  padding: clamp(22px, 3vw, 34px);
 }
 
 .vf-price-card[data-highlighted="true"] {
@@ -2094,7 +2129,7 @@ html {
 
 .vf-price-card h2 {
   margin: 0;
-  min-height: 52px;
+  min-height: 0;
   font-size: 24px;
   line-height: 1.1;
 }
@@ -2103,6 +2138,17 @@ html {
   color: var(--vf-home-play);
   font-size: 30px;
   line-height: 1;
+}
+
+.vf-price-card > span,
+.vf-price-card h2,
+.vf-price-card > strong {
+  grid-column: 1;
+}
+
+.vf-price-card p,
+.vf-price-card ul {
+  grid-column: 2;
 }
 
 .vf-price-card p,
@@ -2124,11 +2170,15 @@ html {
   align-items: center;
   justify-content: center;
   align-self: end;
+  grid-column: 3;
+  justify-self: end;
+  width: min(100%, 210px);
   border: 1px solid rgba(205, 251, 82, .62);
   border-radius: 999px;
   padding: 0 14px;
   color: #05070a;
   background: var(--vf-home-play);
+  text-align: center;
   font-weight: 900;
 }
 
@@ -2248,6 +2298,24 @@ html {
     max-width: 100%;
     font-size: clamp(38px, 11vw, 54px);
     line-height: .95;
+  }
+
+  .vf-price-card {
+    grid-template-columns: 1fr;
+  }
+
+  .vf-price-card > span,
+  .vf-price-card h2,
+  .vf-price-card > strong,
+  .vf-price-card p,
+  .vf-price-card ul,
+  .vf-price-card a {
+    grid-column: auto;
+  }
+
+  .vf-price-card a {
+    justify-self: stretch;
+    width: 100%;
   }
 
   .vf-tokenomics-table div {
@@ -2566,6 +2634,16 @@ html {
   cursor: pointer;
 }
 
+.vf-account-studio,
+.vf-account-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+}
+
 .vf-account-tabs button[data-active="true"],
 .vf-account-segment button[data-active="true"] {
   border-color: rgba(0, 229, 255, .45);
@@ -2580,6 +2658,10 @@ html {
   background: #cdfb52;
   border-color: rgba(205, 251, 82, .72);
   box-shadow: 0 5px 0 #7f9a2d, 0 0 24px rgba(205, 251, 82, .22);
+}
+
+.vf-account-studio {
+  min-width: 74px;
 }
 
 .vf-account-hero {
@@ -2828,9 +2910,6 @@ html {
 }
 
 .vf-account-secondary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   color: var(--account-text);
   width: max-content;
 }
@@ -3158,7 +3237,7 @@ html {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.7fr);
   gap: clamp(18px, 3vw, 34px);
-  align-items: stretch;
+  align-items: center;
   padding: clamp(42px, 7vw, 86px) 0 28px;
 }
 
@@ -3197,7 +3276,7 @@ html {
   display: grid;
   gap: 16px;
   align-content: start;
-  min-height: 100%;
+  min-height: 0;
   padding: clamp(20px, 3vw, 28px);
   border-radius: 8px;
 }
@@ -3425,6 +3504,35 @@ html {
   opacity: 0.6;
 }
 
+.vf-export-signin-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  margin: 0;
+  background: rgba(99, 102, 241, 0.12);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.35);
+}
+.vf-export-signin-banner p {
+  margin: 0;
+  flex: 1;
+  font-size: 13px;
+  color: rgba(248, 247, 255, 0.85);
+}
+.vf-export-signin-banner button {
+  flex-shrink: 0;
+  padding: 8px 20px;
+  background: rgba(99, 102, 241, 0.9);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.vf-export-signin-banner button:hover:not(:disabled) { background: rgba(99, 102, 241, 1); }
+.vf-export-signin-banner button:disabled { opacity: 0.5; cursor: not-allowed; }
 .vf-export-ops-note {
   margin: 0;
   padding: 12px 18px;
