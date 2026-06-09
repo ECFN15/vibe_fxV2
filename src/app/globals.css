@@ -4304,3 +4304,119 @@ html {
   .vf-account-sidebar__tab { width: auto; }
   .vf-account-main { padding: 24px 16px; }
 }
+/* ── StudioAuthGate — email form additions ─────────────────── */
+.vf-gate-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: rgba(248,247,255,0.25);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 4px 0;
+}
+.vf-gate-divider::before,
+.vf-gate-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(255,255,255,0.08);
+}
+
+.vf-gate-email-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.vf-studio-gate__btn--secondary {
+  background: rgba(255,255,255,0.06);
+  color: rgba(248,247,255,0.85);
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: none;
+}
+.vf-studio-gate__btn--secondary:hover:not(:disabled) {
+  background: rgba(255,255,255,0.10);
+  color: #f8f7ff;
+}
+
+.vf-gate-link {
+  background: none;
+  border: none;
+  color: rgba(248,247,255,0.4);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 0;
+  text-align: center;
+  transition: color 0.15s;
+}
+.vf-gate-link:hover { color: rgba(248,247,255,0.8); }
+
+.vf-gate-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+.vf-gate-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.vf-gate-field__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(248,247,255,0.45);
+}
+.vf-gate-field__wrap {
+  position: relative;
+}
+.vf-gate-field__input {
+  width: 100%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: #f8f7ff;
+  outline: none;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+.vf-gate-field__input::placeholder { color: rgba(248,247,255,0.2); }
+.vf-gate-field__input:focus { border-color: rgba(205,251,82,0.5); }
+.vf-gate-field__wrap .vf-gate-field__input { padding-right: 42px; }
+.vf-gate-field__eye {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: rgba(248,247,255,0.3);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+.vf-gate-field__eye:hover { color: rgba(248,247,255,0.7); }
+
+.vf-gate-verify-icon {
+  font-size: 40px;
+  line-height: 1;
+  margin: 4px 0 -4px;
+}
+.vf-studio-gate__success {
+  font-size: 13px;
+  color: rgba(205,251,82,0.9);
+  text-align: center;
+  padding: 8px 12px;
+  background: rgba(205,251,82,0.08);
+  border-radius: 8px;
+  border: 1px solid rgba(205,251,82,0.2);
+}

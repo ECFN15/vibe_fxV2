@@ -3,13 +3,24 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import {
   GoogleAuthProvider,
+  createUserWithEmailAndPassword,
   onAuthStateChanged,
+  sendEmailVerification,
+  signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
 const AuthContext = createContext(null);
+
+// URL vers laquelle Firebase redirige après verification mail
+const getActionCodeSettings = () => ({
+  url: typeof window !== "undefined"
+    ? `${window.location.origin}/studio?workspace=layout`
+    : "https://vibefx-v2-web--vibefx-v2.europe-west4.hosted.app/studio?workspace=layout",
+  handleCodeInApp: false,
+});
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -34,6 +45,27 @@ export function AuthProvider({ children }) {
     return credential.user;
   }, []);
 
+  // Créer un compte email + envoyer mail de vérification
+  const signUpWithEmail = useCallback(async (email, password) => {
+    if (!auth) throw new Error("Firebase Auth indisponible.");
+    const credential = await createUserWithEmailAndPassword(auth, email, password);
+    await sendEmailVerification(credential.user, getActionCodeSettings());
+    return credential.user;
+  }, []);
+
+  // Connexion email/mot de passe existant
+  const signInWithEmail = useCallback(async (email, password) => {
+    if (!auth) throw new Error("Firebase Auth indisponible.");
+    const credential = await signInWithEmailAndPassword(auth, email, password);
+    return credential.user;
+  }, []);
+
+  // Renvoyer l'email de vérification
+  const resendVerificationEmail = useCallback(async () => {
+    if (!auth?.currentUser) return;
+    await sendEmailVerification(auth.currentUser, getActionCodeSettings());
+  }, []);
+
   const logout = useCallback(async () => {
     if (!auth) return;
     await signOut(auth);
@@ -43,7 +75,17 @@ export function AuthProvider({ children }) {
   const isSignedIn = Boolean(user && !isAnonymous);
 
   return (
-    <AuthContext.Provider value={{ user, loading, isAnonymous, isSignedIn, signInWithGoogle, logout }}>
+    <AuthContext.Provider value={{
+      user,
+      loading,
+      isAnonymous,
+      isSignedIn,
+      signInWithGoogle,
+      signUpWithEmail,
+      signInWithEmail,
+      resendVerificationEmail,
+      logout,
+    }}>
       {children}
     </AuthContext.Provider>
   );
