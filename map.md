@@ -1,6 +1,6 @@
 # map.md - Carte vivante Vibe_fx V2
 
-Derniere mise a jour : 2026-06-07
+Derniere mise a jour : 2026-06-09
 
 ## Regle
 
@@ -43,6 +43,7 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |       `-- vibrant-accents/
 |-- docs/
 |   |-- studio-ai-agents-megaprompt.md  # Prompt d'integration de la colonne d'agents IA contextualisee par onglet studio
+|   |-- vibecut-cost-telemetry-architecture-2026-06-07.md # Architecture cible telemetry couts VibeCut : estimation live, Cloud Monitoring/Logging, Billing Export BigQuery, reconciliation, UX backoffice et discipline de deploiement
 |   |-- vibecut-export-hardening-status-2026-06-06.md # Statut par phase Export Pro : done/partial/not done, blocages live K1, emulators Java, renderer frame-by-frame et fixtures MP4
 |   |-- vibecut-export-pro-checkpoint-2026-06-06.md # Checkpoint de reprise : changements, tests executes, limites Cloud Run, backoffice couts et sequence demain
 |   |-- vibecut-export-production-hardening-megaprompt.md # Megaprompt release Export Pro renderer-first : navigateur cockpit, machines serveur source de verite, textes/animations/transitions/colorimetrie/audio, destination PC et smoke final K1
@@ -65,7 +66,7 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |       |-- billingEvents.js            # Classification events Checkout Stripe fulfill/failed/ignored
 |       |-- billingProducts.js          # Mapping serveur produits Stripe -> entitlements/credits
 |       |-- billingSession.js           # Validation pure priceId/metadata des sessions Checkout
-|       |-- videoExport.js              # Callables/worker Export Pro : create/cancel/retry/download/admin telemetry avec Billing Export BigQuery optionnel, taskQueue processVideoExportJob en europe-west1, validation manifeste/quotas/paths owner-scoped, manifest JSON Storage et App Check
+|       |-- videoExport.js              # Callables/worker Export Pro : create/cancel/retry/download/admin telemetry avec Billing Export BigQuery optionnel, taskQueue processVideoExportJob en europe-west1, validation manifeste/quotas/paths owner-scoped, manifest JSON Storage et App Check. Estimation cout serveur (estimateJobCostServer) ecrite sur chaque job ready : estimatedComputeCost/StorageCost/RequestCost/TotalCost/TotalCostEur. publicAdminExportJob expose devRun, source, costEstimate, retryCount, phase timings. ADMIN_EMAILS actif en env.
 |       `-- appCheck.js                 # Politique App Check : enforce par defaut hors emulateurs
 |-- public/
 |   |-- assets/
@@ -84,7 +85,7 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |   |-- package.json                   # Service Node ESM + @google-cloud/storage
 |   |-- README.md                      # Contrat renderer signe, perimetre FFmpeg reel, limites codecs/transitions/animations et prochaines etapes production
 |   `-- src/
-|       `-- server.js                  # Endpoints /health et /render, validation signature/manifeste, FFmpeg concat + fade/crossfade adjacent et upload Storage
+|       `-- server.js                  # Endpoints /health et /render, validation signature/manifeste, FFmpeg concat + fade/crossfade adjacent et upload Storage. Retourne phaseMs (downloadMs/ffmpegMs/uploadMs), service, revision, region, allocatedVcpu, allocatedMemoryGib dans la reponse /render.
 |-- src/
 |   |-- app/
 |   |   |-- api/
@@ -154,8 +155,8 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |   |   |   |   `-- page.js               # Vue privee usage/jobs IA noindex
 |   |   |   `-- page.js                 # Dashboard compte noindex
 |   |   |-- backoffice/
-|   |   |   |-- BackofficeClient.jsx      # Backoffice noindex : switch IA + dashboard exports video via callable admin globale puis fallback compte connecte
-|   |   |   |-- exportTelemetry.js        # Helpers purs dashboard exports video : cout Cloud Run/Storage estime + facture Cloud Run Billing Export BigQuery et agregats jour/semaine/mois
+|   |   |   |-- BackofficeClient.jsx      # Backoffice noindex : switch IA + console telemetry couts VibeCut per architecture doc : 3 cartes KPI, rail alertes, table jobs 11 colonnes, regles anti-zero trompeurs
+|   |   |   |-- exportTelemetry.js        # Helpers purs dashboard exports video : couts serveur estimatedTotalCostEur prioritaires sur estimation client, phaseMs/service/revision/region, agregats devRunJobs/serverCostJobs, facture BigQuery
 |   |   |   `-- page.js                  # Metadata noindex du backoffice provisoire avant Firebase/admin claims
 |   |   |-- editeur-image-instagram/
 |   |   |   `-- page.js                 # Page SEO editeur image Instagram
@@ -304,6 +305,8 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |   |-- render-vibecut-renderer-local-contract-smoke.mjs # Smoke local non Cloud du renderer canonique : importe buildFfmpegArgs du service Cloud Run, rend K1 + fixture combinee et verifie MP4
 |   |-- prepare-vibecut-pro-fixtures.mjs # Dry-run non cloud des fixtures pro : texte statique, animation bloquee, crossfade, colorimetrie, audio externe et pile combinee
 |   |-- smoke-backoffice-export-telemetry.mjs # Smoke test helpers dashboard exports video : estimations internes + couts Google Billing Export BigQuery sans Firebase live
+|   |-- provision-admin-doc.mjs          # Script Node Admin SDK pour creer admins/{email} Firestore via service account ou ADC
+|   |-- provision-admin-firestore-rest.mjs # Script REST Firestore pour creer admins/{email} via token firebase-tools cached (utilise pour matthis.fradin2@gmail.com)
 |   |-- check-e2e-readiness.mjs         # Liste les prerequis Firebase/Meta manquants avant E2E reel
 |   |-- check-emulator-readiness.mjs    # Verifie firebase-tools, Java 21+ et config emulators
 |   |-- check-pixabay-provider.mjs      # Probe reseau Pixabay Music depuis Node : detecte 403/challenge et confirme si des URL audio CDN sont exposees
@@ -519,6 +522,7 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 - Mise a jour 2026-06-06 : `scripts/render-vibecut-pro-fixtures-local-smoke.mjs` recree le dossier parent avant chaque sortie FFmpeg pour rendre le gate `npm run test:vibecut-export-local-mp4` robuste si `test-results` est nettoye pendant une passe de controles; le gate local MP4 repasse OK apres correction.
 - Mise a jour 2026-06-06 : ajout d'un module `src/features/export/` pour structurer l'Export Pro facon panneau DaVinci/Premiere adapte web : presets sociaux, formats/codecs avec statuts ready/server_required/future, reglages Video/Audio/File/Advanced, estimation taille, sanitization filename, queue locale et export image canvas PNG/JPEG/WebP; `ExportVideoPanel.jsx` branche ce panneau et alimente le manifest par overrides sans masquer que le renderer final supporte seulement MP4 H.264/AAC aujourd'hui.
 - Mise a jour 2026-06-07 : menage documentaire dans `docs/`. Les anciens prompts/audits et l'archive Export Pro legacy sont supprimes; les sources conservees sont `studio-ai-agents-megaprompt.md`, `vibecut-export-production-hardening-megaprompt.md`, `vibecut-export-hardening-status-2026-06-06.md`, `vibecut-export-production-runbook-2026-06-06.md` et `vibecut-export-pro-checkpoint-2026-06-06.md`.
+- Mise a jour 2026-06-07 : `docs/vibecut-cost-telemetry-architecture-2026-06-07.md` formalise la telemetry couts cible VibeCut : estimation live par job, Monitoring/Logging Cloud Run, facture officielle Billing Export BigQuery differee, reconciliation, anti-zeros trompeurs, alertes et discipline anti-deploiements excessifs.
 - Les CSS lourds de `vibefx-layout` et `publications` sont importes par `src/app/studio/layout.js`, pas par le layout racine, afin d'eviter de charger le studio sur les pages publiques.
 - La page Layout ajoute une section `Modele personnalise` sous les modeles standards dans `src/features/vibefx-studio/components/sidebar/LayoutSidebar.jsx` et son equivalent `src/features/vibefx-layout/components/sidebar/LayoutSidebar.jsx`; les presets JSON normalises `CUSTOM_LAYOUT_PRESETS` / `DEFAULT_CUSTOM_TEMPLATE` et la palette `CUSTOM_SHAPE_LIBRARY` vivent dans les deux `data/constants.jsx`, le moteur Canvas 2D dessine les zones custom vides ou remplies par slot dans les deux `engine/layoutRenderer.js`, le canvas reste visible sans image source quand un modele custom est actif, et l'import par zone stocke l'image localement dans `slotConfigs` tout en serialisant le payload publication sans objet `Image`. Le mode edit personnalise ajoute les utilitaires `utils/customLayout.js` des deux modules pour creer, borner, redimensionner, pousser/scanner une position libre, reduire un voisin si necessaire et masquer automatiquement les zones sans placement propre; les zones masquees restent dans le JSON et redeviennent visibles quand la place revient. Les deplacements automatiques preservent une geometrie d'origine `homeX/homeY/homeW/homeH` pour eviter qu'un bloc revienne sous forme de lamelle apres reduction temporaire. Les voisins de meme rangee ne sont plus envoyes dans les rangees basses pour ne pas casser les vignettes existantes. La palette de formes drag/drop reste exposee dans `CanvasWorkspace`.
 - Mise a jour 2026-06-02 : le dock images de la page Layout dans `src/features/vibefx-studio/components/canvas/CanvasWorkspace.jsx` expose un gros bouton `Ajouter image`, une action `Changer` par vignette, et `src/features/vibefx-studio/hooks/useImageUpload.js` gere maintenant l'ajout multi-image et le remplacement cible avec fallback FileReader. Le style Vibe_OS du dock est centralise dans `src/features/vibefx-layout/vibefx-layout.css`.

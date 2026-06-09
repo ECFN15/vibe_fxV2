@@ -57,6 +57,43 @@ const DEFAULT_FILTERS = Object.freeze({
 const BILLING_TELEMETRY_DAYS = 31;
 const BILLING_TABLE_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 
+const RENDERER_COST_ASSUMPTIONS = Object.freeze({
+  cpuSecondUsd: 0.000024,
+  memoryGibSecondUsd: 0.0000025,
+  requestUsd: 0.0000004,
+  storageGibMonthUsd: 0.026,
+  egressGibUsd: 0.12,
+  usdToEur: 0.92,
+});
+
+function estimateJobCostServer({ elapsedMs, allocatedVcpu, allocatedMemoryGib, outputBytes }) {
+  const billableSeconds = Math.ceil(finiteNumber(elapsedMs, 0) / 100) / 10;
+  const vcpu = finiteNumber(allocatedVcpu, Number(process.env.EXPORT_RENDERER_ALLOCATED_VCPU || 2));
+  const memGib = finiteNumber(allocatedMemoryGib, Number(process.env.EXPORT_RENDERER_ALLOCATED_MEMORY_GIB || 2));
+  const outputGib = finiteNumber(outputBytes, 0) / (1024 ** 3);
+  const computeCpuUsd = billableSeconds * vcpu * RENDERER_COST_ASSUMPTIONS.cpuSecondUsd;
+  const computeMemUsd = billableSeconds * memGib * RENDERER_COST_ASSUMPTIONS.memoryGibSecondUsd;
+  const requestUsd = RENDERER_COST_ASSUMPTIONS.requestUsd;
+  const storageUsd = outputGib * RENDERER_COST_ASSUMPTIONS.storageGibMonthUsd;
+  const egressUsd = outputGib * RENDERER_COST_ASSUMPTIONS.egressGibUsd;
+  const totalUsd = computeCpuUsd + computeMemUsd + requestUsd + storageUsd + egressUsd;
+  return {
+    billableSeconds,
+    estimatedComputeCost: Math.round((computeCpuUsd + computeMemUsd) * 1e6) / 1e6,
+    estimatedStorageCost: Math.round((storageUsd + egressUsd) * 1e6) / 1e6,
+    estimatedRequestCost: Math.round(requestUsd * 1e6) / 1e6,
+    estimatedTotalCost: Math.round(totalUsd * 1e6) / 1e6,
+    estimatedTotalCostEur: Math.round(totalUsd * RENDERER_COST_ASSUMPTIONS.usdToEur * 1e6) / 1e6,
+    currency: "USD",
+    assumptions: {
+      vcpu,
+      memGib,
+      cpuSecondUsd: RENDERER_COST_ASSUMPTIONS.cpuSecondUsd,
+      memoryGibSecondUsd: RENDERER_COST_ASSUMPTIONS.memoryGibSecondUsd,
+    },
+  };
+}
+
 let cachedBigQueryClient = null;
 
 function assertAuthenticated(request) {
@@ -801,6 +838,12 @@ async function executeRendererForJob({ ref, jobId, uid, manifest, outputStorageP
     };
   }
 
+  const costEstimate = estimateJobCostServer({
+    elapsedMs: rendererResult.elapsedMs,
+    allocatedVcpu: rendererResult.allocatedVcpu,
+    allocatedMemoryGib: rendererResult.allocatedMemoryGib,
+    outputBytes: output.sizeBytes,
+  });
   await ref.set({
     status: "ready",
     phase: "ready",
@@ -810,7 +853,19 @@ async function executeRendererForJob({ ref, jobId, uid, manifest, outputStorageP
     rendererResult: {
       mode: rendererResult.mode || "cloud-run-ffmpeg",
       elapsedMs: rendererResult.elapsedMs || null,
+      phaseMs: rendererResult.phaseMs || null,
+      service: rendererResult.service || process.env.EXPORT_RENDERER_SERVICE || null,
+      revision: rendererResult.revision || null,
+      region: rendererResult.region || process.env.EXPORT_RENDERER_REGION || REGION,
+      allocatedVcpu: rendererResult.allocatedVcpu || Number(process.env.EXPORT_RENDERER_ALLOCATED_VCPU || 2),
+      allocatedMemoryGib: rendererResult.allocatedMemoryGib || Number(process.env.EXPORT_RENDERER_ALLOCATED_MEMORY_GIB || 2),
     },
+    costEstimate,
+    estimatedComputeCost: costEstimate.estimatedComputeCost,
+    estimatedStorageCost: costEstimate.estimatedStorageCost,
+    estimatedRequestCost: costEstimate.estimatedRequestCost,
+    estimatedTotalCost: costEstimate.estimatedTotalCost,
+    estimatedTotalCostEur: costEstimate.estimatedTotalCostEur,
     completedAt: admin.firestore.FieldValue.serverTimestamp(),
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     logs: admin.firestore.FieldValue.arrayUnion(...logs),
@@ -977,6 +1032,8 @@ function publicAdminExportJob(snapshot) {
   return {
     id: snapshot.id,
     uid: data.uid || data.ownerUid || null,
+    devRun: data.devRun === true,
+    source: data.source || null,
     status: data.status || "unknown",
     phase: data.phase || data.status || "unknown",
     progress: finiteNumber(data.progress, 0),
@@ -992,8 +1049,15 @@ function publicAdminExportJob(snapshot) {
     estimates: data.estimates || null,
     billingGate: data.billingGate || null,
     retryOf: data.retryOf || null,
+    retryCount: finiteNumber(data.retryCount, 0),
     renderer: data.renderer || null,
     rendererResult: data.rendererResult || null,
+    costEstimate: data.costEstimate || null,
+    estimatedComputeCost: data.estimatedComputeCost ?? null,
+    estimatedStorageCost: data.estimatedStorageCost ?? null,
+    estimatedRequestCost: data.estimatedRequestCost ?? null,
+    estimatedTotalCost: data.estimatedTotalCost ?? null,
+    estimatedTotalCostEur: data.estimatedTotalCostEur ?? null,
     error: data.error ? {
       code: data.error.code || null,
       message: data.error.message || null,
@@ -1013,22 +1077,30 @@ function summarizeAdminExportJobs(jobs = []) {
   }, {});
   const outputSizeBytes = jobs.reduce((total, job) => total + finiteNumber(job.output?.sizeBytes, 0), 0);
   const sourceSizeBytes = jobs.reduce((total, job) => total + finiteNumber(job.manifestSummary?.sourceSizeBytes, 0), 0);
-  const estimatedCostEur = jobs.reduce((total, job) => {
+  const serverEstimatedCostEur = jobs.reduce((total, job) => total + finiteNumber(job.estimatedTotalCostEur, 0), 0);
+  const manifestEstimatedCostEur = jobs.reduce((total, job) => {
     return total + finiteNumber(job.estimates?.cost?.eur ?? job.manifestSummary?.estimatedCostEur, 0);
   }, 0);
+  const estimatedCostEur = serverEstimatedCostEur > 0 ? serverEstimatedCostEur : manifestEstimatedCostEur;
   const elapsedMsValues = jobs
     .map((job) => finiteNumber(job.rendererResult?.elapsedMs, 0))
     .filter((value) => value > 0);
   const averageElapsedMs = elapsedMsValues.length
     ? Math.round(elapsedMsValues.reduce((total, value) => total + value, 0) / elapsedMsValues.length)
     : 0;
+  const activeJobs = jobs.filter((job) => ["queued", "rendering", "finalizing"].includes(job.status)).length;
+  const devRunJobs = jobs.filter((job) => job.devRun === true).length;
 
   return {
     totalJobs: jobs.length,
+    activeJobs,
+    devRunJobs,
     statusCounts,
     outputSizeBytes,
     sourceSizeBytes,
     estimatedCostEur,
+    serverEstimatedCostEur,
+    manifestEstimatedCostEur,
     averageElapsedMs,
   };
 }
@@ -1064,9 +1136,14 @@ const createVideoExportJob = onCall(
     const planAccess = resolveExportPlanAccess(request);
     const rendererUrlConfigured = Boolean(getExportRendererUrl());
     await writeManifestToStorage(manifestStoragePath, manifest);
+    const devRun = request.auth?.token?.email
+      ? (process.env.ADMIN_EMAILS || "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean).includes(request.auth.token.email.toLowerCase())
+      : false;
     const job = {
       uid,
       ownerUid: uid,
+      devRun,
+      source: "firebase-callable",
       status: "queued",
       phase: "queueing",
       progress: 18,
@@ -1080,6 +1157,10 @@ const createVideoExportJob = onCall(
       renderer: {
         mode: "cloud-run-ffmpeg",
         urlConfigured: rendererUrlConfigured,
+        service: process.env.EXPORT_RENDERER_SERVICE || null,
+        region: process.env.EXPORT_RENDERER_REGION || REGION,
+        allocatedVcpu: Number(process.env.EXPORT_RENDERER_ALLOCATED_VCPU || 2),
+        allocatedMemoryGib: Number(process.env.EXPORT_RENDERER_ALLOCATED_MEMORY_GIB || 2),
       },
       createdAt: now,
       updatedAt: now,

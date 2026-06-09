@@ -64,6 +64,12 @@ const server = http.createServer(async (req, res) => {
         warnings: [...validation.warnings, ...result.warnings],
         output: result.output,
         elapsedMs: result.elapsedMs,
+        phaseMs: result.phaseMs || null,
+        service: result.service || null,
+        revision: result.revision || null,
+        region: result.region || null,
+        allocatedVcpu: result.allocatedVcpu || null,
+        allocatedMemoryGib: result.allocatedMemoryGib || null,
       });
     }
 
@@ -246,6 +252,7 @@ async function renderJob({ jobId, bucketName, outputStoragePath, manifest }) {
   const bucket = storage.bucket(bucketName);
 
   try {
+    const downloadStart = Date.now();
     const videoInputs = [];
     for (const [index, clip] of manifest.clips.entries()) {
       const destination = path.join(workDir, `clip-${String(index + 1).padStart(2, '0')}${path.extname(clip.sourceStoragePath) || '.mp4'}`);
@@ -261,12 +268,18 @@ async function renderJob({ jobId, bucketName, outputStoragePath, manifest }) {
       await bucket.file(track.sourceStoragePath).download({ destination });
       audioInputs.push({ track, file: destination });
     }
+    const downloadMs = Date.now() - downloadStart;
 
+    const ffmpegStart = Date.now();
     const outputFile = path.join(workDir, 'output.mp4');
     const warnings = [];
     const args = buildFfmpegArgs({ manifest, videoInputs, audioInputs, outputFile, warnings });
     await runCommand('ffmpeg', args);
+    const ffmpegMs = Date.now() - ffmpegStart;
+
     const stat = await fs.stat(outputFile);
+
+    const uploadStart = Date.now();
     await bucket.upload(outputFile, {
       destination: outputStoragePath,
       metadata: {
@@ -278,9 +291,27 @@ async function renderJob({ jobId, bucketName, outputStoragePath, manifest }) {
         },
       },
     });
+    const uploadMs = Date.now() - uploadStart;
+
+    const totalElapsedMs = Date.now() - startedAt;
+    const service = process.env.K_SERVICE || process.env.EXPORT_RENDERER_SERVICE || 'vibecut-render-service';
+    const revision = process.env.K_REVISION || null;
+    const region = process.env.FUNCTION_REGION || process.env.EXPORT_RENDERER_REGION || null;
+    const allocatedVcpu = Number(process.env.EXPORT_RENDERER_ALLOCATED_VCPU || 2);
+    const allocatedMemoryGib = Number(process.env.EXPORT_RENDERER_ALLOCATED_MEMORY_GIB || 2);
 
     return {
-      elapsedMs: Date.now() - startedAt,
+      elapsedMs: totalElapsedMs,
+      phaseMs: {
+        downloadMs,
+        ffmpegMs,
+        uploadMs,
+      },
+      service,
+      revision,
+      region,
+      allocatedVcpu,
+      allocatedMemoryGib,
       warnings,
       output: {
         storagePath: outputStoragePath,

@@ -267,19 +267,74 @@ export default function BackofficeClient() {
   );
 }
 
+function buildTelemetryAlerts(telemetry, billingTelemetry, jobs) {
+  const alerts = [];
+  if (billingTelemetry.status === "not_configured") {
+    alerts.push({ level: "warn", msg: "Billing Export BigQuery non configure: cout Google reel indisponible." });
+  }
+  if (billingTelemetry.status === "error") {
+    alerts.push({ level: "error", msg: "Billing Export BigQuery configure mais lecture en erreur." });
+  }
+  if (billingTelemetry.status === "stale") {
+    alerts.push({ level: "warn", msg: "Donnees Billing stale > 48h: verifier la configuration BigQuery." });
+  }
+  if (billingTelemetry.status === "ready" && billingTelemetry.total?.rows === 0) {
+    alerts.push({ level: "warn", msg: "BigQuery lisible mais aucune ligne Cloud Run trouvee sur la periode." });
+  }
+  if (billingTelemetry.status === "ready" && telemetry.total?.readyExports > 0 && billingTelemetry.total?.netCost === 0) {
+    alerts.push({ level: "warn", msg: "Facture Google disponible mais cout net zero: verifier le filtre Cloud Run." });
+  }
+  const jobsWithoutRenderer = jobs.filter((job) => job.status === "ready" && !job.rendererResult?.elapsedMs);
+  if (jobsWithoutRenderer.length > 0) {
+    alerts.push({ level: "warn", msg: `${jobsWithoutRenderer.length} job(s) ready sans duree renderer: estimation incomplète.` });
+  }
+  const jobsReadyNoOutput = jobs.filter((job) => job.status === "ready" && !(job.output?.sizeBytes > 0));
+  if (jobsReadyNoOutput.length > 0) {
+    alerts.push({ level: "warn", msg: `${jobsReadyNoOutput.length} job(s) ready sans output size.` });
+  }
+  if (telemetry.total?.activeJobs > 5) {
+    alerts.push({ level: "warn", msg: `${telemetry.total.activeJobs} jobs actifs: surveiller la queue.` });
+  }
+  return alerts;
+}
+
+function formatCostValue(value, currency = "EUR", source) {
+  if (value == null || value === undefined) return "Non disponible";
+  if (!Number.isFinite(Number(value))) return "Estimation incomplete";
+  if (Number(value) === 0 && source === "confirmed") return `0,00 ${currency} confirme`;
+  return formatMoney(value, currency);
+}
+
+function formatBillingValue(value, currency, status) {
+  if (status === "not_configured") return "Non configure";
+  if (status === "error") return "Lecture erreur";
+  if (status === "stale") return "Donnee stale";
+  if (value == null || !Number.isFinite(Number(value))) return "Non disponible";
+  if (Number(value) === 0 && status === "ready") return `0,00 ${currency || "EUR"} confirme`;
+  return formatMoney(value, currency);
+}
+
 function ExportTelemetryPanel({ user, telemetry, billingTelemetry, jobs, loading, message, onRefresh, authBusy, canSignIn }) {
+  const alerts = buildTelemetryAlerts(telemetry, billingTelemetry, jobs);
+  const weekRange = telemetry.ranges?.find((r) => r.key === "week");
+  const dayBilling = billingTelemetry.ranges?.find((r) => r.key === "day");
+
   return (
     <section className="vf-export-ops" aria-labelledby="export-ops-title" aria-busy={loading}>
       <header className="vf-export-ops-head">
         <div>
-          <p className="vf-kicker">Export telemetry</p>
-          <h2 id="export-ops-title">Exports video et cout Cloud Run.</h2>
+          <p className="vf-kicker">Telemetry couts VibeCut</p>
+          <h2 id="export-ops-title">Exports video — Cloud Run — Facture Google.</h2>
           <p>
-            Les couts Google viennent du Billing Export BigQuery quand il est configure; les jobs gardent une estimation interne pour comparer.
+            Trois sources : <strong>Estimation interne</strong> (jobs Firestore, temps quasi reel),{" "}
+            <strong>Facture Google BigQuery</strong> (differee, source comptable officielle),{" "}
+            <strong>Ecart</strong> (reconciliation).
           </p>
         </div>
         <div className="vf-export-ops-actions">
-          <span>{user?.email || user?.uid || "Acces dev non connecte"}</span>
+          <span data-admin={user ? "true" : "false"}>
+            {user?.email || user?.uid || "Non connecte"}
+          </span>
           <button type="button" onClick={onRefresh} disabled={authBusy || loading || !canSignIn}>
             {authBusy ? "Connexion..." : loading ? "Lecture..." : "Rafraichir"}
           </button>
@@ -288,108 +343,193 @@ function ExportTelemetryPanel({ user, telemetry, billingTelemetry, jobs, loading
 
       {message ? <p className="vf-export-ops-note">{message}</p> : null}
 
-      <div className="vf-export-total-grid" aria-label="Synthese totale exports et facture">
+      {alerts.length > 0 && (
+        <ul className="vf-export-alerts" aria-label="Alertes telemetry">
+          {alerts.map((alert, i) => (
+            <li key={i} data-level={alert.level}>{alert.msg}</li>
+          ))}
+        </ul>
+      )}
+
+      {/* Row 1 : 3 cartes principales */}
+      <div className="vf-export-total-grid" aria-label="Cartes principales couts">
         <article className="vf-export-total-card">
-          <span>Estimation interne exports</span>
-          <strong>{telemetry.total?.readyExports || 0}</strong>
+          <span>Estimation VibeCut live</span>
+          <strong>
+            {telemetry.total?.estimatedCostEur > 0
+              ? formatMoney(telemetry.total.estimatedCostEur)
+              : telemetry.total?.totalJobs > 0 ? "Estimation incomplete" : "Aucun job"}
+          </strong>
           <dl>
-            <div><dt>Jobs</dt><dd>{telemetry.total?.totalJobs || 0}</dd></div>
-            <div><dt>Actifs</dt><dd>{telemetry.total?.activeJobs || 0}</dd></div>
-            <div><dt>Echecs</dt><dd>{telemetry.total?.failedJobs || 0}</dd></div>
-            <div><dt>Estimation interne</dt><dd>{formatMoney(telemetry.total?.estimatedCostEur || 0)}</dd></div>
+            <div><dt>Jobs total</dt><dd>{telemetry.total?.totalJobs ?? "—"}</dd></div>
+            <div><dt>Prets</dt><dd>{telemetry.total?.readyExports ?? "—"}</dd></div>
+            <div><dt>Actifs</dt><dd>{telemetry.total?.activeJobs ?? "—"}</dd></div>
+            <div><dt>Echecs</dt><dd>{telemetry.total?.failedJobs ?? "—"}</dd></div>
+            <div><dt>Dev runs</dt><dd>{telemetry.total?.devRunJobs ?? "—"}</dd></div>
           </dl>
+          <small>Source : jobs Firestore</small>
         </article>
+
         <article className="vf-export-total-card" data-billing-state={billingTelemetry.status}>
           <span>Facture Google BigQuery</span>
-          <strong>{formatMoney(billingTelemetry.total?.netCost || 0, billingTelemetry.currency)}</strong>
+          <strong>{formatBillingValue(billingTelemetry.total?.netCost, billingTelemetry.currency, billingTelemetry.status)}</strong>
           <dl>
-            <div><dt>Cout brut</dt><dd>{formatMoney(billingTelemetry.total?.actualCost || 0, billingTelemetry.currency)}</dd></div>
-            <div><dt>Credits</dt><dd>{formatMoney(billingTelemetry.total?.credits || 0, billingTelemetry.currency)}</dd></div>
-            <div><dt>Lignes</dt><dd>{billingTelemetry.total?.rows || 0}</dd></div>
-            <div><dt>Source</dt><dd>{billingTelemetry.status === "ready" ? "BigQuery" : "Non branche"}</dd></div>
+            <div><dt>Cout brut</dt><dd>{formatBillingValue(billingTelemetry.total?.actualCost, billingTelemetry.currency, billingTelemetry.status)}</dd></div>
+            <div><dt>Credits</dt><dd>{formatBillingValue(billingTelemetry.total?.credits, billingTelemetry.currency, billingTelemetry.status)}</dd></div>
+            <div><dt>Lignes lues</dt><dd>{billingTelemetry.status === "ready" ? (billingTelemetry.total?.rows ?? "—") : "Non configure"}</dd></div>
+            <div><dt>Table</dt><dd>{billingTelemetry.table ? <code>{billingTelemetry.table}</code> : "Non configure"}</dd></div>
           </dl>
+          <small>
+            {billingTelemetry.status === "ready"
+              ? "Source : BigQuery Billing — delai possible"
+              : billingTelemetry.status === "not_configured"
+              ? "Non configure : activer Billing Export"
+              : billingTelemetry.message || "Source : BigQuery Billing"}
+          </small>
+        </article>
+
+        <article className="vf-export-total-card">
+          <span>Ecart estimation / facture</span>
+          <strong>
+            {billingTelemetry.status === "ready" && telemetry.total?.estimatedCostEur > 0
+              ? formatMoney(telemetry.total.estimatedCostEur - (billingTelemetry.total?.netCost || 0))
+              : "Non disponible"}
+          </strong>
+          <dl>
+            <div><dt>Estimation</dt><dd>{telemetry.total?.estimatedCostEur > 0 ? formatMoney(telemetry.total.estimatedCostEur) : "Incomplete"}</dd></div>
+            <div><dt>Facture nette</dt><dd>{formatBillingValue(billingTelemetry.total?.netCost, billingTelemetry.currency, billingTelemetry.status)}</dd></div>
+            <div><dt>Statut BigQuery</dt><dd>{billingTelemetry.status ?? "non_configured"}</dd></div>
+          </dl>
+          <small>Reconciliation estimation interne vs facture Google</small>
         </article>
       </div>
 
-      <div className="vf-export-metric-grid" aria-label="Synthese exports">
-        {telemetry.ranges.map((range) => (
+      {/* Row 2 : petites cartes KPI */}
+      <div className="vf-export-metric-grid" aria-label="KPI par periode">
+        {telemetry.ranges?.map((range) => (
           <article key={range.key} className="vf-export-metric-card">
             <span>{range.label}</span>
-            <strong>{range.readyExports}</strong>
+            <strong>
+              {range.estimatedCostEur > 0
+                ? formatMoney(range.estimatedCostEur)
+                : range.totalJobs > 0 ? "Estimation incomplete" : "Aucun job"}
+            </strong>
             <dl>
               <div><dt>Jobs</dt><dd>{range.totalJobs}</dd></div>
+              <div><dt>Prets</dt><dd>{range.readyExports}</dd></div>
               <div><dt>Actifs</dt><dd>{range.activeJobs}</dd></div>
               <div><dt>Echecs</dt><dd>{range.failedJobs}</dd></div>
-              <div><dt>Estimation</dt><dd>{formatMoney(range.estimatedCostEur)}</dd></div>
+              {range.devRunJobs > 0 && <div><dt>Dev</dt><dd>{range.devRunJobs}</dd></div>}
             </dl>
+            <small>jobs Firestore</small>
           </article>
         ))}
-      </div>
-
-      <div className="vf-export-billing-grid" aria-label="Couts Google Cloud Run">
-        {billingTelemetry.ranges.map((range) => (
-          <article key={range.key} className="vf-export-billing-card">
-            <span>{range.label}</span>
-            <strong>{formatMoney(range.netCost, billingTelemetry.currency)}</strong>
+        {billingTelemetry.ranges?.map((range) => (
+          <article key={`billing-${range.key}`} className="vf-export-billing-card">
+            <span>Facture {range.label}</span>
+            <strong>{formatBillingValue(range.netCost, billingTelemetry.currency, billingTelemetry.status)}</strong>
             <dl>
-              <div><dt>Cout brut</dt><dd>{formatMoney(range.actualCost, billingTelemetry.currency)}</dd></div>
-              <div><dt>Credits</dt><dd>{formatMoney(range.credits, billingTelemetry.currency)}</dd></div>
-              <div><dt>Lignes</dt><dd>{range.rows}</dd></div>
+              <div><dt>Brut</dt><dd>{formatBillingValue(range.actualCost, billingTelemetry.currency, billingTelemetry.status)}</dd></div>
+              <div><dt>Credits</dt><dd>{formatBillingValue(range.credits, billingTelemetry.currency, billingTelemetry.status)}</dd></div>
+              <div><dt>Lignes</dt><dd>{billingTelemetry.status === "ready" ? range.rows : "—"}</dd></div>
             </dl>
+            <small>BigQuery Billing</small>
           </article>
         ))}
+        <article className="vf-export-metric-card">
+          <span>Cout/minute estimé</span>
+          <strong>
+            {weekRange?.renderSeconds > 0 && weekRange?.estimatedCostEur > 0
+              ? formatMoney((weekRange.estimatedCostEur / (weekRange.renderSeconds / 60)), "EUR")
+              : "Non disponible"}
+          </strong>
+          <dl>
+            <div><dt>Rendu semaine</dt><dd>{weekRange?.renderSeconds > 0 ? `${Math.round(weekRange.renderSeconds)}s` : "—"}</dd></div>
+            <div><dt>Facture jour</dt><dd>{formatBillingValue(dayBilling?.netCost, billingTelemetry.currency, billingTelemetry.status)}</dd></div>
+          </dl>
+          <small>estimation locale</small>
+        </article>
       </div>
 
+      {/* Section services facturés */}
       <div className="vf-export-billing-panel">
         <header>
           <div>
-            <span>Google Billing</span>
+            <span>Google Billing Export</span>
             <strong>{formatBillingPanelTitle(billingTelemetry)}</strong>
           </div>
-          <small>{billingTelemetry.table || billingTelemetry.message || "Configure Billing Export BigQuery pour activer la facture reelle."}</small>
+          <small>
+            {billingTelemetry.table
+              ? `Table : ${billingTelemetry.table}`
+              : billingTelemetry.message || "Configure CLOUD_BILLING_EXPORT_TABLE dans functions/.env pour activer."}
+          </small>
         </header>
-        {billingTelemetry.services.length ? (
+        {billingTelemetry.status === "ready" && billingTelemetry.services.length ? (
           <div className="vf-export-service-list">
             {billingTelemetry.services.map((service) => (
               <div key={service.service}>
                 <span>{service.service}</span>
                 <strong>{formatMoney(service.netCost, service.currency || billingTelemetry.currency)}</strong>
+                <small>brut {formatMoney(service.cost, service.currency || billingTelemetry.currency)} — credits {formatMoney(service.credits, service.currency || billingTelemetry.currency)}</small>
               </div>
             ))}
           </div>
         ) : (
-          <p>Aucune ligne Cloud Run facturee n&apos;est disponible dans la fenetre lue.</p>
+          <p>
+            {billingTelemetry.status === "not_configured"
+              ? "Billing Export BigQuery non configure."
+              : billingTelemetry.status === "ready"
+              ? "Aucune ligne Cloud Run sur la periode."
+              : billingTelemetry.message || "Donnees indisponibles."}
+          </p>
         )}
       </div>
 
+      {/* Table jobs */}
       <div className="vf-export-ops-table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Job</th>
+              <th>Job ID</th>
               <th>Statut</th>
-              <th>Rendu</th>
+              <th>User</th>
+              <th>Service / revision</th>
+              <th>Format / preset</th>
+              <th>Duree video</th>
+              <th>Temps rendu</th>
               <th>Output</th>
               <th>Cout estime</th>
+              <th>Source cout</th>
               <th>Date</th>
             </tr>
           </thead>
           <tbody>
             {jobs.length ? telemetry.recentJobs.map((job) => {
               const estimate = estimateVideoExportCost(job);
+              const preset = job.manifestSummary?.project?.preset || job.render?.preset || null;
+              const format = job.render ? `${job.render.width || "?"}x${job.render.height || "?"} ${job.render.fps || "?"}fps` : null;
+              const duration = Number(job.manifestSummary?.project?.duration || job.estimates?.durationSeconds || 0);
+              const service = estimate.service || job.renderer?.service || null;
+              const revision = estimate.revision || null;
+              const uid = job.uid ? String(job.uid).slice(0, 10) + "…" : "—";
               return (
-                <tr key={job.id}>
-                  <td><code>{job.id}</code></td>
+                <tr key={job.id} data-dev={job.devRun ? "true" : "false"}>
+                  <td><code title={job.id}>{String(job.id || "").slice(0, 12)}…</code></td>
                   <td><span className="vf-export-status" data-status={job.status || "unknown"}>{formatExportStatus(job.status)}</span></td>
-                  <td>{formatRenderSpec(job, estimate)}</td>
+                  <td><code title={job.uid}>{job.devRun ? "dev" : uid}</code></td>
+                  <td>{service ? <code>{service}{revision ? ` / ${String(revision).slice(-8)}` : ""}</code> : "Non disponible"}</td>
+                  <td>{preset ? `${preset}` : format || "Non disponible"}</td>
+                  <td>{formatDuration(duration)}</td>
+                  <td>{estimate.renderSeconds > 0 ? `${Math.round(estimate.renderSeconds)}s` : "Non disponible"}</td>
                   <td>{formatBytes(estimate.outputSizeBytes)}</td>
-                  <td>{formatMoney(estimate.estimatedEur)}</td>
+                  <td>{estimate.estimatedEur > 0 ? formatMoney(estimate.estimatedEur) : "Estimation incomplete"}</td>
+                  <td><small>{estimate.source || "—"}</small></td>
                   <td>{formatDate(job.createdAtDate || job.createdAt)}</td>
                 </tr>
               );
             }) : (
               <tr>
-                <td colSpan={6}>Aucun job export visible pour ce compte.</td>
+                <td colSpan={11}>Aucun job export visible pour ce compte.</td>
               </tr>
             )}
           </tbody>
@@ -406,12 +546,17 @@ function formatBillingStateMessage(cloudBilling) {
   if (cloudBilling?.status === "error") {
     return "Billing Export BigQuery configure mais lecture en erreur.";
   }
+  if (cloudBilling?.status === "stale") {
+    return "Donnees Billing stale: dernier refresh > 48h.";
+  }
   return "Billing Export BigQuery non configure: estimation interne uniquement.";
 }
 
 function formatBillingPanelTitle(billingTelemetry) {
-  if (billingTelemetry.status === "ready") return "Facture Cloud Run";
+  if (billingTelemetry.status === "ready") return "Facture Cloud Run — BigQuery";
   if (billingTelemetry.status === "error") return "Lecture facture en erreur";
+  if (billingTelemetry.status === "stale") return "Donnee stale";
+  if (billingTelemetry.status === "not_configured") return "Non configure";
   return "Facture non branchee";
 }
 

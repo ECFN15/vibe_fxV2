@@ -36,6 +36,26 @@ export function estimateVideoExportCost(job = {}, assumptions = EXPORT_COST_ASSU
   const renderSeconds = Math.max(elapsedMs > 0 ? elapsedMs / 1000 : 0, fallbackSeconds);
   const outputSizeBytes = Number(job.output?.sizeBytes || job.outputSizeBytes || 0);
 
+  // Prefer server-computed cost when available (written post-render by Functions)
+  if (Number.isFinite(job.estimatedTotalCostEur) && job.estimatedTotalCostEur > 0) {
+    return {
+      renderSeconds,
+      outputSizeBytes,
+      width: Number(render.width || 0),
+      height: Number(render.height || 0),
+      fps: Number(render.fps || 0),
+      estimatedUsd: job.estimatedTotalCost || 0,
+      estimatedEur: job.estimatedTotalCostEur,
+      source: "server",
+      phaseMs: job.rendererResult?.phaseMs || null,
+      service: job.rendererResult?.service || null,
+      revision: job.rendererResult?.revision || null,
+      region: job.rendererResult?.region || null,
+      allocatedVcpu: job.rendererResult?.allocatedVcpu || null,
+      allocatedMemoryGib: job.rendererResult?.allocatedMemoryGib || null,
+    };
+  }
+
   const computeUsd = renderSeconds * (
     assumptions.cloudRunVcpu * assumptions.cpuSecondUsd +
     assumptions.cloudRunMemoryGib * assumptions.memoryGibSecondUsd
@@ -53,6 +73,13 @@ export function estimateVideoExportCost(job = {}, assumptions = EXPORT_COST_ASSU
     fps: Number(render.fps || 0),
     estimatedUsd,
     estimatedEur: estimatedUsd * assumptions.usdToEur,
+    source: renderSeconds > 0 ? "client-estimate" : "incomplete",
+    phaseMs: job.rendererResult?.phaseMs || null,
+    service: job.rendererResult?.service || null,
+    revision: job.rendererResult?.revision || null,
+    region: job.rendererResult?.region || null,
+    allocatedVcpu: job.rendererResult?.allocatedVcpu || null,
+    allocatedMemoryGib: job.rendererResult?.allocatedMemoryGib || null,
   };
 }
 
@@ -75,6 +102,7 @@ export function aggregateVideoExportTelemetry(jobs = [], now = new Date()) {
   const ranges = EXPORT_TELEMETRY_RANGES.map((range) => {
     const startMs = referenceTime.getTime() - range.windowMs;
     const rangeJobs = normalizedJobs.filter((job) => job.createdAtDate.getTime() >= startMs);
+    const serverCostJobs = rangeJobs.filter((job) => job.estimate.source === "server");
     return {
       ...range,
       totalJobs: rangeJobs.length,
@@ -82,8 +110,10 @@ export function aggregateVideoExportTelemetry(jobs = [], now = new Date()) {
       failedJobs: rangeJobs.filter((job) => job.status === "failed").length,
       cancelledJobs: rangeJobs.filter((job) => job.status === "cancelled").length,
       activeJobs: rangeJobs.filter((job) => ["queued", "rendering", "finalizing"].includes(job.status)).length,
+      devRunJobs: rangeJobs.filter((job) => job.devRun === true).length,
       estimatedCostEur: sum(rangeJobs, (job) => job.estimate.estimatedEur),
       estimatedCostUsd: sum(rangeJobs, (job) => job.estimate.estimatedUsd),
+      serverCostJobs: serverCostJobs.length,
       outputSizeBytes: sum(rangeJobs, (job) => job.estimate.outputSizeBytes),
       renderSeconds: sum(rangeJobs, (job) => job.estimate.renderSeconds),
     };
@@ -96,6 +126,7 @@ export function aggregateVideoExportTelemetry(jobs = [], now = new Date()) {
       failedJobs: normalizedJobs.filter((job) => job.status === "failed").length,
       cancelledJobs: normalizedJobs.filter((job) => job.status === "cancelled").length,
       activeJobs: normalizedJobs.filter((job) => ["queued", "rendering", "finalizing"].includes(job.status)).length,
+      devRunJobs: normalizedJobs.filter((job) => job.devRun === true).length,
       estimatedCostEur: sum(normalizedJobs, (job) => job.estimate.estimatedEur),
       estimatedCostUsd: sum(normalizedJobs, (job) => job.estimate.estimatedUsd),
       outputSizeBytes: sum(normalizedJobs, (job) => job.estimate.outputSizeBytes),
@@ -104,7 +135,7 @@ export function aggregateVideoExportTelemetry(jobs = [], now = new Date()) {
     ranges,
     recentJobs: normalizedJobs
       .sort((a, b) => b.createdAtDate.getTime() - a.createdAtDate.getTime())
-      .slice(0, 8),
+      .slice(0, 20),
   };
 }
 
