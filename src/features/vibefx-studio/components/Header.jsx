@@ -1,12 +1,11 @@
 import React, { useSyncExternalStore } from 'react';
 import Link from 'next/link';
-import { Camera, Sun, Moon, Zap, LayoutTemplate, Aperture, Download, Library, Film, Send, Sparkles, Music2 } from 'lucide-react';
+import { Camera, Sun, Moon, Zap, LayoutTemplate, Aperture, Download, Library, Film, Send, Sparkles, Music2, UserCircle } from 'lucide-react';
 import SoundtrackHeaderMiniPlayer from '../soundtrack/components/SoundtrackHeaderMiniPlayer';
 
 const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, onExport, onImportPublication, onOpenPublications, isAiRailOpen, onToggleAiRail, aiJobActive, aiInterfacesEnabled = false, soundtrack, onOpenSoundtrack }) => {
     const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
 
-    // Helper simple pour les icônes conditionnelles
     const getIcon = (name) => {
         const map = { Zap, LayoutTemplate, Aperture, Library, Music2, Film };
         const Icon = map[name];
@@ -16,11 +15,14 @@ const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, 
     return (
         <header className={`vibefx-studio-header border-b backdrop-blur-md sticky top-0 z-20 shrink-0 transition-colors duration-300 ${isDarkMode ? 'border-neutral-800 bg-black/90' : 'border-gray-200 bg-white/90'}`}>
             <div className="vibefx-studio-header__inner max-w-[1920px] mx-auto px-2 sm:px-6 h-24 sm:h-14 flex flex-wrap sm:flex-nowrap items-center justify-between gap-0 sm:gap-2">
+                {/* Brand — lien vers accueil */}
                 <div className="vibefx-studio-header__brand order-1 flex h-12 sm:h-full items-center gap-2 sm:gap-4 min-w-0 sm:min-w-[150px] shrink">
-                    <div className="w-8 h-8 bg-indigo-600 flex items-center justify-center shadow-[0_0_15px_rgba(79,70,229,0.3)]">
-                        <Camera size={16} className="text-white" />
-                    </div>
-                    <h1 className="text-lg font-mono font-bold tracking-tighter uppercase hidden sm:block">Vibe<span className="text-indigo-500">_OS</span></h1>
+                    <Link href="/" className="flex items-center gap-2 group" aria-label="Vibe_fx accueil">
+                        <div className="w-8 h-8 bg-indigo-600 flex items-center justify-center shadow-[0_0_15px_rgba(79,70,229,0.3)] group-hover:bg-indigo-500 transition-colors">
+                            <Camera size={16} className="text-white" />
+                        </div>
+                        <h1 className="text-lg font-mono font-bold tracking-tighter uppercase hidden sm:block">Vibe<span className="text-indigo-500">_OS</span></h1>
+                    </Link>
                     <div className="h-4 w-px bg-neutral-700 mx-2 hidden sm:block"></div>
                     <button
                         onClick={() => setIsDarkMode(!isDarkMode)}
@@ -35,6 +37,7 @@ const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, 
                     />
                 </div>
 
+                {/* Tabs de navigation centrale */}
                 <div className="vibefx-studio-header__tabs order-3 sm:order-2 w-full sm:w-auto flex-none sm:flex-1 min-w-0 flex h-12 sm:h-full items-center gap-1 overflow-x-auto scrollbar-hide md:justify-center">
                     {[
                         { id: 'studio', icon: 'Zap', label: 'Studio' },
@@ -57,6 +60,7 @@ const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, 
                     ))}
                 </div>
 
+                {/* Actions droite */}
                 <div className="vibefx-studio-header__actions order-2 sm:order-3 flex h-12 sm:h-full gap-2 sm:gap-4 min-w-0 sm:min-w-[150px] justify-end items-center shrink-0 ml-auto sm:ml-0">
                     {onToggleAiRail && (
                         <button
@@ -74,9 +78,15 @@ const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, 
                             {aiJobActive && <span className="vf-ai-header-button__badge">RUN</span>}
                         </button>
                     )}
-                    {onOpenPublications && (
-                        <button onClick={onOpenPublications} className={`hidden lg:flex text-[10px] uppercase font-mono tracking-widest px-3 py-1 transition-colors duration-200 border ${isDarkMode ? 'border-neutral-800 text-neutral-500 hover:text-white hover:border-indigo-500/50' : 'border-gray-200 text-gray-500 hover:text-black'}`}>Publications</button>
-                    )}
+                    {/* Mon compte */}
+                    <Link
+                        href="/account"
+                        className={`hidden lg:flex items-center gap-1.5 text-[10px] uppercase font-mono tracking-widest px-3 py-1 transition-colors duration-200 border ${isDarkMode ? 'border-neutral-800 text-neutral-500 hover:text-white hover:border-indigo-500/50' : 'border-gray-200 text-gray-500 hover:text-black'}`}
+                        title="Mon compte"
+                    >
+                        <UserCircle size={13} />
+                        <span className="hidden xl:inline">Compte</span>
+                    </Link>
                     {view === 'video' && (
                         <Link href="/backoffice" className={`hidden lg:flex text-[10px] uppercase font-mono tracking-widest px-3 py-1 transition-colors duration-200 border ${isDarkMode ? 'border-cyan-500/35 bg-cyan-500/10 text-cyan-200 hover:border-cyan-300/70 hover:text-white' : 'border-cyan-200 bg-cyan-50 text-cyan-700 hover:border-cyan-400 hover:text-cyan-900'}`}>
                             Backoffice

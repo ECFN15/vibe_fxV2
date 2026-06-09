@@ -13,10 +13,10 @@ export default async function StudioPage({ searchParams }) {
   const params = await searchParams;
   const studioWorkspaces = new Set(["studio", "layout", "library", "soundtrack", "vision-pro", "video"]);
   const requestedWorkspace = typeof params?.workspace === "string" ? params.workspace : "";
-  const initialWorkspace = studioWorkspaces.has(requestedWorkspace) ? requestedWorkspace : "studio";
+  const initialWorkspace = studioWorkspaces.has(requestedWorkspace) ? requestedWorkspace : "layout";
   return (
     <StudioClient
-      initialMode={studioWorkspaces.has(requestedWorkspace) ? "layout" : "dashboard"}
+      initialMode="layout"
       initialWorkspace={initialWorkspace}
     />
   );

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -401,154 +401,178 @@ export default function AccountClient({ initialView = "overview" }) {
 
   return (
     <main className="vf-account-shell">
-      <nav className="vf-account-nav" aria-label="Navigation compte">
+      {/* Top bar minimal */}
+      <nav className="vf-account-topbar" aria-label="Navigation principale">
         <Link href="/" className="vf-brand" aria-label="Vibe_fx V2 accueil">
           <span className="vf-brand-mark" aria-hidden="true" />
           Vibe_fx
         </Link>
-        <div className="vf-account-tabs" role="tablist" aria-label="Sections compte">
-          {Object.entries(viewLabels).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={view === key}
-              data-active={view === key}
-              onClick={() => setView(key)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <Link href="/studio" className="vf-account-studio">Studio</Link>
+        <Link href="/studio" className="vf-account-topbar__cta">Studio</Link>
       </nav>
 
-      <section className="vf-account-hero" aria-labelledby="account-title">
-        <div>
-          <p className="vf-account-kicker">Compte prive</p>
-          <h1 id="account-title">Compte et acces Vibe_fx.</h1>
-          <p>
-            Connectez votre compte, activez l&apos;acces lifetime et retrouvez les informations
-            utiles pour utiliser le studio.
-          </p>
-        </div>
-        <div className="vf-account-status" data-state={isAnonymous ? "warning" : "success"}>
-          <span>{isAnonymous ? "Session anonyme" : "Compte permanent"}</span>
-          <strong>{user?.email || user?.uid || "Connexion en cours"}</strong>
-          <small>{providers.length ? "Connexion active" : "Session invite"}</small>
-        </div>
-      </section>
-
-      {message ? <p className="vf-account-message">{message}</p> : null}
-      {!firebaseReady && !message ? <p className="vf-account-message danger">Connexion compte indisponible.</p> : null}
-
-      <section className="vf-account-grid" aria-busy={loading}>
-        <article className="vf-account-panel vf-account-auth">
-          <div className="vf-account-panel-head">
-            <span>Connexion</span>
-            <strong>{isAnonymous ? "Lier un compte" : "Compte lie"}</strong>
-          </div>
-          <p>
-            Un compte permanent permet d&apos;associer l&apos;achat lifetime a votre profil.
-            Vous pouvez continuer a tester le studio avant de lier votre compte.
-          </p>
-          <button type="button" className="vf-account-primary" disabled={busy || loading} onClick={handleGoogle}>
-            {busy ? "Traitement..." : "Continuer avec Google"}
-          </button>
-          <form className="vf-account-form" onSubmit={handleEmailAction}>
-            <div className="vf-account-segment">
-              <button type="button" data-active={authMode === "link"} onClick={() => setAuthMode("link")}>Lier/creer</button>
-              <button type="button" data-active={authMode === "login"} onClick={() => setAuthMode("login")}>Connexion</button>
+      <div className="vf-account-layout">
+        {/* Sidebar gauche */}
+        <aside className="vf-account-sidebar" aria-label="Navigation compte">
+          <div className="vf-account-sidebar__identity" data-state={isAnonymous ? "warning" : "success"}>
+            <div className="vf-account-sidebar__avatar" aria-hidden="true">
+              {user?.photoURL
+                ? <img src={user.photoURL} alt="" width={40} height={40} referrerPolicy="no-referrer" />
+                : <span>{(user?.email || "?")[0].toUpperCase()}</span>}
             </div>
-            <label>
-              <span>Email</span>
-              <input type="email" value={email} autoComplete="email" onChange={(event) => setEmail(event.target.value)} />
-            </label>
-            <label>
-              <span>Mot de passe</span>
-              <input type="password" value={password} autoComplete={authMode === "login" ? "current-password" : "new-password"} onChange={(event) => setPassword(event.target.value)} />
-            </label>
-            <label>
-              <span>Nom public</span>
-              <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
-            </label>
-            <button type="submit" disabled={busy || !email || !password}>
-              {authMode === "login" ? "Ouvrir la session" : "Lier le compte"}
-            </button>
-          </form>
-        </article>
+            <div>
+              <strong>{user?.displayName || user?.email || "Anonyme"}</strong>
+              <small>{isAnonymous ? "Session temporaire" : "Compte lie"}</small>
+            </div>
+          </div>
 
-        <article className="vf-account-panel">
-          <div className="vf-account-panel-head">
-            <span>Acces</span>
-            <strong>{status.premium ? "Lifetime actif" : "Gratuit"}</strong>
-          </div>
-          <div className="vf-account-metric">
-            <span>{status.premium ? "Interface debloquee" : "Acces actuel"}</span>
-            <strong>{status.premium ? "Lifetime" : "Gratuit"}</strong>
-          </div>
-          <div className="vf-account-bars">
-            <span style={{ "--value": status.premium ? "100%" : "38%" }}>Studio</span>
-            <span style={{ "--value": status.premium ? "100%" : "38%" }}>Vibe_CUT</span>
-            <span style={{ "--value": status.premium ? "100%" : "38%" }}>Publication</span>
-          </div>
-          <Link href="/pricing" className="vf-account-secondary">Voir les tarifs</Link>
-        </article>
-
-        <article className="vf-account-panel">
-          <div className="vf-account-panel-head">
-            <span>Profil</span>
-            <strong>Informations</strong>
-          </div>
-          <dl className="vf-account-facts">
-            <div><dt>Email</dt><dd>{user?.email || "Non renseigne"}</dd></div>
-            <div><dt>Derniere connexion</dt><dd>{safeDate(profile?.lastLoginAt)}</dd></div>
-            <div><dt>Total paye</dt><dd>{(status.paid / 100).toFixed(2)} EUR</dd></div>
-          </dl>
-          <div className="vf-account-actions">
-            <button type="button" onClick={handleProfileSave} disabled={busy || isAnonymous}>Enregistrer profil</button>
-            <button type="button" onClick={handleSignOut} disabled={busy}>Fermer session</button>
-            <button type="button" onClick={handleAccountDeletion} disabled={busy || isAnonymous}>Supprimer compte</button>
-          </div>
-        </article>
-      </section>
-
-      <section id="account-panel" className="vf-account-workspace" data-view={view} aria-live="polite">
-        {view === "billing" ? (
-          <BillingPanel
-            aiInterfacesEnabled={aiInterfacesEnabled}
-            busy={busy}
-            products={visibleBillingProducts}
-            payments={payments}
-            onCheckout={handleCheckout}
-          />
-        ) : view === "usage" ? (
-          <UsagePanel
-            aiInterfacesEnabled={aiInterfacesEnabled}
-            busy={busy}
-            jobs={jobs}
-            aiFeature={aiFeature}
-            aiPrompt={aiPrompt}
-            onFeatureChange={setAiFeature}
-            onPromptChange={setAiPrompt}
-            onCreateAiJob={handleCreateAiJob}
-          />
-        ) : (
-          <div className="vf-account-readiness">
-            {[
-              ["Compte", isAnonymous ? "A lier" : "Actif"],
-              ["Acces lifetime", status.premium ? "Actif" : "Disponible"],
-              ["Studio", "Pret"],
-              ["Publications", "Preparees"],
-            ].map(([label, value]) => (
-              <article key={label}>
-                <span>{label}</span>
-                <strong>{value}</strong>
-              </article>
+          <nav className="vf-account-sidebar__nav" role="tablist" aria-label="Sections compte">
+            {Object.entries(viewLabels).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={view === key}
+                data-active={view === key}
+                onClick={() => setView(key)}
+                className="vf-account-sidebar__tab"
+              >
+                {label}
+              </button>
             ))}
+          </nav>
+
+          <div className="vf-account-sidebar__footer">
+            {!firebaseReady ? null : isAnonymous ? (
+              <button type="button" className="vf-account-sidebar__connect" disabled={busy} onClick={handleGoogle}>
+                {busy ? "Connexion..." : "Se connecter"}
+              </button>
+            ) : (
+              <button type="button" className="vf-account-sidebar__signout" disabled={busy} onClick={handleSignOut}>
+                Deconnecter
+              </button>
+            )}
           </div>
-        )}
-      </section>
+        </aside>
+
+        {/* Contenu principal */}
+        <section className="vf-account-main" aria-live="polite" aria-busy={loading}>
+          {message && <p className="vf-account-message">{message}</p>}
+          {!firebaseReady && !message && <p className="vf-account-message danger">Connexion compte indisponible.</p>}
+
+          {view === "overview" && (
+            <div className="vf-account-view">
+              <div className="vf-account-view__header">
+                <h1>Compte</h1>
+                <p>Gerez votre connexion, votre profil et vos informations.</p>
+              </div>
+              <article className="vf-account-card">
+                <div className="vf-account-card__head">
+                  <span>Connexion</span>
+                  <strong>{isAnonymous ? "Lier un compte" : "Compte lie"}</strong>
+                </div>
+                {isAnonymous && (
+                  <p className="vf-account-card__desc">
+                    Un compte permanent permet d&apos;associer l&apos;achat lifetime a votre profil.
+                  </p>
+                )}
+                <button type="button" className="vf-account-primary" disabled={busy || loading} onClick={handleGoogle}>
+                  {busy ? "Traitement..." : isAnonymous ? "Continuer avec Google" : "Changer de compte Google"}
+                </button>
+                {isAnonymous && (
+                  <form className="vf-account-form" onSubmit={handleEmailAction}>
+                    <div className="vf-account-segment">
+                      <button type="button" data-active={authMode === "link"} onClick={() => setAuthMode("link")}>Creer</button>
+                      <button type="button" data-active={authMode === "login"} onClick={() => setAuthMode("login")}>Connexion</button>
+                    </div>
+                    <label>
+                      <span>Email</span>
+                      <input type="email" value={email} autoComplete="email" onChange={(e) => setEmail(e.target.value)} />
+                    </label>
+                    <label>
+                      <span>Mot de passe</span>
+                      <input type="password" value={password} autoComplete={authMode === "login" ? "current-password" : "new-password"} onChange={(e) => setPassword(e.target.value)} />
+                    </label>
+                    {authMode === "link" && (
+                      <label>
+                        <span>Nom public</span>
+                        <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+                      </label>
+                    )}
+                    <button type="submit" disabled={busy || !email || !password}>
+                      {authMode === "login" ? "Ouvrir la session" : "Lier le compte"}
+                    </button>
+                  </form>
+                )}
+              </article>
+              <article className="vf-account-card">
+                <div className="vf-account-card__head">
+                  <span>Profil</span>
+                  <strong>Informations</strong>
+                </div>
+                <dl className="vf-account-facts">
+                  <div><dt>Email</dt><dd>{user?.email || "Non renseigne"}</dd></div>
+                  <div><dt>Derniere connexion</dt><dd>{safeDate(profile?.lastLoginAt)}</dd></div>
+                  <div><dt>Total paye</dt><dd>{(status.paid / 100).toFixed(2)} EUR</dd></div>
+                </dl>
+                <div className="vf-account-actions">
+                  <button type="button" onClick={handleProfileSave} disabled={busy || isAnonymous}>Enregistrer profil</button>
+                  <button type="button" onClick={handleAccountDeletion} disabled={busy || isAnonymous}>Supprimer compte</button>
+                </div>
+              </article>
+            </div>
+          )}
+
+          {view === "billing" && (
+            <div className="vf-account-view">
+              <div className="vf-account-view__header">
+                <h1>Acces lifetime</h1>
+                <p>Activez l&apos;acces complet a Vibe_fx et gerez vos credits.</p>
+              </div>
+              <article className="vf-account-card">
+                <div className="vf-account-card__head">
+                  <span>Acces actuel</span>
+                  <strong>{status.premium ? "Lifetime actif" : "Gratuit"}</strong>
+                </div>
+                <div className="vf-account-metric">
+                  <strong>{status.premium ? "Lifetime" : "Gratuit"}</strong>
+                </div>
+                <div className="vf-account-bars">
+                  <span style={{ "--value": status.premium ? "100%" : "38%" }}>Studio</span>
+                  <span style={{ "--value": status.premium ? "100%" : "38%" }}>Vibe_CUT</span>
+                  <span style={{ "--value": status.premium ? "100%" : "38%" }}>Publication</span>
+                </div>
+                <Link href="/pricing" className="vf-account-secondary">Voir les tarifs</Link>
+              </article>
+              <BillingPanel
+                aiInterfacesEnabled={aiInterfacesEnabled}
+                busy={busy}
+                products={visibleBillingProducts}
+                payments={payments}
+                onCheckout={handleCheckout}
+              />
+            </div>
+          )}
+
+          {view === "usage" && (
+            <div className="vf-account-view">
+              <div className="vf-account-view__header">
+                <h1>Activite</h1>
+                <p>Historique de vos jobs et exports.</p>
+              </div>
+              <UsagePanel
+                aiInterfacesEnabled={aiInterfacesEnabled}
+                busy={busy}
+                jobs={jobs}
+                aiFeature={aiFeature}
+                aiPrompt={aiPrompt}
+                onFeatureChange={setAiFeature}
+                onPromptChange={setAiPrompt}
+                onCreateAiJob={handleCreateAiJob}
+              />
+            </div>
+          )}
+        </section>
+      </div>
     </main>
   );
 }
