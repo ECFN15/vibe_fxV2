@@ -1,7 +1,8 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import Image from "next/image";
 import { AI_INTERFACES_DEFAULT_ENABLED } from "@/config/aiLaunch";
 import { PublicationRoutePipeline } from "./components/PublicationRoutePipeline";
+import HomeNav from "./components/HomeNav";
 
 export const metadata = {
   title: "Vibe_fx V2 - Éditeur d'image et Publication Instagram & Facebook",
@@ -102,29 +103,7 @@ export default function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      <nav className="vf-nav" aria-label="Navigation principale">
-        <Link href="/" className="vf-brand" aria-label="Vibe_fx V2 accueil">
-          <span className="vf-brand-mark" aria-hidden="true" />
-          Vibe_fx
-        </Link>
-        <div className="vf-nav-links" aria-label="Sections produit">
-          <Link href="/pricing">
-            <span className="vf-nav-link-dot" aria-hidden="true" />
-            Tarifs
-          </Link>
-          <Link href="/account">
-            <span className="vf-nav-link-dot" aria-hidden="true" />
-            Compte
-          </Link>
-          <Link href="/backoffice">
-            <span className="vf-nav-link-dot" aria-hidden="true" />
-            Backoffice
-          </Link>
-        </div>
-        <Link href="/studio?workspace=layout" className="vf-nav-cta">
-          Launch app
-        </Link>
-      </nav>
+      <HomeNav />
 
       <section className="vf-hero" aria-labelledby="home-title">
         <div className="vf-hero-copy">
