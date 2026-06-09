@@ -136,6 +136,15 @@ export default function BackofficeClient() {
 
   return (
     <main className="vf-backoffice">
+      {!user && (
+        <div className="vf-backoffice-auth-bar">
+          <span>Backoffice admin — connexion requise pour voir les jobs et les couts.</span>
+          <button type="button" onClick={handleTelemetryRefresh} disabled={authBusy}>
+            {authBusy ? "Connexion..." : "Se connecter avec Google"}
+          </button>
+        </div>
+      )}
+
       <nav className="vf-nav vf-backoffice-nav" aria-label="Navigation backoffice">
         <Link href="/" className="vf-brand" aria-label="Vibe_fx V2 accueil">
           <span className="vf-brand-mark" aria-hidden="true" />

@@ -3504,6 +3504,39 @@ html {
   opacity: 0.6;
 }
 
+.vf-backoffice-auth-bar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 24px;
+  background: rgba(99, 102, 241, 0.95);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.5);
+}
+.vf-backoffice-auth-bar span {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+.vf-backoffice-auth-bar button {
+  flex-shrink: 0;
+  padding: 7px 18px;
+  background: #fff;
+  color: #4f46e5;
+  font-size: 13px;
+  font-weight: 700;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+.vf-backoffice-auth-bar button:hover:not(:disabled) { opacity: 0.88; }
+.vf-backoffice-auth-bar button:disabled { opacity: 0.5; cursor: not-allowed; }
 .vf-export-signin-banner {
   display: flex;
   align-items: center;
