@@ -47,11 +47,14 @@ export default function BackofficeClient() {
     }
 
     setExportTelemetryState({ loading: true, message: "" });
+    console.log("[backoffice] loadExportTelemetry uid=", currentUser?.uid, "email=", currentUser?.email, "firebaseFunctions=", Boolean(firebaseFunctions));
     try {
       if (firebaseFunctions) {
         try {
+          console.log("[backoffice] calling getVideoExportAdminTelemetry...");
           const callable = httpsCallable(firebaseFunctions, "getVideoExportAdminTelemetry");
           const result = await callable({ limit: 120 });
+          console.log("[backoffice] callable result:", result.data?.summary, "jobs:", result.data?.jobs?.length);
           const data = result.data || {};
           if (Array.isArray(data.jobs)) {
             setExportJobs(data.jobs);
@@ -65,6 +68,7 @@ export default function BackofficeClient() {
         } catch (adminError) {
           const code = String(adminError.code || "");
           const msg = adminError.message || String(adminError);
+          console.error("[backoffice] callable error code=", code, "msg=", msg, adminError);
           if (!code.includes("permission-denied")) {
             console.warn("Admin export telemetry unavailable", adminError);
             setExportTelemetryState({
