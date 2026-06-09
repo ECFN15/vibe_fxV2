@@ -18,7 +18,7 @@ export function SeoLandingPage({ page }) {
         </Link>
         <div className="vf-actions">
           <Link href="/pricing" className="vf-nav-cta">
-            Tarifs
+            Tarification
           </Link>
           <Link href="/studio" className="vf-nav-cta">
             Launch app

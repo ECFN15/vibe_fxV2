@@ -13,7 +13,7 @@ export default function HomeNav() {
       <div className="vf-nav-links" aria-label="Sections produit">
         <Link href="/pricing">
           <span className="vf-nav-link-dot" aria-hidden="true" />
-          Tarifs
+          Tarification
         </Link>
         <Link href="/backoffice">
           <span className="vf-nav-link-dot" aria-hidden="true" />

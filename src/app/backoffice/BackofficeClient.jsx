@@ -11,7 +11,7 @@ import {
   where,
 } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AI_FRONT_SURFACES, AI_INTERFACES_DEFAULT_ENABLED } from "@/config/aiLaunch";
 import { useAiLaunchSettings } from "@/hooks/useAiLaunchSettings";
 import { auth, db, firebaseReady, functions as firebaseFunctions } from "@/lib/firebase";
@@ -24,6 +24,7 @@ import {
 export default function BackofficeClient() {
   const { aiInterfacesEnabled, setAiInterfacesEnabled, resetAiInterfaces } = useAiLaunchSettings();
   const [user, setUser] = useState(auth?.currentUser || null);
+  const [authLoading, setAuthLoading] = useState(!auth?.currentUser); // true jusqu'au premier onAuthStateChanged
   const [exportJobs, setExportJobs] = useState([]);
   const [cloudBilling, setCloudBilling] = useState(null);
   const [exportTelemetryState, setExportTelemetryState] = useState({
@@ -108,6 +109,7 @@ export default function BackofficeClient() {
     }
     return onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      setAuthLoading(false);
       loadExportTelemetry(currentUser);
     });
   }, [loadExportTelemetry]);
@@ -145,16 +147,45 @@ export default function BackofficeClient() {
     await loadExportTelemetry(currentUser);
   }, [ensureDevUser, loadExportTelemetry, user]);
 
+  // Gate : si Firebase initialise encore, spinner
+  if (authLoading) {
+    return (
+      <div className="vf-studio-gate vf-studio-gate--loading" aria-busy="true">
+        <span className="vf-studio-gate__spinner" />
+      </div>
+    );
+  }
+
+  // Gate : non connecté → écran de connexion
+  if (!user) {
+    return (
+      <div className="vf-studio-gate" role="dialog" aria-modal="true" aria-labelledby="bo-gate-title">
+        <div className="vf-studio-gate__card">
+          <span className="vf-studio-gate__kicker">Backoffice</span>
+          <h1 id="bo-gate-title" className="vf-studio-gate__title">Accès restreint</h1>
+          <p className="vf-studio-gate__desc">
+            Cette page est réservée aux administrateurs.<br />
+            Connecte-toi avec le compte autorisé.
+          </p>
+          {exportTelemetryState.message && (
+            <p className="vf-studio-gate__error">{exportTelemetryState.message}</p>
+          )}
+          <button
+            type="button"
+            className="vf-studio-gate__btn"
+            disabled={authBusy}
+            onClick={handleTelemetryRefresh}
+          >
+            {authBusy ? "Connexion..." : "Continuer avec Google"}
+          </button>
+          <a href="/" className="vf-studio-gate__back">← Retour à l&apos;accueil</a>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <main className="vf-backoffice">
-      {!user && (
-        <div className="vf-backoffice-auth-bar">
-          <span>Backoffice admin — connexion requise pour voir les jobs et les couts.</span>
-          <button type="button" onClick={handleTelemetryRefresh} disabled={authBusy}>
-            {authBusy ? "Connexion..." : "Se connecter avec Google"}
-          </button>
-        </div>
-      )}
 
       <nav className="vf-nav vf-backoffice-nav" aria-label="Navigation backoffice">
         <Link href="/" className="vf-brand" aria-label="Vibe_fx V2 accueil">
@@ -168,7 +199,7 @@ export default function BackofficeClient() {
           </Link>
           <Link href="/pricing">
             <span className="vf-nav-link-dot" aria-hidden="true" />
-            Tarifs
+            Tarification
           </Link>
         </div>
         {user ? (
