@@ -1,17 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 
-/**
- * Bouton de connexion/déconnexion réutilisable.
- * - Non connecté ou anonyme → bouton "Se connecter"
- * - Connecté → affiche l'email tronqué + option déconnexion au hover
- */
 export default function AuthButton({ className = "" }) {
   const { user, isSignedIn, loading, signInWithGoogle, logout } = useAuth();
   const [busy, setBusy] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const wrapRef = useRef(null);
+
+  // Fermer le menu quand on clique n'importe où en dehors
+  useEffect(() => {
+    if (!showMenu) return;
+    function handleOutside(e) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
+        setShowMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [showMenu]);
 
   if (loading) return null;
 
@@ -37,7 +45,7 @@ export default function AuthButton({ className = "" }) {
     : user.displayName || "Mon compte";
 
   return (
-    <div className={`vf-auth-btn--user-wrap ${className}`} onMouseLeave={() => setShowMenu(false)}>
+    <div ref={wrapRef} className={`vf-auth-btn--user-wrap ${className}`}>
       <button
         type="button"
         className="vf-auth-btn vf-auth-btn--user"
