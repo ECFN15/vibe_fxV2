@@ -63,8 +63,15 @@ export default function BackofficeClient() {
             return;
           }
         } catch (adminError) {
-          if (!String(adminError.code || "").includes("permission-denied")) {
+          const code = String(adminError.code || "");
+          const msg = adminError.message || String(adminError);
+          if (!code.includes("permission-denied")) {
             console.warn("Admin export telemetry unavailable", adminError);
+            setExportTelemetryState({
+              loading: false,
+              message: `Erreur callable admin [${code}]: ${msg}`,
+            });
+            return;
           }
         }
       }
