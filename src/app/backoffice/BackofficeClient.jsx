@@ -160,9 +160,15 @@ export default function BackofficeClient() {
             Tarifs
           </Link>
         </div>
-        <Link href="/backoffice" className="vf-nav-cta" aria-current="page">
-          Backoffice
-        </Link>
+        {user ? (
+          <span className="vf-nav-user">
+            {user.email || user.uid}
+          </span>
+        ) : (
+          <button type="button" className="vf-nav-cta" onClick={handleTelemetryRefresh} disabled={authBusy}>
+            {authBusy ? "Connexion..." : "Se connecter"}
+          </button>
+        )}
       </nav>
 
       <section className="vf-backoffice-hero" aria-labelledby="backoffice-title">

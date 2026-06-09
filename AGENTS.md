@@ -33,6 +33,29 @@ Le produit cible est un outil web public permettant :
 - Les parcours OAuth, publication reseaux, chiffrement token et anti-doublon restent cote serveur Firebase Functions.
 - Les pages publiques doivent etre indexables ; les surfaces studio/app privees doivent etre `noindex`.
 
+## Discipline de deploiement et couts
+
+Les deploiements Firebase App Hosting, Cloud Run et Functions peuvent declencher Cloud Build, Artifact Registry et des couts de build/deploiement. Les agents doivent donc eviter les rollouts excessifs.
+
+- Developper et verifier en local d'abord : `npm run dev`, tests smoke, lint et build local.
+- Ne deployer que lorsqu'un lot coherent de changements est pret ou quand l'utilisateur demande explicitement une mise en hosting.
+- Grouper les petites corrections au lieu d'enchainer des rollouts successifs.
+- Avant tout deploy hosting, executer au minimum les gates adaptes au changement : `npm run lint`, `npm run build`, tests smoke concernes, et `npm --prefix functions run lint` si Functions change.
+- Eviter `gcloud run deploy --source` pour des tests frequents du renderer : le deploy depuis source utilise Cloud Build/buildpacks et peut ajouter des couts de build.
+- Pour `render-service/`, redeployer seulement quand le renderer change vraiment ; si plusieurs essais sont necessaires, preferer construire une image versionnee une fois puis redeployer cette image.
+- Ne jamais deployer pour "voir si ca marche" quand une verification locale ou un test cible peut attraper le probleme.
+- Apres un deploy, verifier l'URL live et noter le commit/rollout dans la reponse utilisateur.
+
+## Telemetry couts cible
+
+Le backoffice doit distinguer trois sources, sans afficher des zeros trompeurs :
+
+- Estimation live interne : ecrite a chaque job/export depuis le serveur, basee sur duree reelle, CPU/memoire configurees, requetes, taille output et statut. C'est la source temps quasi reel pour detecter surcharge et abus.
+- Usage Cloud Run/Monitoring : source operationnelle pour confirmer activite, latence, instances, erreurs et requetes, mais pas une facture euro instantanee.
+- Facture Google officielle : Cloud Billing Export BigQuery, differree et sujette aux free tiers/credits/arrondis. Elle sert a comparer et calibrer l'estimation interne, pas a piloter le temps reel.
+
+Pour Vibe_CUT, chaque export serveur doit creer/mettre a jour un `videoExportJobs/{jobId}` avec `startedAt`, `endedAt`, duree rendu, service Cloud Run, region, CPU, memoire, input/output bytes, statut, estimation brute, user/dev et metadonnees video. Les tests directs K1 qui appellent Cloud Run hors workflow doivent aussi produire un evenement de telemetry ou etre clairement marques comme "hors jobs Firestore".
+
 ## Architecture cible choisie
 
 Choix principal : Next.js App Router + Firebase App Hosting.
