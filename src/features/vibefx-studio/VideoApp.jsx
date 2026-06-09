@@ -4,6 +4,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link';
 import { ArrowLeft, ChevronDown, Film, Monitor, Shield, Smartphone, Sparkles, Trash2, Undo2, Redo2, RotateCcw, RotateCw } from 'lucide-react';
 import { useAiLaunchSettings } from '@/hooks/useAiLaunchSettings';
+import { useAuth } from '@/context/AuthContext';
+
+const ADMIN_EMAIL = 'matthis.fradin2@gmail.com';
 import VideoEditor from './video/VideoEditor';
 import useVideoStore from './video/store/videoStore';
 import { EXPORT_PRESETS } from './video/engine/VideoEngine';
@@ -12,6 +15,8 @@ import StudioAiRail from './components/ai/StudioAiRail';
 
 function VideoApp({ onBack }) {
     const { aiInterfacesEnabled } = useAiLaunchSettings();
+    const { user } = useAuth();
+    const isAdmin = user?.email === ADMIN_EMAIL;
     const [isSequenceMenuOpen, setIsSequenceMenuOpen] = useState(false);
     const [isAiRailOpen, setIsAiRailOpen] = useState(false);
     const menuRef = useRef(null);
@@ -256,15 +261,17 @@ function VideoApp({ onBack }) {
                     </div>
 
                     <div className="flex shrink-0 items-center justify-end gap-2">
-                        <Link
-                            href="/backoffice"
-                            data-testid="vibecut-header-backoffice"
-                            className="inline-flex h-7 items-center justify-center gap-1.5 rounded-sm border border-cyan-500/35 bg-cyan-500/10 px-2.5 text-[8px] font-mono uppercase tracking-widest text-cyan-100 transition hover:border-cyan-300/65 hover:bg-cyan-500/16 hover:text-white"
-                            title="Ouvrir le backoffice"
-                        >
-                            <Shield size={11} />
-                            <span className="hidden sm:inline">Backoffice</span>
-                        </Link>
+                        {isAdmin && (
+                            <Link
+                                href="/backoffice"
+                                data-testid="vibecut-header-backoffice"
+                                className="inline-flex h-7 items-center justify-center gap-1.5 rounded-sm border border-cyan-500/35 bg-cyan-500/10 px-2.5 text-[8px] font-mono uppercase tracking-widest text-cyan-100 transition hover:border-cyan-300/65 hover:bg-cyan-500/16 hover:text-white"
+                                title="Ouvrir le backoffice"
+                            >
+                                <Shield size={11} />
+                                <span className="hidden sm:inline">Backoffice</span>
+                            </Link>
+                        )}
                         {aiInterfacesEnabled && (
                             <button
                                 type="button"

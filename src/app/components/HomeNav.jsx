@@ -15,10 +15,7 @@ export default function HomeNav() {
           <span className="vf-nav-link-dot" aria-hidden="true" />
           Tarification
         </Link>
-        <Link href="/backoffice">
-          <span className="vf-nav-link-dot" aria-hidden="true" />
-          Backoffice
-        </Link>
+
       </div>
       <div className="vf-nav-actions">
         <AuthButton />

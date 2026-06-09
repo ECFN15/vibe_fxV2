@@ -2,9 +2,14 @@ import React, { useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { Camera, Sun, Moon, Zap, LayoutTemplate, Aperture, Download, Library, Film, Send, Sparkles, Music2, UserCircle } from 'lucide-react';
 import SoundtrackHeaderMiniPlayer from '../soundtrack/components/SoundtrackHeaderMiniPlayer';
+import { useAuth } from '@/context/AuthContext';
+
+const ADMIN_EMAIL = 'matthis.fradin2@gmail.com';
 
 const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, onExport, onImportPublication, onOpenPublications, isAiRailOpen, onToggleAiRail, aiJobActive, aiInterfacesEnabled = false, soundtrack, onOpenSoundtrack }) => {
     const hydrated = useSyncExternalStore(() => () => {}, () => true, () => false);
+    const { user } = useAuth();
+    const isAdmin = user?.email === ADMIN_EMAIL;
 
     const getIcon = (name) => {
         const map = { Zap, LayoutTemplate, Aperture, Library, Music2, Film };
@@ -87,7 +92,8 @@ const Header = ({ isDarkMode, setIsDarkMode, view, setView, hasImages, onReset, 
                         <UserCircle size={13} />
                         <span className="hidden xl:inline">Compte</span>
                     </Link>
-                    {view === 'video' && (
+                    {/* Backoffice — visible uniquement sur VibeCut ET connecté admin */}
+                    {view === 'video' && isAdmin && (
                         <Link href="/backoffice" className={`hidden lg:flex text-[10px] uppercase font-mono tracking-widest px-3 py-1 transition-colors duration-200 border ${isDarkMode ? 'border-cyan-500/35 bg-cyan-500/10 text-cyan-200 hover:border-cyan-300/70 hover:text-white' : 'border-cyan-200 bg-cyan-50 text-cyan-700 hover:border-cyan-400 hover:text-cyan-900'}`}>
                             Backoffice
                         </Link>
