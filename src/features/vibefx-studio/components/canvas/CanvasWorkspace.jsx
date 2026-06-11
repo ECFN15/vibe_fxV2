@@ -243,26 +243,18 @@ export default function CanvasWorkspace({
                                                             }
                                                         }}
                                                     >
-                                                        {activeTemplate?.id === 'custom' && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    if (onDeleteCustomZone) {
-                                                                        onDeleteCustomZone(rect.id);
-                                                                    }
-                                                                }}
-                                                                className="absolute top-2 right-2 p-1 bg-red-950/80 border border-red-500/40 text-red-200 hover:bg-red-600 hover:text-white hover:border-red-500 rounded transition-all cursor-pointer z-40 opacity-0 group-hover:opacity-100 flex items-center justify-center shadow-lg"
-                                                                title="Supprimer cette zone"
-                                                                aria-label="Supprimer la zone"
+                                                        <div
+                                                            className="absolute top-2 right-2 flex gap-1.5 z-40 pointer-events-auto"
+                                                            style={{
+                                                                transform: `scale(${buttonScale})`,
+                                                                transformOrigin: 'top right'
+                                                            }}
+                                                        >
+                                                            <label
+                                                                className="cursor-pointer w-6 h-6 bg-indigo-950/80 border border-indigo-500/40 text-indigo-200 hover:bg-indigo-600 hover:text-white hover:border-indigo-500 rounded transition-all flex items-center justify-center shadow-lg"
+                                                                title="Importer une image"
                                                             >
-                                                                <X size={12} strokeWidth={2.5} />
-                                                            </button>
-                                                        )}
-                                                        <div style={{ transform: `scale(${buttonScale})` }}>
-                                                            <label className="cursor-pointer px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-mono text-[10px] sm:text-xs font-bold uppercase tracking-widest rounded shadow-lg transition-transform hover:scale-105 active:scale-95 flex items-center gap-2">
-                                                                <Plus size={14} />
-                                                                IMPORT
+                                                                <Upload size={12} strokeWidth={2.5} />
                                                                 <input
                                                                     type="file"
                                                                     className="hidden"
@@ -274,6 +266,22 @@ export default function CanvasWorkspace({
                                                                     }}
                                                                 />
                                                             </label>
+                                                            {activeTemplate?.id === 'custom' && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        if (onDeleteCustomZone) {
+                                                                            onDeleteCustomZone(rect.id);
+                                                                        }
+                                                                    }}
+                                                                    className="w-6 h-6 bg-red-950/80 border border-red-500/40 text-red-200 hover:bg-red-600 hover:text-white hover:border-red-500 rounded transition-all cursor-pointer opacity-0 group-hover:opacity-100 flex items-center justify-center shadow-lg"
+                                                                    title="Supprimer cette zone"
+                                                                    aria-label="Supprimer la zone"
+                                                                >
+                                                                    <X size={12} strokeWidth={2.5} />
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 );

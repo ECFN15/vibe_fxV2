@@ -1,10 +1,10 @@
 {
   "provider": "pixabay",
-  "sourceUrl": "https://pixabay.com/music/search/cinematic+epic/",
-  "query": "cinematic epic",
+  "sourceUrl": "https://pixabay.com/music/search/cinematic/",
+  "query": "cinematic",
   "startPage": 1,
   "dryRun": false,
-  "generatedAt": "2026-06-02T16:02:01.396Z",
+  "generatedAt": "2026-06-11T21:25:10.641Z",
   "licenseUrl": "https://pixabay.com/service/license-summary/",
   "stats": {
     "found": 2,
@@ -19,70 +19,70 @@
   ],
   "tracks": [
     {
-      "id": "pixabay-513436",
-      "title": "Epic Cinematic 2 | Royalty-free Music",
-      "sourceUrl": "https://pixabay.com/music/adventure-epic-cinematic-2-513436/",
-      "sourcePageUrl": "https://pixabay.com/music/adventure-epic-cinematic-2-513436/",
+      "id": "pixabay-529854",
+      "title": "Dramatic Cinematic Journey | Royalty-free Music",
+      "sourceUrl": "https://pixabay.com/music/synthwave-dramatic-cinematic-journey-529854/",
+      "sourcePageUrl": "https://pixabay.com/music/synthwave-dramatic-cinematic-journey-529854/",
       "sourceName": "Pixabay Music",
       "provider": "pixabay",
       "license": "Pixabay Content License",
       "licenseUrl": "https://pixabay.com/service/license-summary/",
-      "attribution": "Epic Cinematic 2 | Royalty-free Music",
+      "attribution": "Dramatic Cinematic Journey | Royalty-free Music",
       "rightsStatus": "needs-review",
       "socialUse": true,
       "commercialUse": true,
-      "image": "https://cdn.pixabay.com/audio/2026/04/02/22-54-09-335_200x200.jpg",
+      "image": "https://cdn.pixabay.com/audio/2026/05/05/22-09-48-342_200x200.jpg",
       "tags": [
         "pixabay",
-        "cinematic epic"
+        "cinematic"
       ],
       "contentIdWarning": "Pixabay signale des droits tiers possibles et des risques Content ID. Conserver la page source et verifier avant publication.",
       "licenseSnapshotVersion": "pixabay-content-license-current",
       "audioUrls": [
-        "https://cdn.pixabay.com/download/audio/2026/04/08/audio_fee3fc00e8.mp3?filename=nastelbom-epic-cinematic-2-513436.mp3"
+        "https://cdn.pixabay.com/download/audio/2026/05/05/audio_b1b0d091b3.mp3?filename=sutton-cinematic-dramatic-cinematic-journey-529854.mp3"
       ],
       "importStatus": "importable",
-      "downloadUrl": "/music/pixabay-ai/Epic-Cinematic-2-Royalty-free-Music.mp3",
-      "previewUrl": "/music/pixabay-ai/Epic-Cinematic-2-Royalty-free-Music.mp3",
-      "originalDownloadUrl": "https://cdn.pixabay.com/download/audio/2026/04/08/audio_fee3fc00e8.mp3?filename=nastelbom-epic-cinematic-2-513436.mp3",
-      "fileName": "Epic-Cinematic-2-Royalty-free-Music.mp3",
-      "filePath": "public/music/pixabay-ai/Epic-Cinematic-2-Royalty-free-Music.mp3",
-      "bytes": 4559098,
+      "downloadUrl": "/music/pixabay-ai/Dramatic-Cinematic-Journey-Royalty-free-Music-2.mp3",
+      "previewUrl": "/music/pixabay-ai/Dramatic-Cinematic-Journey-Royalty-free-Music-2.mp3",
+      "originalDownloadUrl": "https://cdn.pixabay.com/download/audio/2026/05/05/audio_b1b0d091b3.mp3?filename=sutton-cinematic-dramatic-cinematic-journey-529854.mp3",
+      "fileName": "Dramatic-Cinematic-Journey-Royalty-free-Music-2.mp3",
+      "filePath": "public/music/pixabay-ai/Dramatic-Cinematic-Journey-Royalty-free-Music-2.mp3",
+      "bytes": 9726720,
       "contentType": "audio/mpeg",
-      "downloadedAt": "2026-06-02T16:01:57.228Z"
+      "downloadedAt": "2026-06-11T21:25:08.400Z"
     },
     {
-      "id": "pixabay-529530",
-      "title": "Epic Cinematic - Epic | Royalty-free Music",
-      "sourceUrl": "https://pixabay.com/music/adventure-epic-cinematic-epic-529530/",
-      "sourcePageUrl": "https://pixabay.com/music/adventure-epic-cinematic-epic-529530/",
+      "id": "pixabay-489998",
+      "title": "Cinematic | Royalty-free Music",
+      "sourceUrl": "https://pixabay.com/music/adventure-cinematic-489998/",
+      "sourcePageUrl": "https://pixabay.com/music/adventure-cinematic-489998/",
       "sourceName": "Pixabay Music",
       "provider": "pixabay",
       "license": "Pixabay Content License",
       "licenseUrl": "https://pixabay.com/service/license-summary/",
-      "attribution": "Epic Cinematic - Epic | Royalty-free Music",
+      "attribution": "Cinematic | Royalty-free Music",
       "rightsStatus": "needs-review",
       "socialUse": true,
       "commercialUse": true,
-      "image": "https://cdn.pixabay.com/audio/2026/05/05/07-35-41-783_200x200.jpg",
+      "image": "https://cdn.pixabay.com/audio/2026/02/23/15-36-44-74_200x200.jpg",
       "tags": [
         "pixabay",
-        "cinematic epic"
+        "cinematic"
       ],
       "contentIdWarning": "Pixabay signale des droits tiers possibles et des risques Content ID. Conserver la page source et verifier avant publication.",
       "licenseSnapshotVersion": "pixabay-content-license-current",
       "audioUrls": [
-        "https://cdn.pixabay.com/download/audio/2026/05/05/audio_8f7b4c389e.mp3?filename=apalonbeats-epic-cinematic-epic-529530.mp3"
+        "https://cdn.pixabay.com/download/audio/2026/02/23/audio_ee5a74310f.mp3?filename=the_mountain-cinematic-489998.mp3"
       ],
       "importStatus": "importable",
-      "downloadUrl": "/music/pixabay-ai/Epic-Cinematic-Epic-Royalty-free-Music-3.mp3",
-      "previewUrl": "/music/pixabay-ai/Epic-Cinematic-Epic-Royalty-free-Music-3.mp3",
-      "originalDownloadUrl": "https://cdn.pixabay.com/download/audio/2026/05/05/audio_8f7b4c389e.mp3?filename=apalonbeats-epic-cinematic-epic-529530.mp3",
-      "fileName": "Epic-Cinematic-Epic-Royalty-free-Music-3.mp3",
-      "filePath": "public/music/pixabay-ai/Epic-Cinematic-Epic-Royalty-free-Music-3.mp3",
-      "bytes": 3584418,
+      "downloadUrl": "/music/pixabay-ai/Cinematic-Royalty-free-Music.mp3",
+      "previewUrl": "/music/pixabay-ai/Cinematic-Royalty-free-Music.mp3",
+      "originalDownloadUrl": "https://cdn.pixabay.com/download/audio/2026/02/23/audio_ee5a74310f.mp3?filename=the_mountain-cinematic-489998.mp3",
+      "fileName": "Cinematic-Royalty-free-Music.mp3",
+      "filePath": "public/music/pixabay-ai/Cinematic-Royalty-free-Music.mp3",
+      "bytes": 4115226,
       "contentType": "audio/mpeg",
-      "downloadedAt": "2026-06-02T16:02:01.387Z"
+      "downloadedAt": "2026-06-11T21:25:10.639Z"
     }
   ],
   "errors": []

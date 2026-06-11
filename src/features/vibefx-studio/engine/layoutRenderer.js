@@ -118,7 +118,7 @@ export function renderLayoutImageTexture(ctx, w, h, { layoutTextures, activeText
 /**
  * renderSlot — Dessine une image dans un slot avec zoom, pan, border, blur.
  */
-export function renderSlot(ctx, slotId, imgIndex, x, y, sw, sh, overrideRadius, { images, slotConfigs, radius, layoutBgBlur, layoutBgColor, activeTemplate, slotRects }) {
+export function renderSlot(ctx, slotId, imgIndex, x, y, sw, sh, overrideRadius, { images, slotConfigs, radius, layoutBgBlur, layoutBgColor, activeTemplate, slotRects, isPreview }) {
     const cfg = slotConfigs[slotId] || { zoom: 1, x: 0, y: 0, border: 0, blur: 0 };
     let fallbackImg = null;
     if (images.length > 0) {
@@ -177,7 +177,7 @@ export function renderSlot(ctx, slotId, imgIndex, x, y, sw, sh, overrideRadius, 
     ctx.restore(); // Restore clip context
 
     // Draw dotted outline placeholder if there is no image
-    if (!hasImage) {
+    if (!hasImage && isPreview) {
         ctx.save();
         ctx.strokeStyle = activeTemplate.id === 'custom' ? 'rgba(129, 140, 248, 0.55)' : 'rgba(255, 255, 255, 0.18)';
         ctx.lineWidth = Math.max(2, Math.min(sw, sh) * 0.006);

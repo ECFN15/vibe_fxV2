@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Download, Film, Heart, Import, ListMusic, Loader2, Music2, Pause, Play, Plus, ShieldAlert, Square, Trash2, Upload, UploadCloud } from 'lucide-react';
+import { ArrowDown, ArrowUp, Download, Film, Folder, Heart, Import, ListMusic, Loader2, Music2, Pause, Play, Plus, ShieldAlert, Square, Trash2, Upload, UploadCloud } from 'lucide-react';
 import { downloadBlob, fetchAudioBlobForTrack } from '../services/soundtrackDownloads';
 import { getRightsLabel, getSoundtrackRightsAudit } from '../services/soundtrackRights';
 
@@ -460,9 +460,52 @@ export default function ProjectLibraryPanel({ projectLibrary, localLibrary, star
                     <p>Projet</p>
                     <h2>Bibliotheque Vibe_fx</h2>
                 </div>
-                <span data-state={projectLibrary.status === 'error' ? 'warning' : 'ready'}>
-                    {totalVisibleTracks} piste{totalVisibleTracks > 1 ? 's' : ''}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span data-state={projectLibrary.status === 'error' ? 'warning' : 'ready'}>
+                        {totalVisibleTracks} piste{totalVisibleTracks > 1 ? 's' : ''}
+                    </span>
+                    {process.env.NODE_ENV !== 'production' && (
+                        <button
+                            type="button"
+                            onClick={async () => {
+                                try {
+                                    await fetch('/api/music/open-local-folder', { method: 'POST' });
+                                } catch (error) {
+                                    console.error('[music-local] failed to open folder:', error);
+                                }
+                            }}
+                            title="Ouvrir le dossier local sur votre PC"
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px',
+                                minHeight: '24px',
+                                padding: '0 8px',
+                                border: '1px solid var(--st-line-strong)',
+                                borderRadius: 'var(--st-radius)',
+                                background: '#0f0f0f',
+                                color: 'var(--st-muted)',
+                                cursor: 'pointer',
+                                font: '700 9px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+                                letterSpacing: '.04em',
+                                textTransform: 'uppercase',
+                                transition: 'border-color 160ms ease, color 160ms ease',
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.borderColor = 'var(--st-action)';
+                                e.currentTarget.style.color = 'var(--st-text)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.borderColor = 'var(--st-line-strong)';
+                                e.currentTarget.style.color = 'var(--st-muted)';
+                            }}
+                        >
+                            <Folder size={11} />
+                            <span>Dossier</span>
+                        </button>
+                    )}
+                </div>
             </header>
 
             <div className="soundtrack-project-status" data-state={projectLibrary.status}>

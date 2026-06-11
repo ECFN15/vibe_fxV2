@@ -106,6 +106,7 @@ export default function useCanvasRenderer({
                 images, slotConfigs, radius,
                 layoutBgBlur, layoutBgColor, activeTemplate,
                 slotRects: slotRectsArray,
+                isPreview,
             };
 
             // 1. Background
