@@ -392,7 +392,28 @@ export default function LayoutSidebar({
                         </button>
                     ))}
                 </div>
-                <div className={`mt-3 border p-3 ${isCustomTemplate ? 'border-indigo-500/60 bg-indigo-500/10' : (isDarkMode ? 'border-neutral-800 bg-black/20' : 'border-gray-200 bg-gray-50')}`}>
+                <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                        if (!isCustomTemplate) {
+                            setActiveTemplate(DEFAULT_CUSTOM_TEMPLATE);
+                            setSelectedSlotIndex(null);
+                            setActiveTextId(null);
+                        }
+                    }}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            if (!isCustomTemplate) {
+                                setActiveTemplate(DEFAULT_CUSTOM_TEMPLATE);
+                                setSelectedSlotIndex(null);
+                                setActiveTextId(null);
+                            }
+                        }
+                    }}
+                    className={`mt-3 border p-3 transition-all ${isCustomTemplate ? 'border-indigo-500/60 bg-indigo-500/10' : (isDarkMode ? 'border-neutral-800 bg-black/20 hover:border-indigo-500/50 hover:bg-neutral-800/30 cursor-pointer' : 'border-gray-200 bg-gray-50 hover:border-indigo-400 hover:bg-gray-100 cursor-pointer')}`}
+                >
                     <div className="mb-3 flex items-start justify-between gap-3">
                         <div>
                             <div className={`text-xs font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Modèle personnalisé</div>
@@ -418,7 +439,10 @@ export default function LayoutSidebar({
                                                 type="button"
                                                 draggable
                                                 onDragStart={handleDragStart}
-                                                onClick={() => onAddCustomZone?.(shape, null)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onAddCustomZone?.(shape, null);
+                                                }}
                                                 className="group flex items-center gap-2 border border-neutral-800 bg-black/40 hover:bg-indigo-600/10 hover:border-indigo-500 px-2.5 py-1.5 text-left transition cursor-grab active:cursor-grabbing"
                                                 title={shape.description}
                                             >
@@ -434,10 +458,11 @@ export default function LayoutSidebar({
                                     })}
                                 </div>
                                 
-                                <div className="pt-2 flex justify-between gap-2">
+                                <div className="pt-2 flex flex-col gap-3">
                                     <button
                                         type="button"
-                                        onClick={() => {
+                                        onClick={(e) => {
+                                            e.stopPropagation();
                                             setActiveTemplate(prev => {
                                                 if (prev.id !== 'custom') return prev;
                                                 return {
@@ -452,11 +477,23 @@ export default function LayoutSidebar({
                                             });
                                             setSelectedSlotIndex(null);
                                         }}
-                                        className="flex-1 flex items-center justify-center gap-1.5 border border-red-900/40 hover:border-red-500 bg-red-950/20 text-red-400 hover:text-white px-3 py-1.5 font-mono text-[9px] uppercase tracking-widest transition"
+                                        className="w-full flex items-center justify-center gap-1.5 border border-red-900/40 hover:border-red-500 bg-red-950/20 text-red-400 hover:text-white px-3 py-1.5 font-mono text-[9px] uppercase tracking-widest transition"
                                     >
                                         <Eraser size={12} />
                                         Vider le canevas
                                     </button>
+
+                                    <div className="pt-2 border-t border-neutral-800/40">
+                                        <ControlGroup
+                                            label="Marge Canevas (Padding)"
+                                            value={padding}
+                                            onChange={setPadding}
+                                            min={0}
+                                            max={150}
+                                            unit="px"
+                                            isDarkMode={isDarkMode}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         ) : null}

@@ -31,6 +31,7 @@ export default function CanvasWorkspace({
     onInstaPreview,
     // Layout state
     selectedSlotIndex,
+    setSelectedSlotIndex,
     activeTextId,
     activeTemplate,
     isDraggingText,
@@ -237,6 +238,9 @@ export default function CanvasWorkspace({
                                                         }}
                                                         onPointerDown={(e) => {
                                                             e.stopPropagation();
+                                                            if (setSelectedSlotIndex) {
+                                                                setSelectedSlotIndex(rect.id);
+                                                            }
                                                         }}
                                                     >
                                                         {activeTemplate?.id === 'custom' && (
@@ -287,6 +291,9 @@ export default function CanvasWorkspace({
                                                         }}
                                                         onPointerDown={(e) => {
                                                             e.stopPropagation();
+                                                            if (setSelectedSlotIndex) {
+                                                                setSelectedSlotIndex(rect.id);
+                                                            }
                                                         }}
                                                     >
                                                         {activeTemplate?.id === 'custom' && (

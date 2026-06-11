@@ -68,7 +68,7 @@ export default function useCanvasRenderer({
         } else {
             bgCanvasRef.current = null;
         }
-    }, [images, activeFormat, layoutBgBlur, view]);
+    }, [images, activeFormat, layoutBgBlur, view, bgCanvasRef]);
 
     const getCanvasDimensions = useCallback(() => {
         if (view === 'layout') return { width: activeFormat.w, height: activeFormat.h };
@@ -288,24 +288,36 @@ export default function useCanvasRenderer({
     }, [images, filters, view, activeFormat, activeTemplate, overlayMode, padding, gap, radius,
         layoutBgColor, layoutBgBlur, layoutBgGradient, layoutBgMeshColors, layoutLumenBackground, layoutBgTexture, layoutSmoothBlur, layoutTextures, activeTextureId, layoutTextureOpacity, selectedSlotIndex, slotConfigs,
         texts, activeTextId, isDraggingText, activeGuides, assets, activeAssetId,
-        cropRatio, cropPos, cropScale, isCropping]);
+        cropRatio, cropPos, cropScale, isCropping, bgCanvasRef, setSlotRectsState, slotRects]);
 
     const renderCanvas = useCallback(() => {
         const canRenderEmptyCustomLayout = view === 'layout' && activeTemplate.id === 'custom';
-        if ((!images.length && !canRenderEmptyCustomLayout) || !canvasRef.current) return;
+        if ((!images.length && !canRenderEmptyCustomLayout) || !canvasRef.current) {
+            slotRects.current = [];
+            if (setSlotRectsState) {
+                setSlotRectsState([]);
+            }
+            return;
+        }
         const canvas = canvasRef.current;
         const { width, height } = getPreviewCanvasDimensions();
-        if (width === 0 || height === 0) return;
+        if (width === 0 || height === 0) {
+            slotRects.current = [];
+            if (setSlotRectsState) {
+                setSlotRectsState([]);
+            }
+            return;
+        }
         canvas.width = width;
         canvas.height = height;
         renderPipeline(canvas, width, height, true, (isDragging || isDraggingText) ? 'low' : 'high');
-    }, [activeTemplate, images, getPreviewCanvasDimensions, renderPipeline, isDragging, isDraggingText, view]);
+    }, [activeTemplate, images, getPreviewCanvasDimensions, renderPipeline, isDragging, isDraggingText, view, setSlotRectsState, slotRects, canvasRef]);
 
     // Animation loop
     useEffect(() => {
         requestRef.current = requestAnimationFrame(renderCanvas);
         return () => cancelAnimationFrame(requestRef.current);
-    }, [renderCanvas]);
+    }, [renderCanvas, requestRef]);
 
     return { getCanvasDimensions, getPreviewCanvasDimensions, renderPipeline, renderCanvas };
 }

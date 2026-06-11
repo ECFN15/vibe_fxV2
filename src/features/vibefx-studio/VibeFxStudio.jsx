@@ -652,10 +652,18 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
 
             // Clamp and constrain x, y, w, h to keep within [0, 1] bounds
             if ('w' in patch) {
-                updatedZone.w = Math.max(0.08, Math.min(1 - updatedZone.x, patch.w));
+                const targetW = Math.max(0.08, Math.min(1, patch.w));
+                updatedZone.w = targetW;
+                if (updatedZone.x + targetW > 1) {
+                    updatedZone.x = Math.max(0, 1 - targetW);
+                }
             }
             if ('h' in patch) {
-                updatedZone.h = Math.max(0.08, Math.min(1 - updatedZone.y, patch.h));
+                const targetH = Math.max(0.08, Math.min(1, patch.h));
+                updatedZone.h = targetH;
+                if (updatedZone.y + targetH > 1) {
+                    updatedZone.y = Math.max(0, 1 - targetH);
+                }
             }
             if ('x' in patch) {
                 updatedZone.x = Math.max(0, Math.min(1 - updatedZone.w, patch.x));
@@ -1251,6 +1259,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                             onCompareOpen={() => setIsCompareModalOpen(true)}
                             onInstaPreview={() => { setInstaPreviewUrl(canvasRef.current.toDataURL()); setIsInstaPreviewOpen(true); }}
                             selectedSlotIndex={selectedSlotIndex}
+                            setSelectedSlotIndex={setSelectedSlotIndex}
                             activeTextId={activeTextId}
                             activeTemplate={activeTemplate}
                             isDraggingText={isDraggingText}
