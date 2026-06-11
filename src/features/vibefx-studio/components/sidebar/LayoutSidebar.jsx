@@ -500,17 +500,55 @@ export default function LayoutSidebar({
 
                         <div className="space-y-2 pt-2 border-t border-neutral-800/40">
                             <div className="text-[10px] font-mono uppercase tracking-widest text-indigo-400/70">Préréglages</div>
-                            {CUSTOM_LAYOUT_PRESETS.map(preset => (
-                                <button
-                                    key={preset.id}
-                                    type="button"
-                                    onClick={() => applyCustomPreset(preset)}
-                                    className={`w-full border px-3 py-2 text-left transition-all ${customPresetId === preset.id ? 'border-indigo-400 bg-indigo-500/20 text-indigo-100' : (isDarkMode ? 'border-neutral-800 text-neutral-400 hover:border-indigo-500/50 hover:text-white' : 'border-gray-200 text-gray-600 hover:border-indigo-400 hover:bg-white')}`}
-                                >
-                                    <span className="block text-[11px] font-bold uppercase tracking-widest">{preset.label}</span>
-                                    <span className="mt-1 block text-[10px] opacity-60">{preset.description}</span>
-                                </button>
-                            ))}
+                            {[
+                                ...CUSTOM_LAYOUT_PRESETS,
+                                {
+                                    id: 'manual',
+                                    label: 'Personnalité',
+                                    description: 'Canevas vide. Ajoutez, déplacez et redimensionnez vos propres blocs.',
+                                    zones: [],
+                                },
+                            ].map(preset => {
+                                const isSelected = customPresetId === preset.id;
+                                return (
+                                    <button
+                                        key={preset.id}
+                                        type="button"
+                                        onClick={() => applyCustomPreset(preset)}
+                                        className={`w-full border px-3.5 py-2.5 text-left transition-all rounded-xl flex items-start gap-3 ${
+                                            isSelected
+                                                ? 'border-indigo-500/80 bg-indigo-500/10 text-white shadow-[0_0_12px_rgba(99,102,241,0.12)]'
+                                                : (isDarkMode
+                                                    ? 'border-neutral-800 bg-black/20 text-neutral-400 hover:border-neutral-700 hover:text-neutral-200'
+                                                    : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300 hover:bg-gray-100')
+                                        }`}
+                                    >
+                                        <div className="mt-0.5 flex-shrink-0">
+                                            <div className={`h-4 w-4 rounded-full border flex items-center justify-center transition-all ${
+                                                isSelected
+                                                    ? 'border-indigo-500 bg-indigo-500/25 text-indigo-400'
+                                                    : (isDarkMode ? 'border-neutral-700 bg-transparent' : 'border-gray-300 bg-transparent')
+                                            }`}>
+                                                {isSelected && (
+                                                    <div className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-in zoom-in-50 duration-200" />
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <span className={`block text-[11px] font-bold uppercase tracking-widest ${
+                                                isSelected
+                                                    ? 'text-indigo-300'
+                                                    : (isDarkMode ? 'text-neutral-300' : 'text-gray-700')
+                                            }`}>
+                                                {preset.label}
+                                            </span>
+                                            <span className="mt-1 block text-[10px] leading-normal opacity-60">
+                                                {preset.description}
+                                            </span>
+                                        </div>
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
