@@ -1,10 +1,10 @@
 {
   "provider": "pixabay",
-  "sourceUrl": "https://pixabay.com/music/search/cinematic/",
-  "query": "cinematic",
+  "sourceUrl": "https://pixabay.com/music/search/cinematic+trailer/",
+  "query": "cinematic trailer",
   "startPage": 1,
   "dryRun": false,
-  "generatedAt": "2026-06-11T21:25:10.641Z",
+  "generatedAt": "2026-06-11T21:39:05.270Z",
   "licenseUrl": "https://pixabay.com/service/license-summary/",
   "stats": {
     "found": 2,
@@ -19,70 +19,70 @@
   ],
   "tracks": [
     {
-      "id": "pixabay-529854",
-      "title": "Dramatic Cinematic Journey | Royalty-free Music",
-      "sourceUrl": "https://pixabay.com/music/synthwave-dramatic-cinematic-journey-529854/",
-      "sourcePageUrl": "https://pixabay.com/music/synthwave-dramatic-cinematic-journey-529854/",
+      "id": "pixabay-131566",
+      "title": "Dark Mystery Trailer (Taking Our time) | Royalty-free Music",
+      "sourceUrl": "https://pixabay.com/music/suspense-dark-mystery-trailer-taking-our-time-131566/",
+      "sourcePageUrl": "https://pixabay.com/music/suspense-dark-mystery-trailer-taking-our-time-131566/",
       "sourceName": "Pixabay Music",
       "provider": "pixabay",
       "license": "Pixabay Content License",
       "licenseUrl": "https://pixabay.com/service/license-summary/",
-      "attribution": "Dramatic Cinematic Journey | Royalty-free Music",
+      "attribution": "Dark Mystery Trailer (Taking Our time) | Royalty-free Music",
       "rightsStatus": "needs-review",
       "socialUse": true,
       "commercialUse": true,
-      "image": "https://cdn.pixabay.com/audio/2026/05/05/22-09-48-342_200x200.jpg",
+      "image": "https://cdn.pixabay.com/audio/2022/12/29/19-57-46-594_200x200.jpg",
       "tags": [
         "pixabay",
-        "cinematic"
+        "cinematic trailer"
       ],
       "contentIdWarning": "Pixabay signale des droits tiers possibles et des risques Content ID. Conserver la page source et verifier avant publication.",
       "licenseSnapshotVersion": "pixabay-content-license-current",
       "audioUrls": [
-        "https://cdn.pixabay.com/download/audio/2026/05/05/audio_b1b0d091b3.mp3?filename=sutton-cinematic-dramatic-cinematic-journey-529854.mp3"
+        "https://cdn.pixabay.com/download/audio/2022/12/29/audio_265ab80d58.mp3?filename=alexgrohl-dark-mystery-trailer-taking-our-time-131566.mp3"
       ],
       "importStatus": "importable",
-      "downloadUrl": "/music/pixabay-ai/Dramatic-Cinematic-Journey-Royalty-free-Music-2.mp3",
-      "previewUrl": "/music/pixabay-ai/Dramatic-Cinematic-Journey-Royalty-free-Music-2.mp3",
-      "originalDownloadUrl": "https://cdn.pixabay.com/download/audio/2026/05/05/audio_b1b0d091b3.mp3?filename=sutton-cinematic-dramatic-cinematic-journey-529854.mp3",
-      "fileName": "Dramatic-Cinematic-Journey-Royalty-free-Music-2.mp3",
-      "filePath": "public/music/pixabay-ai/Dramatic-Cinematic-Journey-Royalty-free-Music-2.mp3",
-      "bytes": 9726720,
+      "downloadUrl": "/music/pixabay-ai/Dark-Mystery-Trailer-Taking-Our-time-Royalty-free-Music.mp3",
+      "previewUrl": "/music/pixabay-ai/Dark-Mystery-Trailer-Taking-Our-time-Royalty-free-Music.mp3",
+      "originalDownloadUrl": "https://cdn.pixabay.com/download/audio/2022/12/29/audio_265ab80d58.mp3?filename=alexgrohl-dark-mystery-trailer-taking-our-time-131566.mp3",
+      "fileName": "Dark-Mystery-Trailer-Taking-Our-time-Royalty-free-Music.mp3",
+      "filePath": "public/music/pixabay-ai/Dark-Mystery-Trailer-Taking-Our-time-Royalty-free-Music.mp3",
+      "bytes": 1537253,
       "contentType": "audio/mpeg",
-      "downloadedAt": "2026-06-11T21:25:08.400Z"
+      "downloadedAt": "2026-06-11T21:39:02.480Z"
     },
     {
-      "id": "pixabay-489998",
-      "title": "Cinematic | Royalty-free Music",
-      "sourceUrl": "https://pixabay.com/music/adventure-cinematic-489998/",
-      "sourcePageUrl": "https://pixabay.com/music/adventure-cinematic-489998/",
+      "id": "pixabay-481867",
+      "title": "Cinematic Trailer (Cinematic Trailer) | Royalty-free Music",
+      "sourceUrl": "https://pixabay.com/music/epic-classical-cinematic-trailer-cinematic-trailer-481867/",
+      "sourcePageUrl": "https://pixabay.com/music/epic-classical-cinematic-trailer-cinematic-trailer-481867/",
       "sourceName": "Pixabay Music",
       "provider": "pixabay",
       "license": "Pixabay Content License",
       "licenseUrl": "https://pixabay.com/service/license-summary/",
-      "attribution": "Cinematic | Royalty-free Music",
+      "attribution": "Cinematic Trailer (Cinematic Trailer) | Royalty-free Music",
       "rightsStatus": "needs-review",
       "socialUse": true,
       "commercialUse": true,
-      "image": "https://cdn.pixabay.com/audio/2026/02/23/15-36-44-74_200x200.jpg",
+      "image": "https://cdn.pixabay.com/audio/2026/02/09/09-18-03-691_200x200.png",
       "tags": [
         "pixabay",
-        "cinematic"
+        "cinematic trailer"
       ],
       "contentIdWarning": "Pixabay signale des droits tiers possibles et des risques Content ID. Conserver la page source et verifier avant publication.",
       "licenseSnapshotVersion": "pixabay-content-license-current",
       "audioUrls": [
-        "https://cdn.pixabay.com/download/audio/2026/02/23/audio_ee5a74310f.mp3?filename=the_mountain-cinematic-489998.mp3"
+        "https://cdn.pixabay.com/download/audio/2026/02/09/audio_72428525f1.mp3?filename=paulyudin-cinematic-trailer-cinematic-trailer-481867.mp3"
       ],
       "importStatus": "importable",
-      "downloadUrl": "/music/pixabay-ai/Cinematic-Royalty-free-Music.mp3",
-      "previewUrl": "/music/pixabay-ai/Cinematic-Royalty-free-Music.mp3",
-      "originalDownloadUrl": "https://cdn.pixabay.com/download/audio/2026/02/23/audio_ee5a74310f.mp3?filename=the_mountain-cinematic-489998.mp3",
-      "fileName": "Cinematic-Royalty-free-Music.mp3",
-      "filePath": "public/music/pixabay-ai/Cinematic-Royalty-free-Music.mp3",
-      "bytes": 4115226,
+      "downloadUrl": "/music/pixabay-ai/Cinematic-Trailer-Cinematic-Trailer-Royalty-free-Music.mp3",
+      "previewUrl": "/music/pixabay-ai/Cinematic-Trailer-Cinematic-Trailer-Royalty-free-Music.mp3",
+      "originalDownloadUrl": "https://cdn.pixabay.com/download/audio/2026/02/09/audio_72428525f1.mp3?filename=paulyudin-cinematic-trailer-cinematic-trailer-481867.mp3",
+      "fileName": "Cinematic-Trailer-Cinematic-Trailer-Royalty-free-Music.mp3",
+      "filePath": "public/music/pixabay-ai/Cinematic-Trailer-Cinematic-Trailer-Royalty-free-Music.mp3",
+      "bytes": 5761149,
       "contentType": "audio/mpeg",
-      "downloadedAt": "2026-06-11T21:25:10.639Z"
+      "downloadedAt": "2026-06-11T21:39:05.267Z"
     }
   ],
   "errors": []

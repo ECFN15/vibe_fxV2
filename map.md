@@ -276,6 +276,7 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |-- .gitignore
 |-- AGENTS.md                           # Regles agents du projet
 |-- apphosting.yaml                     # Base Firebase App Hosting + variables publiques App Hosting, dont NEXT_PUBLIC_VIBECUT_EXPORT_MODE=firebase
+|-- fav.md                              # Tache et plan favoris permanents de la bibliotheque
 |-- CLAUDE.md                           # Fichier genere, non encore enrichi
 |-- eslint.config.mjs
 |-- firebase.json                       # Config Firebase backend + emulateurs, sans Hosting classique

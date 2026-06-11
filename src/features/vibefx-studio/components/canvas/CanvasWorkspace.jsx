@@ -286,7 +286,7 @@ export default function CanvasWorkspace({
                                                     </div>
                                                 );
                                             } else {
-                                                // Slot has image: render trash button only on hover
+                                                // Slot has image: render trash button in the corner
                                                 return (
                                                     <div
                                                         key={`slot-btn-${idx}`}
@@ -304,37 +304,28 @@ export default function CanvasWorkspace({
                                                             }
                                                         }}
                                                     >
-                                                        {activeTemplate?.id === 'custom' && (
+                                                        <div
+                                                            className="absolute top-2 right-2 z-40 pointer-events-auto"
+                                                            style={{
+                                                                transform: `scale(${buttonScale})`,
+                                                                transformOrigin: 'top right'
+                                                            }}
+                                                        >
                                                             <button
                                                                 type="button"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    if (onDeleteCustomZone) {
-                                                                        onDeleteCustomZone(rect.id);
+                                                                    if (handleRemoveSlotImage) {
+                                                                        handleRemoveSlotImage(rect.id);
                                                                     }
                                                                 }}
-                                                                className="absolute top-2 right-2 p-1 bg-red-950/80 border border-red-500/40 text-red-200 hover:bg-red-600 hover:text-white hover:border-red-500 rounded transition-all cursor-pointer z-40 opacity-0 group-hover:opacity-100 flex items-center justify-center shadow-lg"
-                                                                title="Supprimer cette zone"
-                                                                aria-label="Supprimer la zone"
+                                                                className="w-6 h-6 bg-red-600 hover:bg-red-500 text-white rounded shadow-lg transition-all transform hover:scale-110 active:scale-90 cursor-pointer opacity-0 group-hover:opacity-100 flex items-center justify-center"
+                                                                title="Supprimer l'image de cette zone"
+                                                                aria-label="Supprimer"
                                                             >
-                                                                <X size={12} strokeWidth={2.5} />
+                                                                <Trash2 size={12} />
                                                             </button>
-                                                        )}
-                                                        <button
-                                                            type="button"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                if (handleRemoveSlotImage) {
-                                                                    handleRemoveSlotImage(rect.id);
-                                                                }
-                                                            }}
-                                                            style={{ transform: `scale(${buttonScale})` }}
-                                                            className="p-2 bg-red-600 hover:bg-red-500 text-white rounded shadow-lg transition-all transform hover:scale-110 active:scale-90 cursor-pointer opacity-0 group-hover:opacity-100 flex items-center justify-center"
-                                                            title="Supprimer l'image de cette zone"
-                                                            aria-label="Supprimer"
-                                                        >
-                                                            <Trash2 size={15} />
-                                                        </button>
+                                                        </div>
                                                     </div>
                                                 );
                                             }
