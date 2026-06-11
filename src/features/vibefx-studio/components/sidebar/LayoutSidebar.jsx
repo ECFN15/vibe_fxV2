@@ -126,6 +126,7 @@ export default function LayoutSidebar({
     layoutTextures, activeTextureId, setActiveTextureId, setLayoutTextures,
     layoutTextureOpacity, setLayoutTextureOpacity,
     layoutSmoothBlur, setLayoutSmoothBlur,
+    layoutLumenBackground, onOpenLumenBackground, onClearLumenBackground,
     showGuidelines, setShowGuidelines,
     customEditMode, setCustomEditMode,
     onUpdateCustomZone, onDeleteCustomZone,
@@ -460,6 +461,9 @@ export default function LayoutSidebar({
                                     setLayoutBgTexture={setLayoutBgTexture}
                                     layoutSmoothBlur={layoutSmoothBlur}
                                     setLayoutSmoothBlur={setLayoutSmoothBlur}
+                                    layoutLumenBackground={layoutLumenBackground}
+                                    onOpenLumenBackground={onOpenLumenBackground}
+                                    onClearLumenBackground={onClearLumenBackground}
                                     showGuidelines={showGuidelines}
                                     setShowGuidelines={setShowGuidelines}
                                 />

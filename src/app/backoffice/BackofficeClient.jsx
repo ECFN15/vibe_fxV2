@@ -178,7 +178,7 @@ export default function BackofficeClient() {
           >
             {authBusy ? "Connexion..." : "Continuer avec Google"}
           </button>
-          <a href="/" className="vf-studio-gate__back">← Retour à l&apos;accueil</a>
+          <Link href="/" className="vf-studio-gate__back">← Retour à l&apos;accueil</Link>
         </div>
       </div>
     );

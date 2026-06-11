@@ -10,12 +10,13 @@ import { useState, useCallback, useEffect } from 'react';
  * @param {Function} deps.renderPipeline - Fonction de rendu canvas
  * @param {Object} deps.activeFormat - Format actif (pour panorama)
  */
-export default function useExport({ images, canvasRef, getCanvasDimensions, renderPipeline, activeFormat }) {
+export default function useExport({ images, canvasRef, getCanvasDimensions, renderPipeline, activeFormat, canExport }) {
     const [exportName, setExportName] = useState('vibefx-export');
     const [exportFormat, setExportFormat] = useState('jpg');
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [exportQuality, setExportQuality] = useState(90);
     const [estimatedSize, setEstimatedSize] = useState(null);
+    const canRenderOutput = canExport ?? images.length > 0;
 
     // --- Utilitaires internes ---
     const getMimeType = (format) => {
@@ -48,7 +49,7 @@ export default function useExport({ images, canvasRef, getCanvasDimensions, rend
 
     // --- Estimation du poids ---
     const estimateFileSize = useCallback((format, quality) => {
-        if (!images.length || !canvasRef.current || !isExportModalOpen) return;
+        if (!canRenderOutput || !canvasRef.current || !isExportModalOpen) return;
         const { width, height } = getCanvasDimensions();
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = width;
@@ -70,7 +71,7 @@ export default function useExport({ images, canvasRef, getCanvasDimensions, rend
                 setEstimatedSize('---');
             }
         }, mimeType, q);
-    }, [images, getCanvasDimensions, renderPipeline, isExportModalOpen]);
+    }, [canRenderOutput, canvasRef, getCanvasDimensions, renderPipeline, isExportModalOpen]);
 
     // Debounced recalculation when modal is open
     useEffect(() => {
@@ -85,13 +86,13 @@ export default function useExport({ images, canvasRef, getCanvasDimensions, rend
 
     // --- Ouvrir la modal ---
     const handleDownload = useCallback(() => {
-        if (!images.length || !canvasRef.current) return;
+        if (!canRenderOutput || !canvasRef.current) return;
         setIsExportModalOpen(true);
-    }, [images, canvasRef]);
+    }, [canRenderOutput, canvasRef]);
 
     // --- Export final ---
     const performExport = useCallback(() => {
-        if (!images.length || !canvasRef.current) return;
+        if (!canRenderOutput || !canvasRef.current) return;
         const { width, height } = getCanvasDimensions();
         const mimeType = getMimeType(exportFormat);
         const q = getQuality(exportFormat, exportQuality);
@@ -131,7 +132,7 @@ export default function useExport({ images, canvasRef, getCanvasDimensions, rend
             downloadBlob(blob, `${exportName}.${exportFormat}`);
             setIsExportModalOpen(false);
         }, mimeType, q);
-    }, [images, canvasRef, getCanvasDimensions, renderPipeline, activeFormat, exportName, exportFormat, exportQuality]);
+    }, [canRenderOutput, canvasRef, getCanvasDimensions, renderPipeline, activeFormat, exportName, exportFormat, exportQuality]);
 
     return {
         exportName, setExportName,

@@ -2391,3 +2391,26 @@
     max-width: none;
   }
 }
+
+
+.vibefx-lumen-layer { position: fixed; inset: 0; z-index: 1320; display: flex; align-items: center; justify-content: center; padding: 18px; background: rgba(0, 0, 0, 0.86); color: #f8f8ff; }
+.vibefx-lumen-shell { display: grid; grid-template-rows: auto minmax(0, 1fr); width: min(1520px, calc(100vw - 36px)); height: min(920px, calc(100dvh - 36px)); overflow: hidden; border: 1px solid rgba(129, 140, 248, 0.3); background: #050507; box-shadow: 0 40px 140px rgba(0, 0, 0, 0.78), inset 0 0 0 1px rgba(255, 255, 255, 0.04); }
+.vibefx-lumen-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px; padding: 10px 12px 10px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.09); background: linear-gradient(180deg, rgba(14, 14, 20, 0.96), rgba(6, 6, 10, 0.94)); }
+.vibefx-lumen-title, .vibefx-lumen-actions, .vibefx-lumen-apply, .vibefx-lumen-close { display: flex; align-items: center; }
+.vibefx-lumen-title { min-width: 0; gap: 9px; color: #dffcff; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase; }
+.vibefx-lumen-actions { gap: 8px; }
+.vibefx-lumen-apply, .vibefx-lumen-close { justify-content: center; border: 1px solid rgba(129, 140, 248, 0.34); background: rgba(99, 102, 241, 0.16); color: #ffffff; transition: background 160ms ease, border-color 160ms ease, opacity 160ms ease; }
+.vibefx-lumen-apply { min-height: 36px; gap: 8px; padding: 0 14px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 10px; font-weight: 900; letter-spacing: 0.1em; text-transform: uppercase; }
+.vibefx-lumen-apply:hover, .vibefx-lumen-close:hover { border-color: rgba(34, 211, 238, 0.6); background: rgba(34, 211, 238, 0.18); }
+.vibefx-lumen-apply:disabled { opacity: 0.62; cursor: wait; }
+.vibefx-lumen-close { width: 38px; height: 36px; }
+.vibefx-lumen-frame { min-height: 0; background: #050507; }
+.vibefx-lumen-frame iframe { display: block; width: 100%; height: 100%; border: 0; background: #09090b; }
+@media (max-width: 760px) {
+  .vibefx-lumen-layer { align-items: stretch; justify-content: stretch; padding: 0; }
+  .vibefx-lumen-shell { width: 100%; height: 100dvh; border: 0; }
+  .vibefx-lumen-header { flex-wrap: wrap; min-height: 104px; padding: calc(env(safe-area-inset-top) + 10px) 12px 10px; }
+  .vibefx-lumen-title { width: 100%; }
+  .vibefx-lumen-actions { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 44px; }
+  .vibefx-lumen-apply, .vibefx-lumen-close { min-height: 44px; }
+}

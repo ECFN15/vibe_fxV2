@@ -12,6 +12,7 @@ export default function useCanvasEvents({
     activeAssetId, setActiveAssetId,
     selectedSlotIndex, setSelectedSlotIndex,
     slotRects: slotRectsRef,
+    activeTemplate,
     // Drag state
     isDragging, setIsDragging,
     isDraggingText, setIsDraggingText,
@@ -85,6 +86,10 @@ export default function useCanvasEvents({
                 const s = slotRectsRef.current[i];
                 if (pos.x >= s.x && pos.x <= s.x + s.w && pos.y >= s.y && pos.y <= s.y + s.h) {
                     setSelectedSlotIndex(s.id); setActiveTextId(null); setActiveAssetId(null);
+
+                    if (s.hasImage === false) {
+                        setSelectedSlotIndex(s.id);
+                    }
                     return;
                 }
             }
@@ -102,7 +107,7 @@ export default function useCanvasEvents({
         }
     }, [canvasRef, view, assets, texts, images, isCropping, getPointerPos,
         setActiveAssetId, setSelectedSlotIndex, setActiveTextId, setIsDraggingAsset,
-        setIsDraggingText, setIsDragging, slotRectsRef, dragOffsetRef, textMetricsRef, lastMousePosRef,
+        setIsDraggingText, setIsDragging, slotRectsRef, dragOffsetRef, textMetricsRef, lastMousePosRef
     ]);
 
     const handlePointerMove = useCallback((e) => {

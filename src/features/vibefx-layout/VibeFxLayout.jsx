@@ -211,6 +211,7 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
   const [activeAssetId, setActiveAssetId] = useState(null);
   const [selectedSlotIndex, setSelectedSlotIndex] = useState(null);
   const [slotConfigs, setSlotConfigs] = useState({});
+  const [slotRectsState, setSlotRectsState] = useState([]);
   const [customEditMode, setCustomEditMode] = useState(false);
   const [padding, setPadding] = useState(40);
   const [gap, setGap] = useState(20);
@@ -645,6 +646,7 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
     setCropPos: () => {},
     selectedImgIndex,
     setSelectedImgIndex,
+    setSlotRectsState,
   });
 
   const { handleImageUpload } = useImageUpload({
@@ -925,6 +927,7 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
           showGuidelines={showGuidelines}
           customEditMode={customEditMode}
           onAddCustomZone={handleAddCustomZone}
+          slotRectsState={slotRectsState}
         />
 
         <aside className="vibefx-layout-sidebar lg:col-span-4 flex flex-col h-full border-l backdrop-blur-md overflow-hidden transition-colors duration-300 bg-black/80 border-neutral-800">

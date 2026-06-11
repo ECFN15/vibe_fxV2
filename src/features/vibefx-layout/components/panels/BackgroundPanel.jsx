@@ -108,16 +108,18 @@ const BackgroundPanel = ({ images, isDarkMode, layoutBgBlur, setLayoutBgBlur, la
                 </div>
             </div>
 
-            <SmoothBlurPopup
-                images={images}
-                isOpen={showSmoothBlurPopup}
-                onClose={() => setShowSmoothBlurPopup(false)}
-                isDarkMode={isDarkMode}
-                initialConfig={layoutSmoothBlur}
-                onApply={(newConfig) => {
-                    setLayoutSmoothBlur({ ...newConfig, enabled: true });
-                }}
-            />
+            {showSmoothBlurPopup ? (
+                <SmoothBlurPopup
+                    images={images}
+                    isOpen={showSmoothBlurPopup}
+                    onClose={() => setShowSmoothBlurPopup(false)}
+                    isDarkMode={isDarkMode}
+                    initialConfig={layoutSmoothBlur}
+                    onApply={(newConfig) => {
+                        setLayoutSmoothBlur(newConfig);
+                    }}
+                />
+            ) : null}
         </div>
     );
 };

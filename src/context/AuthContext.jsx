@@ -24,13 +24,10 @@ const getActionCodeSettings = () => ({
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(auth));
 
   useEffect(() => {
-    if (!auth) {
-      setLoading(false);
-      return;
-    }
+    if (!auth) return;
     return onAuthStateChanged(auth, (u) => {
       setUser(u);
       setLoading(false);
@@ -67,8 +64,22 @@ export function AuthProvider({ children }) {
   }, []);
 
   const logout = useCallback(async () => {
+    setUser(null);
     if (!auth) return;
-    await signOut(auth);
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.error("Logout error:", e);
+    }
+  }, []);
+
+  const loginAsMockUser = useCallback(() => {
+    setUser({
+      uid: "mock-user-id",
+      email: "dev@vibefx.app",
+      displayName: "Développeur local",
+      emailVerified: true,
+    });
   }, []);
 
   const isAnonymous = user?.isAnonymous === true;
@@ -85,6 +96,7 @@ export function AuthProvider({ children }) {
       signInWithEmail,
       resendVerificationEmail,
       logout,
+      loginAsMockUser,
     }}>
       {children}
     </AuthContext.Provider>

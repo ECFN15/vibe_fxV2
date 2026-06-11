@@ -18,6 +18,7 @@ import LayoutSidebar from './components/sidebar/LayoutSidebar';
 import ExportModal from './components/modals/ExportModal';
 import InstaPreviewModal from './components/modals/InstaPreviewModal';
 import CompareModal from './components/modals/CompareModal';
+import LumenShaderModal from './components/modals/LumenShaderModal';
 import AssetLibrary from './components/library/AssetLibrary';
 import AssetLibraryModal from './components/modals/AssetLibraryModal';
 import VideoApp from './VideoApp';
@@ -193,8 +194,11 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
     const [selectedSlotIndex, setSelectedSlotIndex] = useState(null);
     const [slotConfigs, setSlotConfigs] = useState({});
     const [customEditMode, setCustomEditMode] = useState(false);
+    const [slotRectsState, setSlotRectsState] = useState([]);
     const [isLayoutMeshPopupOpen, setIsLayoutMeshPopupOpen] = useState(false);
     const [isLayoutSmoothBlurPopupOpen, setIsLayoutSmoothBlurPopupOpen] = useState(false);
+    const [isLumenShaderOpen, setIsLumenShaderOpen] = useState(false);
+    const [layoutLumenBackground, setLayoutLumenBackground] = useState(null);
 
     // Smooth Blur
     const [layoutSmoothBlur, setLayoutSmoothBlur] = useState({
@@ -303,7 +307,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         canvasRef, images, view,
         activeFormat, activeTemplate, overlayMode,
         padding, gap, radius,
-        layoutBgColor, layoutBgBlur, layoutBgGradient, layoutBgMeshColors, layoutBgTexture, layoutSmoothBlur,
+        layoutBgColor, layoutBgBlur, layoutBgGradient, layoutBgMeshColors, layoutLumenBackground, layoutBgTexture, layoutSmoothBlur,
         layoutTextures, activeTextureId, layoutTextureOpacity,
         selectedSlotIndex, slotConfigs,
         slotRects, bgCanvasRef,
@@ -312,8 +316,12 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         cropRatio, cropPos, cropScale, isCropping,
         filters,
         isDragging, requestRef,
+        setSlotRectsState,
     });
 
+
+    const layoutHasGeneratedBackground = view === 'layout' && (layoutBgGradient || Boolean(layoutLumenBackground?.image) || layoutTextures.length > 0);
+    const hasRenderableOutput = images.length > 0 || layoutHasGeneratedBackground || (view === 'layout' && activeTemplate.id === 'custom');
 
     // --- HOOKS: EXPORT ---
     const {
@@ -324,7 +332,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         estimatedSize,
         handleDownload,
         performExport,
-    } = useExport({ images, canvasRef, getCanvasDimensions, renderPipeline, activeFormat });
+    } = useExport({ images, canvasRef, getCanvasDimensions, renderPipeline, activeFormat, canExport: hasRenderableOutput });
 
     const { handleImageUpload, handleReplaceImageUpload } = useImageUpload({
         images, setImages, view, setView,
@@ -332,6 +340,32 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         setExportName
     });
 
+    const handleSlotImageUpload = useCallback((e, slotId) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsProcessing(true);
+        setLoadingStatus("Processing image...");
+        setLoadingProgress(10);
+
+        const img = new window.Image();
+        const objectUrl = URL.createObjectURL(file);
+
+        img.onload = () => {
+            setLoadingProgress(50);
+            updateSlotConfig(slotId, { image: img, objectUrl });
+            setIsProcessing(false);
+            setLoadingProgress(0);
+        };
+
+        img.onerror = () => {
+            setIsProcessing(false);
+            setLoadingProgress(0);
+            alert("Erreur lors du chargement de l'image.");
+        };
+
+        img.src = objectUrl;
+    }, [updateSlotConfig]);
 
     const handleFullscreen = () => { if (canvasRef.current?.requestFullscreen) canvasRef.current.requestFullscreen(); };
 
@@ -557,7 +591,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
     }, [getCanvasDimensions, getPreviewCanvasDimensions, images.length, renderPipeline]);
 
     const handleImportPublication = useCallback(async (aiCaption = '') => {
-        if (!images.length || typeof onImportToPublication !== 'function') return;
+        if (!hasRenderableOutput || typeof onImportToPublication !== 'function') return;
         const rendered = renderFinalCanvas();
         if (!rendered) return;
 
@@ -595,6 +629,17 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                 layoutTextureOpacity,
                 layoutBgGradient,
                 layoutBgMeshColors,
+                layoutLumenBackground: layoutLumenBackground ? {
+                    src: layoutLumenBackground.src,
+                    name: layoutLumenBackground.name,
+                    width: layoutLumenBackground.width,
+                    height: layoutLumenBackground.height,
+                    aspect: layoutLumenBackground.aspect,
+                    mode: layoutLumenBackground.mode,
+                    styleName: layoutLumenBackground.styleName,
+                    seed: layoutLumenBackground.seed,
+                    designCode: layoutLumenBackground.designCode,
+                } : null,
                 layoutSmoothBlur,
                 texts,
                 assets,
@@ -611,11 +656,13 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         exportName,
         filters,
         gap,
+        hasRenderableOutput,
         images.length,
         layoutBgBlur,
         layoutBgColor,
         layoutBgGradient,
         layoutBgMeshColors,
+        layoutLumenBackground,
         layoutBgTexture,
         layoutSmoothBlur,
         layoutTextureOpacity,
@@ -639,6 +686,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         setLayoutTextureOpacity(70);
         setLayoutBgGradient(false);
         setLayoutBgMeshColors(DEFAULT_LAYOUT_MESH_COLORS);
+        setLayoutLumenBackground(null);
         setActiveTextId(null);
         setFilters({ ...DEFAULT_FILTERS });
         setVisionCompareSplit({ enabled: false, position: 50, beforeUrl: null });
@@ -668,10 +716,39 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         const nextColors = colors?.length ? colors : DEFAULT_LAYOUT_MESH_COLORS;
         setLayoutBgMeshColors(nextColors);
         setLayoutBgGradient(true);
+        setLayoutLumenBackground(null);
         setLayoutBgBlur(false);
         setLayoutBgColor(nextColors[0] || '#000000');
         openLayoutAccordion('background');
         setIsLayoutMeshPopupOpen(false);
+    }, [openLayoutAccordion]);
+
+    const applyLumenBackground = useCallback((payload) => {
+        if (!payload?.dataUrl) return;
+        const img = new window.Image();
+        img.onload = () => {
+            setLayoutLumenBackground({
+                id: `lumen-${Date.now()}`,
+                src: payload.dataUrl,
+                name: payload.styleName || payload.mode || 'Lumen shader',
+                image: img,
+                width: payload.width || img.width,
+                height: payload.height || img.height,
+                aspect: payload.aspect || (img.width / Math.max(1, img.height)),
+                mode: payload.mode,
+                styleName: payload.styleName,
+                seed: payload.seed,
+                designCode: payload.designCode,
+                createdAt: new Date().toISOString(),
+            });
+            setLayoutBgGradient(false);
+            setLayoutBgBlur(false);
+            setLayoutBgColor('#000000');
+            setView('layout');
+            openLayoutAccordion('background');
+            setIsLumenShaderOpen(false);
+        };
+        img.src = payload.dataUrl;
     }, [openLayoutAccordion]);
 
     const handleAssetImport = useCallback((imageUrl, type) => {
@@ -835,7 +912,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                 setIsDarkMode={setIsDarkMode}
                 view={view}
                 setView={setView}
-                hasImages={images.length > 0}
+                hasImages={hasRenderableOutput}
                 onReset={resetImages}
                 onExport={handleDownload}
                 onImportPublication={typeof onImportToPublication === 'function' ? handleImportPublication : null}
@@ -875,6 +952,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                             handlePointerMove={handlePointerMove}
                             handlePointerUp={handlePointerUp}
                             handleImageUpload={handleImageUpload}
+                            handleSlotImageUpload={handleSlotImageUpload}
                             handleReplaceImageUpload={handleReplaceImageUpload}
                             handleFullscreen={handleFullscreen}
                             onCompareOpen={() => setIsCompareModalOpen(true)}
@@ -890,12 +968,16 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                             visionCompareSplit={visionCompareSplit}
                             customEditMode={customEditMode}
                             onAddCustomZone={handleAddCustomZone}
+                            layoutHasGeneratedBackground={layoutHasGeneratedBackground}
+                            slotRectsState={slotRectsState}
                             layoutQuickActions={{
                                 layoutBgBlur,
                                 layoutBgGradient,
+                                layoutLumenBackground: Boolean(layoutLumenBackground?.image),
                                 smoothBlurEnabled: Boolean(layoutSmoothBlur?.enabled),
                                 activeAccordion,
                                 onOpenMesh: () => setIsLayoutMeshPopupOpen(true),
+                                onOpenLumen: () => setIsLumenShaderOpen(true),
                                 onOpenSmoothBlur: () => setIsLayoutSmoothBlurPopupOpen(true),
                                 onToggleBgBlur: () => {
                                     setLayoutBgBlur(current => !current);
@@ -975,6 +1057,9 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                                     setLayoutSmoothBlur={setLayoutSmoothBlur}
                                     showGuidelines={showGuidelines}
                                     setShowGuidelines={setShowGuidelines}
+                                    layoutLumenBackground={layoutLumenBackground}
+                                    onOpenLumenBackground={() => setIsLumenShaderOpen(true)}
+                                    onClearLumenBackground={() => setLayoutLumenBackground(null)}
                                     customEditMode={customEditMode}
                                     setCustomEditMode={setCustomEditMode}
                                     onUpdateCustomZone={handleUpdateCustomZone}
@@ -1023,16 +1108,24 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                     initialColors={layoutBgMeshColors}
                     onApply={applyLayoutMesh}
                 />
-                <SmoothBlurPopup
-                    images={images}
-                    isOpen={isLayoutSmoothBlurPopupOpen}
-                    onClose={() => setIsLayoutSmoothBlurPopupOpen(false)}
-                    isDarkMode={isDarkMode}
-                    initialConfig={layoutSmoothBlur}
-                    onApply={(newConfig) => {
-                        setLayoutSmoothBlur({ ...newConfig, enabled: true });
-                        openLayoutAccordion('background');
-                    }}
+                {isLayoutSmoothBlurPopupOpen ? (
+                    <SmoothBlurPopup
+                        images={images}
+                        isOpen={isLayoutSmoothBlurPopupOpen}
+                        onClose={() => setIsLayoutSmoothBlurPopupOpen(false)}
+                        isDarkMode={isDarkMode}
+                        initialConfig={layoutSmoothBlur}
+                        previewCanvasRef={canvasRef}
+                        onApply={(newConfig) => {
+                            setLayoutSmoothBlur(newConfig);
+                            openLayoutAccordion('background');
+                        }}
+                    />
+                ) : null}
+                <LumenShaderModal
+                    isOpen={isLumenShaderOpen}
+                    onClose={() => setIsLumenShaderOpen(false)}
+                    onUseBackground={applyLumenBackground}
                 />
                 {aiInterfacesEnabled && <AssetLibraryModal
                     isDarkMode={isDarkMode}

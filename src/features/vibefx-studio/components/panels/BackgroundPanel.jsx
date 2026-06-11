@@ -5,11 +5,32 @@ import { NOISE_PATTERN_CANVAS } from '../../utils/canvasUtils';
 import ControlGroup from '../ui/ControlGroup';
 import SmoothBlurPopup from './SmoothBlurPopup';
 
-const BackgroundPanel = ({ images, isDarkMode, layoutBgBlur, setLayoutBgBlur, layoutBgColor, setLayoutBgColor, layoutBgTexture, setLayoutBgTexture, layoutSmoothBlur, setLayoutSmoothBlur, showGuidelines, setShowGuidelines }) => {
+const BackgroundPanel = ({ images, isDarkMode, layoutBgBlur, setLayoutBgBlur, layoutBgColor, setLayoutBgColor, layoutBgTexture, setLayoutBgTexture, layoutLumenBackground, onOpenLumenBackground, onClearLumenBackground, layoutSmoothBlur, setLayoutSmoothBlur, showGuidelines, setShowGuidelines }) => {
     const [showSmoothBlurPopup, setShowSmoothBlurPopup] = useState(false);
+    const hasLumenBackground = Boolean(layoutLumenBackground?.image);
     return (
         <div className="w-full">
             <div className={`flex flex-col gap-4 py-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+
+                <div className={`flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 ${isDarkMode ? 'bg-neutral-900/50 border-neutral-800' : 'bg-white border-gray-200 shadow-sm'} ${hasLumenBackground ? 'ring-1 ring-cyan-400/50' : ''}`}>
+                    <div className="flex items-center gap-3 min-w-0">
+                        <div className={`p-2 rounded-lg ${hasLumenBackground ? 'bg-cyan-500/20 text-cyan-300' : (isDarkMode ? 'bg-neutral-800 text-neutral-400' : 'bg-gray-100 text-gray-500')}`}>
+                            <Sparkles size={16} />
+                        </div>
+                        <div className="flex min-w-0 flex-col">
+                            <span className="text-xs font-bold uppercase tracking-wider">Fond Lumen</span>
+                            <span className="truncate text-[9px] opacity-60">{hasLumenBackground ? `${layoutLumenBackground.styleName || 'Shader'} - ${layoutLumenBackground.width}x${layoutLumenBackground.height}` : 'Shader WebGL en arriere-plan'}</span>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button type="button" onClick={onOpenLumenBackground} className={`px-2 py-1 rounded-sm text-[9px] font-mono font-bold uppercase transition-all border ${isDarkMode ? 'border-cyan-400/30 text-cyan-200 bg-cyan-500/10 hover:bg-cyan-500/20' : 'border-cyan-300 text-cyan-700 bg-cyan-50 hover:bg-cyan-100'}`}>
+                            Ouvrir
+                        </button>
+                        {hasLumenBackground ? (
+                            <button type="button" onClick={onClearLumenBackground} className="px-2 py-1 rounded-sm border border-red-400/30 bg-red-500/10 text-[9px] font-mono font-bold uppercase text-red-200">Retirer</button>
+                        ) : null}
+                    </div>
+                </div>
 
                 {/* BLUR THROUGH TOGGLE */}
                 <div className={`flex items-center justify-between p-4 rounded-2xl border transition-all duration-300 ${isDarkMode ? 'bg-neutral-900/50 border-neutral-800' : 'bg-white border-gray-200 shadow-sm'} ${layoutBgBlur ? 'ring-1 ring-indigo-500/50' : ''}`}>
@@ -108,16 +129,18 @@ const BackgroundPanel = ({ images, isDarkMode, layoutBgBlur, setLayoutBgBlur, la
                 </div>
             </div>
 
-            <SmoothBlurPopup
-                images={images}
-                isOpen={showSmoothBlurPopup}
-                onClose={() => setShowSmoothBlurPopup(false)}
-                isDarkMode={isDarkMode}
-                initialConfig={layoutSmoothBlur}
-                onApply={(newConfig) => {
-                    setLayoutSmoothBlur({ ...newConfig, enabled: true });
-                }}
-            />
+            {showSmoothBlurPopup ? (
+                <SmoothBlurPopup
+                    images={images}
+                    isOpen={showSmoothBlurPopup}
+                    onClose={() => setShowSmoothBlurPopup(false)}
+                    isDarkMode={isDarkMode}
+                    initialConfig={layoutSmoothBlur}
+                    onApply={(newConfig) => {
+                        setLayoutSmoothBlur(newConfig);
+                    }}
+                />
+            ) : null}
         </div>
     );
 };

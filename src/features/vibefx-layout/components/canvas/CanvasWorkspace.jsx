@@ -22,6 +22,7 @@ export default function CanvasWorkspace({
     handlePointerUp,
     // Upload
     handleImageUpload,
+    handleSlotImageUpload,
     // Canvas actions
     handleFullscreen,
     onCompareOpen,
@@ -107,6 +108,23 @@ export default function CanvasWorkspace({
 
     return (
         <div className="vibefx-canvas-workspace lg:col-span-8 flex flex-col h-full overflow-hidden p-4 lg:p-6 relative">
+            {/* Programmatic file inputs for canvas click actions */}
+            <input
+                id="layout-general-file-input"
+                type="file"
+                multiple
+                className="hidden"
+                accept="image/*"
+                onChange={handleImageUpload}
+            />
+            <input
+                id="layout-slot-file-input"
+                type="file"
+                className="hidden"
+                accept="image/*"
+                onChange={handleSlotImageUpload}
+            />
+
             <div
                 ref={canvasContainerRef}
                 className={`vibefx-canvas-viewport flex-1 border-2 flex flex-col items-center justify-center relative overflow-y-auto overflow-x-hidden custom-scrollbar group shadow-none min-h-[400px] transition-colors duration-300 ${isDarkMode ? 'bg-black border-neutral-800' : 'bg-white border-gray-200'} ${!isDarkMode ? 'bg-blend-difference' : ''} ${isDraggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
@@ -138,7 +156,7 @@ export default function CanvasWorkspace({
                     </div>
                 ) : (
                     <div
-                        className="vibefx-canvas-stage relative w-full h-full flex flex-col items-center justify-center p-8 overflow-y-auto no-scrollbar"
+                        className="vibefx-canvas-stage relative w-full h-full flex flex-col items-center pt-8 pb-[130px] px-8 overflow-y-auto no-scrollbar"
                         onDragOver={handleShapeDragOver}
                         onDrop={handleShapeDrop}
                     >
@@ -196,6 +214,32 @@ export default function CanvasWorkspace({
                                     )}
                                 </div>
                             )}
+
+                            {/* HTML Overlays for File Upload (frontsymmetry implementation) */}
+                            {view === 'layout' && (slotRectsState || []).filter(s => !s.hasImage).map(slot => {
+                                const left = (slot.x / activeFormat.w) * 100;
+                                const top = (slot.y / activeFormat.h) * 100;
+                                const width = (slot.w / activeFormat.w) * 100;
+                                const height = (slot.h / activeFormat.h) * 100;
+                                return (
+                                    <div key={slot.id} className="absolute z-30 flex items-center justify-center pointer-events-none" style={{ left: `${left}%`, top: `${top}%`, width: `${width}%`, height: `${height}%` }}>
+                                        <button 
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                const fileInput = document.getElementById('layout-slot-file-input');
+                                                if (fileInput) {
+                                                    fileInput.dataset.slotId = slot.id;
+                                                    fileInput.click();
+                                                }
+                                            }}
+                                            className="px-4 py-2 sm:px-6 sm:py-3 bg-indigo-500/20 hover:bg-indigo-500/40 border border-indigo-400/50 hover:border-indigo-400 text-white font-mono text-xs sm:text-sm uppercase tracking-widest rounded-md backdrop-blur-md shadow-[0_0_20px_rgba(79,70,229,0.3)] hover:shadow-[0_0_30px_rgba(79,70,229,0.5)] transition-all flex items-center gap-2 pointer-events-auto cursor-pointer"
+                                        >
+                                            <Plus size={16} /> IMPORT
+                                        </button>
+                                    </div>
+                                );
+                            })}
                         </div>
 
                         {images.length > 0 && (
@@ -205,11 +249,7 @@ export default function CanvasWorkspace({
                             </div>
                         )}
 
-                        {view === 'layout' && selectedSlotIndex === null && !activeTextId && activeTemplate.id !== 'polaroid' && (
-                            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur px-3 py-1 rounded-full text-[10px] text-white/70 pointer-events-none border border-white/10 animate-pulse">
-                                {"Cliquez sur une image pour l'ajuster"}
-                            </div>
-                        )}
+
                         {view === 'layout' && activeTemplate.id === 'polaroid' && isDraggingText && (
                             <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-indigo-500/80 backdrop-blur px-3 py-1 rounded-full text-[10px] text-white pointer-events-none shadow-lg animate-in fade-in slide-in-from-top-2">
                                 Mode déplacement texte actif

@@ -31,7 +31,7 @@ export default function useCanvasRenderer({
     // Layout
     activeFormat, activeTemplate, overlayMode,
     padding, gap, radius,
-    layoutBgColor, layoutBgBlur, layoutBgGradient, layoutBgMeshColors, layoutBgTexture, layoutSmoothBlur,
+    layoutBgColor, layoutBgBlur, layoutBgGradient, layoutBgMeshColors, layoutLumenBackground, layoutBgTexture, layoutSmoothBlur,
     layoutTextures, activeTextureId, layoutTextureOpacity,
     selectedSlotIndex, slotConfigs,
     slotRects, bgCanvasRef,
@@ -43,6 +43,7 @@ export default function useCanvasRenderer({
     filters,
     // Animation
     isDragging, requestRef,
+    setSlotRectsState,
 }) {
     // Prerender Background for Layout
     useEffect(() => {
@@ -109,7 +110,7 @@ export default function useCanvasRenderer({
 
             // 1. Background
             renderLayoutBackground(ctx, w, h, {
-                images, layoutBgColor, layoutBgBlur, layoutBgGradient, layoutBgMeshColors,
+                images, layoutBgColor, layoutBgBlur, layoutBgGradient, layoutBgMeshColors, layoutLumenBackground,
                 bgCanvas: bgCanvasRef.current, activeTemplate,
             });
             renderLayoutImageTexture(ctx, w, h, {
@@ -117,7 +118,8 @@ export default function useCanvasRenderer({
             });
 
             const hasCustomSlots = activeTemplate.id === 'custom' && activeTemplate.customLayout?.zones?.length > 0;
-            if (images.length === 0 && !hasCustomSlots) return;
+            const hasGeneratedLayoutBackground = layoutBgGradient || Boolean(layoutLumenBackground?.image) || layoutTextures?.length > 0;
+            if (images.length === 0 && !hasCustomSlots && !hasGeneratedLayoutBackground) return;
 
             // 2. Template slots
             renderTemplateSlots(ctx, w, h, {
@@ -262,6 +264,9 @@ export default function useCanvasRenderer({
 
             // Sync slotRects ref
             slotRects.current = slotRectsArray;
+            if (setSlotRectsState) {
+                setSlotRectsState(slotRectsArray);
+            }
 
         } else {
             // Studio
@@ -271,7 +276,7 @@ export default function useCanvasRenderer({
             });
         }
     }, [images, filters, view, activeFormat, activeTemplate, overlayMode, padding, gap, radius,
-        layoutBgColor, layoutBgBlur, layoutBgGradient, layoutBgMeshColors, layoutBgTexture, layoutSmoothBlur, layoutTextures, activeTextureId, layoutTextureOpacity, selectedSlotIndex, slotConfigs,
+        layoutBgColor, layoutBgBlur, layoutBgGradient, layoutBgMeshColors, layoutLumenBackground, layoutBgTexture, layoutSmoothBlur, layoutTextures, activeTextureId, layoutTextureOpacity, selectedSlotIndex, slotConfigs,
         texts, activeTextId, isDraggingText, activeGuides, assets, activeAssetId,
         cropRatio, cropPos, cropScale, isCropping]);
 

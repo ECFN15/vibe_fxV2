@@ -24,6 +24,7 @@ export default function useCanvasRenderer({
     filters,
     // Animation
     isDragging, requestRef,
+    setSlotRectsState,
 }) {
     // Prerender Background for Layout
     useEffect(() => {
@@ -232,12 +233,20 @@ export default function useCanvasRenderer({
 
             // Sync slotRects ref
             slotRectsRef.current = slotRectsArray;
+            if (setSlotRectsState) {
+                setSlotRectsState(prev => {
+                    if (JSON.stringify(prev) !== JSON.stringify(slotRectsArray)) {
+                        return slotRectsArray;
+                    }
+                    return prev;
+                });
+            }
 
         }
     }, [images, view, activeTemplate, overlayMode, padding, gap, radius,
         layoutBgColor, layoutBgBlur, layoutBgTexture, layoutSmoothBlur, selectedSlotIndex, slotConfigs,
         texts, activeTextId, isDraggingText, activeGuides, assets, activeAssetId,
-        bgCanvasRef, slotRectsRef]);
+        bgCanvasRef, slotRectsRef, setSlotRectsState]);
 
     const renderCanvas = useCallback(() => {
         const canRenderEmptyCustomLayout = view === 'layout' && activeTemplate.id === 'custom';

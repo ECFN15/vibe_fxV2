@@ -1,6 +1,6 @@
 # map.md - Carte vivante Vibe_fx V2
 
-Derniere mise a jour : 2026-06-09
+Derniere mise a jour : 2026-06-11
 
 ## Regle
 
@@ -72,6 +72,8 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |   |-- assets/
 |   |   `-- vibefx/
 |   |       `-- demo-astronaut.png      # Asset demo pour pages publiques et studio
+|   |-- vendor/
+|   |   `-- lumen/                    # Copie integree de Leonxlnx/lumenshaders pour generer des fonds shader dans Layout, mode safe desktop WebGL
 |   |-- music/                         # Pistes audio importees pour le module video Vibe_CUT
 |   |   |-- local-imports/              # Copies audio locales dev Soundtrack (ignorees Git hors .gitkeep) + manifest genere par /api/music/local-file-import
 |   |   `-- pixabay-ai/                # Import local genere par `npm run import:pixabay-ai` : MP3 + manifest droits Pixabay AI Generated
@@ -257,8 +259,12 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |   |   |-- utils/                      # Utilitaires canvas/image + color science Vision (`visionColorScience.js`, `visionMetrics.js`)
 |   |   |-- video/                      # Module Vibe_CUT importe, dont `export/` pour ExportManifest + services localMock/Firebase future, `data/musicCatalog.js` pour catalogue/sources/licences, `data/musicRights.js` pour audit/manifeste droits musique, `services/exportRightsManifestClient.js` pour persistance Firestore owner-scoped, `model/timelineModel.js` pour le modele canonique tracks/items, `utils/audioWaveform.js` pour l'extraction waveform client, `utils/quickTools.js` pour la palette rapide drag/drop, et `panels/VibeCutQuickPanel.jsx` pour le panneau droit VibeCut
 |   |   |-- index.js
+|   |   |-- components/modals/LumenShaderModal.jsx # Modal iframe Lumen Shader Studio + pont postMessage pour appliquer le shader comme fond Layout
 |   |   |-- VibeFxStudio.jsx            # Shell studio Vibe_fx + import publication V2 + vue Soundtrack full page + controller audio global persistant entre onglets studio
 |   |   `-- VideoApp.jsx               # Surface video sans react-router
+|   |-- vibefx-shared/
+|   |   `-- utils/
+|   |       `-- smoothBlur.js           # Moteur partage du Flou lisse pro : normalisation, looks rapides, random safe, reset clean, courbes, masques preview et rendu canvas
 |   |-- config/
 |   |   `-- aiLaunch.js                 # Flag de lancement IA, registre surfaces IA, localStorage/cookie override backoffice
 |   |-- hooks/
@@ -290,6 +296,7 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |   |-- HDRSample.mkv                   # Fixture video HDR Windows pour tests Vibe_CUT
 |   `-- SDRSample.mkv                   # Fixture video SDR Windows pour tests Vibe_CUT
 |-- scripts/
+|   |-- audit-smooth-blur.mjs          # Audit statique du Flou lisse pro : bornes sliders, directions, presets, courbes et masques
 |   |-- audit-secrets.mjs               # Audit anti-secrets hardcodes dans les fichiers versionnables
 |   |-- audit-scope.mjs                 # Audit automatique scope Functions, SEO, modules et termes source
 |   |-- audit-vibecut-export-hardening-requirements.mjs # Audit structure par exigences du megaprompt Export Pro : phase done/partial/blocked, preuves code/docs et no-go release
@@ -317,6 +324,7 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |   |-- run-vision-corpus-test.mjs      # Lance Next local puis Playwright sur le corpus smartphone Vision local
 |   |-- run-vision-ui-test.mjs          # Lance un serveur Next local dedie puis Playwright Vision avec SMOKE_BASE_URL controle
 |   |-- run-video-ui-test.mjs           # Lance un serveur Next local dedie puis Playwright Vibe_CUT avec SMOKE_BASE_URL controle
+|   |-- smoke-smooth-blur-ui.mjs        # Smoke Playwright Flou lisse pro : bypass dev, sliders, directions, presets, reverse et appliquer
 |   |-- run-firebase-emulators-test.mjs # Wrapper test:emulators : exige Java 21+ via VIBECUT_JAVA_HOME/JAVA_HOME/PATH/chemins Windows puis lance firebase emulators:exec
 |   |-- smoke-firebase-emulators.mjs    # Smoke test Auth/Firestore/Storage rules sous emulateurs, incluant credits/jobs/payments
 |   |-- smoke-export-professional-settings.mjs # Smoke pur du module Export Pro : presets sociaux/custom, PNG/JPEG/WebP, filename, estimation, queue, echec et comparaison canvas
@@ -533,3 +541,4 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 - Les Functions Meta refusent une synchronisation sans plateforme selectionnee.
 - Le prompt maitre demande explicitement de reprendre comme base la logique publication/Firebase deja travaillee dans le projet source : moteur layout, `PublicationsManager.jsx`, Functions Meta/OAuth, verrous, statuts et rules Firestore/Storage.
 - Reste a poursuivre avec configuration externe : test E2E navigateur complet du parcours studio, ecriture Firestore/Storage reelle et OAuth Meta.
+- Mise a jour 2026-06-11 : la page Layout integre Lumen Shader Studio depuis `public/vendor/lumen` via `LumenShaderModal`; le bouton Lumen est ajoute aux acces rapides entre Mesh et Flou Pro, le shader peut etre applique comme fond Layout, et la copie vendor est adaptee en mode safe desktop (canvas non 0x0, DPR 1, WebGL low-power, FPS borne, exports/capture plafonnes) pour limiter les crashes Chrome desktop observes avec le site original.

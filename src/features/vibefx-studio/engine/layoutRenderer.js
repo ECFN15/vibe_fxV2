@@ -30,7 +30,30 @@ function renderLayoutMeshBackground(ctx, w, h, colors) {
     return true;
 }
 
-export function renderLayoutBackground(ctx, w, h, { images, layoutBgColor, layoutBgBlur, layoutBgGradient, layoutBgMeshColors, bgCanvas, activeTemplate }) {
+function renderCoverImage(ctx, w, h, image) {
+    if (!image?.width || !image?.height) return false;
+
+    const imageRatio = image.width / image.height;
+    const canvasRatio = w / h;
+    let sw, sh, sx, sy;
+
+    if (canvasRatio > imageRatio) {
+        sw = image.width;
+        sh = image.width / canvasRatio;
+        sx = 0;
+        sy = (image.height - sh) / 2;
+    } else {
+        sh = image.height;
+        sw = image.height * canvasRatio;
+        sy = 0;
+        sx = (image.width - sw) / 2;
+    }
+
+    ctx.drawImage(image, sx, sy, sw, sh, 0, 0, w, h);
+    return true;
+}
+
+export function renderLayoutBackground(ctx, w, h, { images, layoutBgColor, layoutBgBlur, layoutBgGradient, layoutBgMeshColors, layoutLumenBackground, bgCanvas, activeTemplate }) {
     const hasMeshBackground = activeTemplate.id !== 'polaroid'
         && layoutBgGradient
         && renderLayoutMeshBackground(ctx, w, h, layoutBgMeshColors);
@@ -38,6 +61,10 @@ export function renderLayoutBackground(ctx, w, h, { images, layoutBgColor, layou
     if (!hasMeshBackground) {
         ctx.fillStyle = layoutBgColor;
         ctx.fillRect(0, 0, w, h);
+    }
+
+    if (activeTemplate.id !== 'polaroid' && layoutLumenBackground?.image) {
+        renderCoverImage(ctx, w, h, layoutLumenBackground.image);
     }
 
     if (images.length > 0 && layoutBgBlur && bgCanvas && activeTemplate.id !== 'polaroid') {
@@ -118,15 +145,9 @@ export function renderSlot(ctx, slotId, imgIndex, x, y, sw, sh, overrideRadius, 
         ctx.beginPath();
         ctx.roundRect(x + 1, y + 1, sw - 2, sh - 2, Math.max(0, effRadius - 1));
         ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle = 'rgba(238, 242, 255, 0.72)';
-        ctx.font = `${Math.max(18, Math.min(42, sw * 0.07))}px ui-monospace, SFMono-Regular, Menlo, monospace`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('+ IMPORT', x + sw / 2, y + sh / 2);
         ctx.restore();
         ctx.restore();
-        slotRects.push({ id: slotId, x, y, w: sw, h: sh, r: effRadius });
+        slotRects.push({ id: slotId, x, y, w: sw, h: sh, r: effRadius, hasImage: false });
         return;
     }
 
