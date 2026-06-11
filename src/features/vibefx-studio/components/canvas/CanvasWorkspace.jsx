@@ -1,9 +1,9 @@
-﻿import React from 'react';
-import { Upload, Loader2, Maximize, Columns, Smartphone, Move, Plus, X, Layers, RectangleHorizontal, Square, Sparkles, Type, Palette, SlidersHorizontal, Image as ImageIcon, ImagePlus, RefreshCw, Waves } from 'lucide-react';
+import React from 'react';
+import { Upload, Loader2, Maximize, Columns, Smartphone, Move, Plus, X, Layers, RectangleHorizontal, Square, Sparkles, Type, Palette, SlidersHorizontal, Image as ImageIcon, ImagePlus, RefreshCw, Waves, Undo2, Redo2, Trash2 } from 'lucide-react';
 import { CUSTOM_SHAPE_LIBRARY } from '../../data/constants';
 
 /**
- * CanvasWorkspace â€” Zone canvas principale avec overlays, hints et thumbnails.
+ * CanvasWorkspace — Zone canvas principale avec overlays, hints et thumbnails.
  */
 export default function CanvasWorkspace({
     isDarkMode,
@@ -22,7 +22,9 @@ export default function CanvasWorkspace({
     handlePointerUp,
     // Upload
     handleImageUpload,
+    handleSlotImageUpload,
     handleReplaceImageUpload,
+    handleRemoveSlotImage,
     // Canvas actions
     handleFullscreen,
     onCompareOpen,
@@ -39,12 +41,18 @@ export default function CanvasWorkspace({
     visionCompareSplit,
     customEditMode,
     onAddCustomZone,
+    onDeleteCustomZone,
     layoutHasGeneratedBackground = false,
     layoutQuickActions,
     slotRectsState,
+    // Undo / Redo
+    undo,
+    redo,
+    canUndo,
+    canRedo,
 }) {
     const showCanvas = images.length > 0 || (view === 'layout' && (activeTemplate?.id === 'custom' || layoutHasGeneratedBackground));
-    const showCustomShapePalette = view === 'layout' && activeTemplate?.id === 'custom' && customEditMode;
+    const showCustomShapePalette = view === 'layout' && activeTemplate?.id === 'custom';
 
     const getShapeDropPosition = (event, shape) => {
         const rect = canvasRef.current?.getBoundingClientRect();
@@ -201,11 +209,10 @@ export default function CanvasWorkspace({
                                     </div>
                                 )}
 
-                                {/* Native HTML Overlay Buttons for missing images */}
+                                {/* Native HTML Overlay Buttons for slots (Import / Trash) */}
                                 {slotRectsState && slotRectsState.length > 0 && activeFormat && (
                                     <div className="absolute inset-0 z-30 pointer-events-none overflow-hidden rounded-sm">
                                         {slotRectsState.map((rect, idx) => {
-                                            if (rect.hasImage !== false) return null;
                                             const formatW = activeFormat.w || activeFormat.width || 1;
                                             const formatH = activeFormat.h || activeFormat.height || 1;
                                             const leftPercent = (rect.x / formatW) * 100;
@@ -217,83 +224,153 @@ export default function CanvasWorkspace({
                                             const baseScale = Math.sqrt(relativeArea) * 1.0 + 0.5;
                                             const buttonScale = Math.max(0.65, Math.min(1.2, baseScale));
 
-                                            return (
-                                                <div
-                                                    key={`slot-btn-${idx}`}
-                                                    className="absolute flex items-center justify-center pointer-events-auto group"
-                                                    style={{
-                                                        left: `${leftPercent}%`,
-                                                        top: `${topPercent}%`,
-                                                        width: `${widthPercent}%`,
-                                                        height: `${heightPercent}%`,
-                                                    }}
-                                                    onPointerDown={(e) => {
-                                                        e.stopPropagation();
-                                                    }}
-                                                >
-                                                    <div style={{ transform: `scale(${buttonScale})` }}>
-                                                        <label className="cursor-pointer px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-mono text-[10px] sm:text-xs font-bold uppercase tracking-widest rounded shadow-lg transition-transform hover:scale-105 active:scale-95 flex items-center gap-2">
-                                                            <Plus size={14} />
-                                                            IMPORT
-                                                            <input
-                                                                type="file"
-                                                                className="hidden"
-                                                                accept="image/*,.cr2,.nef,.arw,.dng"
-                                                                onChange={(e) => {
-                                                                    if (handleSlotImageUpload) {
-                                                                        handleSlotImageUpload(e, rect.id);
+                                            if (rect.hasImage === false) {
+                                                return (
+                                                    <div
+                                                        key={`slot-btn-${idx}`}
+                                                        className="absolute flex items-center justify-center pointer-events-auto group"
+                                                        style={{
+                                                            left: `${leftPercent}%`,
+                                                            top: `${topPercent}%`,
+                                                            width: `${widthPercent}%`,
+                                                            height: `${heightPercent}%`,
+                                                        }}
+                                                        onPointerDown={(e) => {
+                                                            e.stopPropagation();
+                                                        }}
+                                                    >
+                                                        {activeTemplate?.id === 'custom' && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    if (onDeleteCustomZone) {
+                                                                        onDeleteCustomZone(rect.id);
                                                                     }
                                                                 }}
-                                                            />
-                                                        </label>
+                                                                className="absolute top-2 right-2 p-1 bg-red-950/80 border border-red-500/40 text-red-200 hover:bg-red-600 hover:text-white hover:border-red-500 rounded transition-all cursor-pointer z-40 opacity-0 group-hover:opacity-100 flex items-center justify-center shadow-lg"
+                                                                title="Supprimer cette zone"
+                                                                aria-label="Supprimer la zone"
+                                                            >
+                                                                <X size={12} strokeWidth={2.5} />
+                                                            </button>
+                                                        )}
+                                                        <div style={{ transform: `scale(${buttonScale})` }}>
+                                                            <label className="cursor-pointer px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-mono text-[10px] sm:text-xs font-bold uppercase tracking-widest rounded shadow-lg transition-transform hover:scale-105 active:scale-95 flex items-center gap-2">
+                                                                <Plus size={14} />
+                                                                IMPORT
+                                                                <input
+                                                                    type="file"
+                                                                    className="hidden"
+                                                                    accept="image/*,.cr2,.nef,.arw,.dng"
+                                                                    onChange={(e) => {
+                                                                        if (handleSlotImageUpload) {
+                                                                            handleSlotImageUpload(e, rect.id);
+                                                                        }
+                                                                    }}
+                                                                />
+                                                            </label>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            );
+                                                );
+                                            } else {
+                                                // Slot has image: render trash button only on hover
+                                                return (
+                                                    <div
+                                                        key={`slot-btn-${idx}`}
+                                                        className="absolute flex items-center justify-center pointer-events-auto group"
+                                                        style={{
+                                                            left: `${leftPercent}%`,
+                                                            top: `${topPercent}%`,
+                                                            width: `${widthPercent}%`,
+                                                            height: `${heightPercent}%`,
+                                                        }}
+                                                        onPointerDown={(e) => {
+                                                            e.stopPropagation();
+                                                        }}
+                                                    >
+                                                        {activeTemplate?.id === 'custom' && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    if (onDeleteCustomZone) {
+                                                                        onDeleteCustomZone(rect.id);
+                                                                    }
+                                                                }}
+                                                                className="absolute top-2 right-2 p-1 bg-red-950/80 border border-red-500/40 text-red-200 hover:bg-red-600 hover:text-white hover:border-red-500 rounded transition-all cursor-pointer z-40 opacity-0 group-hover:opacity-100 flex items-center justify-center shadow-lg"
+                                                                title="Supprimer cette zone"
+                                                                aria-label="Supprimer la zone"
+                                                            >
+                                                                <X size={12} strokeWidth={2.5} />
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (handleRemoveSlotImage) {
+                                                                    handleRemoveSlotImage(rect.id);
+                                                                }
+                                                            }}
+                                                            style={{ transform: `scale(${buttonScale})` }}
+                                                            className="p-2 bg-red-600 hover:bg-red-500 text-white rounded shadow-lg transition-all transform hover:scale-110 active:scale-90 cursor-pointer opacity-0 group-hover:opacity-100 flex items-center justify-center"
+                                                            title="Supprimer l'image de cette zone"
+                                                            aria-label="Supprimer"
+                                                        >
+                                                            <Trash2 size={15} />
+                                                        </button>
+                                                    </div>
+                                                );
+                                            }
                                         })}
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        {showCustomShapePalette ? (
-                            <div
-                                className="absolute right-5 top-1/2 z-30 w-36 -translate-y-1/2 border border-indigo-400/40 bg-black/85 p-2 shadow-[0_0_28px_rgba(79,70,229,0.24)] backdrop-blur-xl"
-                                onMouseDown={(event) => event.stopPropagation()}
-                                onTouchStart={(event) => event.stopPropagation()}
-                            >
-                                <div className="mb-2 flex items-center gap-2 px-1 font-mono text-[9px] font-bold uppercase tracking-widest text-indigo-200">
-                                    <Plus size={12} />
-                                    Formes
-                                </div>
-                                <div className="grid gap-1.5">
-                                    {CUSTOM_SHAPE_LIBRARY.map((shape) => (
-                                        <button
-                                            key={shape.id}
-                                            type="button"
-                                            draggable
-                                            data-testid={`custom-shape-${shape.id}`}
-                                            onDragStart={(event) => handleShapeDragStart(event, shape)}
-                                            onClick={() => onAddCustomZone?.(shape, null)}
-                                            className="group flex items-center gap-2 border border-neutral-800 bg-neutral-950/80 px-2 py-2 text-left transition hover:border-indigo-400/70 hover:bg-indigo-500/15"
-                                            title={shape.description}
-                                        >
-                                            <span className="flex h-7 w-8 items-center justify-center text-indigo-300">
-                                                {shape.id === 'square' ? <Square size={16} /> : <RectangleHorizontal size={18} />}
-                                            </span>
-                                            <span className="min-w-0">
-                                                <span className="block truncate font-mono text-[9px] font-bold uppercase tracking-widest text-neutral-200">{shape.label}</span>
-                                                <span className="block truncate text-[9px] text-neutral-500">{Math.round(shape.w * 100)} x {Math.round(shape.h * 100)}%</span>
-                                            </span>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        ) : null}
+
 
                         {images.length > 0 && (
                             <div className="absolute top-4 left-4 flex gap-2 z-30 pointer-events-auto">
                                 <button onMouseDown={(e) => e.stopPropagation()} onClick={onCompareOpen} className={`p-2 rounded-sm border shadow-lg transition-all active:scale-95 flex items-center justify-center ${isDarkMode ? 'bg-neutral-900/90 border-neutral-700 text-neutral-300 hover:bg-black hover:border-indigo-500 hover:text-indigo-400' : 'bg-white/90 border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-indigo-500 hover:text-indigo-500'}`} title="Comparer"><Columns size={16} /></button>
                                 <button onMouseDown={(e) => e.stopPropagation()} onClick={onInstaPreview} className={`p-2 rounded-sm border shadow-lg transition-all active:scale-95 flex items-center justify-center ${isDarkMode ? 'bg-indigo-900/20 border-indigo-500/50 text-indigo-400 hover:bg-indigo-600 hover:text-white hover:border-indigo-500' : 'bg-indigo-50 text-indigo-600 border-indigo-200 hover:bg-indigo-600 hover:text-white'}`} title="Preview Insta"><Smartphone size={16} /></button>
+                            </div>
+                        )}
+
+                        {/* Undo / Redo controls in the center-top area */}
+                        {(view === 'layout' || view === 'studio') && (
+                            <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-30 pointer-events-auto">
+                                <button
+                                    type="button"
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                    onClick={undo}
+                                    disabled={!canUndo}
+                                    className={`p-2 rounded-sm border shadow-lg transition-all active:scale-95 flex items-center justify-center disabled:opacity-20 disabled:cursor-not-allowed ${
+                                        isDarkMode
+                                            ? 'bg-neutral-900/90 border-neutral-700 text-neutral-300 hover:bg-black hover:border-indigo-500 hover:text-indigo-400'
+                                            : 'bg-white/90 border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-indigo-500 hover:text-indigo-500'
+                                    }`}
+                                    title="Annuler (Ctrl+Z)"
+                                    aria-label="Annuler"
+                                >
+                                    <Undo2 size={15} />
+                                </button>
+                                <button
+                                    type="button"
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                    onClick={redo}
+                                    disabled={!canRedo}
+                                    className={`p-2 rounded-sm border shadow-lg transition-all active:scale-95 flex items-center justify-center disabled:opacity-20 disabled:cursor-not-allowed ${
+                                        isDarkMode
+                                            ? 'bg-neutral-900/90 border-neutral-700 text-neutral-300 hover:bg-black hover:border-indigo-500 hover:text-indigo-400'
+                                            : 'bg-white/90 border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-indigo-500 hover:text-indigo-500'
+                                    }`}
+                                    title="Refaire (Ctrl+Y / Ctrl+Shift+Z)"
+                                    aria-label="Refaire"
+                                >
+                                    <Redo2 size={15} />
+                                </button>
                             </div>
                         )}
 

@@ -119,7 +119,13 @@ export default function useCanvasRenderer({
 
             const hasCustomSlots = activeTemplate.id === 'custom' && activeTemplate.customLayout?.zones?.length > 0;
             const hasGeneratedLayoutBackground = layoutBgGradient || Boolean(layoutLumenBackground?.image) || layoutTextures?.length > 0;
-            if (images.length === 0 && !hasCustomSlots && !hasGeneratedLayoutBackground) return;
+            if (images.length === 0 && !hasCustomSlots && !hasGeneratedLayoutBackground) {
+                slotRects.current = [];
+                if (setSlotRectsState) {
+                    setSlotRectsState([]);
+                }
+                return;
+            }
 
             // 2. Template slots
             renderTemplateSlots(ctx, w, h, {
@@ -270,6 +276,10 @@ export default function useCanvasRenderer({
 
         } else {
             // Studio
+            slotRects.current = [];
+            if (setSlotRectsState) {
+                setSlotRectsState([]);
+            }
             renderStudio(ctx, targetCanvas, w, h, isPreview, quality, {
                 images, cropRatio, cropPos, cropScale, isCropping,
                 filters: overrides.filters || filters, view

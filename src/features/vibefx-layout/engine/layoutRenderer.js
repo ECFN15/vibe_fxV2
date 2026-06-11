@@ -29,8 +29,15 @@ export function renderLayoutBackground(ctx, w, h, { images, layoutBgColor, layou
 export function renderSlot(ctx, slotId, imgIndex, x, y, sw, sh, overrideRadius, { images, slotConfigs, radius, layoutBgBlur, layoutBgColor, activeTemplate, slotRects }) {
     const cfg = slotConfigs[slotId] || { zoom: 1, x: 0, y: 0, border: 0, blur: 0 };
     const isCustom = activeTemplate.id === 'custom';
-    const safeImgIndex = (!isCustom && images.length > 0) ? imgIndex % images.length : null;
-    const img = cfg.image || (safeImgIndex !== null ? images[safeImgIndex] : null);
+    let fallbackImg = null;
+    if (!isCustom && images.length > 0) {
+        const safeImgIndex = imgIndex % images.length;
+        const candidateImg = images[safeImgIndex];
+        if (candidateImg && (!candidateImg.isSlotSpecific || candidateImg.slotId === slotId)) {
+            fallbackImg = candidateImg;
+        }
+    }
+    const img = cfg.image || fallbackImg;
     const effRadius = overrideRadius !== undefined ? overrideRadius : radius;
 
     ctx.save();

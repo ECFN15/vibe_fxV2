@@ -1,9 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import {
     Smartphone, LayoutTemplate, Square, RectangleHorizontal, Sparkles,
-    ChevronDown, MousePointer2, Scaling, Palette, Type, Images, Trash2
+    ChevronDown, MousePointer2, Scaling, Palette, Type, Images, Trash2, Plus, Eraser
 } from 'lucide-react';
-import { CUSTOM_LAYOUT_PRESETS, DEFAULT_CUSTOM_TEMPLATE, FORMATS, TEMPLATES } from '../../data/constants';
+import { CUSTOM_LAYOUT_PRESETS, DEFAULT_CUSTOM_TEMPLATE, FORMATS, TEMPLATES, CUSTOM_SHAPE_LIBRARY, FONT_OPTIONS } from '../../data/constants';
 import ControlGroup from '../ui/ControlGroup';
 import TextAssetsPanel from '../panels/TextAssetsPanel';
 import GeometryPanel from '../panels/GeometryPanel';
@@ -130,6 +130,7 @@ export default function LayoutSidebar({
     showGuidelines, setShowGuidelines,
     customEditMode, setCustomEditMode,
     onUpdateCustomZone, onDeleteCustomZone,
+    onAddCustomZone,
 }) {
     const scrollRef = useRef(null);
     const accordionRefs = useRef({});
@@ -201,6 +202,18 @@ export default function LayoutSidebar({
         };
     }, [activeAccordion]);
 
+    useEffect(() => {
+        if (selectedSlotIndex === null) return;
+        const scrollNode = scrollRef.current;
+        if (!scrollNode) return;
+
+        const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        scrollNode.scrollTo({
+            top: 0,
+            behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        });
+    }, [selectedSlotIndex]);
+
     return (
         <div ref={scrollRef} className="vibefx-sidebar-scroll flex-1 overflow-y-auto custom-scrollbar p-5 animate-in slide-in-from-right-4">
             {/* 1. SELECTION PANEL */}
@@ -222,6 +235,100 @@ export default function LayoutSidebar({
                                 )}
                             </div>
                         ) : null}
+                        
+                        {isCustomTemplate ? (
+                            <div className="mb-4 rounded-xl border border-indigo-400/30 bg-black/30 p-3 space-y-4">
+                                <p className="font-mono text-[10px] uppercase tracking-widest text-indigo-200">Personnalisation du bloc</p>
+                                
+                                {/* Background Color */}
+                                <div>
+                                    <label className="block text-[9px] font-mono uppercase tracking-widest text-neutral-400 mb-2">Couleur de fond du bloc</label>
+                                    <div className="flex gap-2 items-center">
+                                        <input
+                                            type="color"
+                                            value={activeConfig.bgColor || '#000000'}
+                                            onChange={(e) => updateSlotConfig('bgColor', e.target.value)}
+                                            className="w-8 h-8 bg-transparent border-0 cursor-pointer rounded"
+                                        />
+                                        <input
+                                            type="text"
+                                            value={activeConfig.bgColor || '#000000'}
+                                            onChange={(e) => updateSlotConfig('bgColor', e.target.value)}
+                                            className="flex-1 bg-black/40 border border-neutral-700/60 rounded px-2 py-1 text-xs text-white font-mono"
+                                            placeholder="#000000"
+                                        />
+                                        {activeConfig.bgColor && (
+                                            <button
+                                                type="button"
+                                                onClick={() => updateSlotConfig('bgColor', undefined)}
+                                                className="text-[9px] font-mono text-red-400 hover:text-red-300 uppercase tracking-widest"
+                                            >
+                                                Reset
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Text Content */}
+                                <div>
+                                    <label className="block text-[9px] font-mono uppercase tracking-widest text-neutral-400 mb-2">Texte dans le bloc</label>
+                                    <input
+                                        type="text"
+                                        value={activeConfig.textContent || ''}
+                                        onChange={(e) => updateSlotConfig('textContent', e.target.value)}
+                                        className="w-full bg-black/40 border border-neutral-700/60 rounded px-3 py-2 text-xs text-white"
+                                        placeholder="Écrivez du texte ici..."
+                                    />
+                                </div>
+
+                                {/* Text Styles (Visible if textContent is set) */}
+                                {activeConfig.textContent ? (
+                                    <div className="space-y-3 pt-2 border-t border-neutral-800">
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-[9px] font-mono uppercase tracking-widest text-neutral-500 mb-1">Couleur texte</label>
+                                                <div className="flex gap-1.5 items-center">
+                                                    <input
+                                                        type="color"
+                                                        value={activeConfig.textColor || '#ffffff'}
+                                                        onChange={(e) => updateSlotConfig('textColor', e.target.value)}
+                                                        className="w-6 h-6 bg-transparent border-0 cursor-pointer rounded"
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        value={activeConfig.textColor || '#ffffff'}
+                                                        onChange={(e) => updateSlotConfig('textColor', e.target.value)}
+                                                        className="w-full bg-black/40 border border-neutral-700/60 rounded px-1 py-0.5 text-[9px] text-white font-mono"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[9px] font-mono uppercase tracking-widest text-neutral-500 mb-1">Police</label>
+                                                <select
+                                                    value={activeConfig.textFont || 'Inter'}
+                                                    onChange={(e) => updateSlotConfig('textFont', e.target.value)}
+                                                    className="w-full bg-black/40 border border-neutral-700/60 rounded px-1.5 py-1 text-[10px] text-white"
+                                                >
+                                                    {FONT_OPTIONS.map(opt => (
+                                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <ControlGroup
+                                            label="Taille texte"
+                                            value={activeConfig.textSize || 24}
+                                            onChange={(v) => updateSlotConfig('textSize', v)}
+                                            min={10}
+                                            max={120}
+                                            unit="px"
+                                            isDarkMode={isDarkMode}
+                                        />
+                                    </div>
+                                ) : null}
+                            </div>
+                        ) : null}
+
                         {selectedCustomZone ? (
                             <div className="mb-4 rounded-xl border border-cyan-300/20 bg-cyan-950/10 p-3">
                                 <div className="mb-3 flex items-center justify-between gap-3">
@@ -235,10 +342,11 @@ export default function LayoutSidebar({
                                         Supprimer
                                     </button>
                                 </div>
-                                <ControlGroup label="Largeur bloc" value={Math.round(selectedCustomZone.w * 100)} onChange={(v) => onUpdateCustomZone?.(selectedSlotIndex, { w: v / 100 })} min={8} max={100} unit="%" isDarkMode={isDarkMode} />
-                                <ControlGroup label="Hauteur bloc" value={Math.round(selectedCustomZone.h * 100)} onChange={(v) => onUpdateCustomZone?.(selectedSlotIndex, { h: v / 100 })} min={8} max={100} unit="%" isDarkMode={isDarkMode} />
-                                <ControlGroup label="Bloc X" value={Math.round(selectedCustomZone.x * 100)} onChange={(v) => onUpdateCustomZone?.(selectedSlotIndex, { x: v / 100 })} min={0} max={100} unit="%" isDarkMode={isDarkMode} />
-                                <ControlGroup label="Bloc Y" value={Math.round(selectedCustomZone.y * 100)} onChange={(v) => onUpdateCustomZone?.(selectedSlotIndex, { y: v / 100 })} min={0} max={100} unit="%" isDarkMode={isDarkMode} />
+                                <ControlGroup label="Largeur bloc" value={Math.round(selectedCustomZone.w * 100)} onChange={(v) => onUpdateCustomZone?.(selectedSlotIndex, { w: v / 100 })} min={8} max={Math.max(8, Math.round((1 - selectedCustomZone.x) * 100))} unit="%" isDarkMode={isDarkMode} />
+                                <ControlGroup label="Hauteur bloc" value={Math.round(selectedCustomZone.h * 100)} onChange={(v) => onUpdateCustomZone?.(selectedSlotIndex, { h: v / 100 })} min={8} max={Math.max(8, Math.round((1 - selectedCustomZone.y) * 100))} unit="%" isDarkMode={isDarkMode} />
+                                <ControlGroup label="Bloc X" value={Math.round(selectedCustomZone.x * 100)} onChange={(v) => onUpdateCustomZone?.(selectedSlotIndex, { x: v / 100 })} min={0} max={Math.max(0, Math.round((1 - selectedCustomZone.w) * 100))} unit="%" isDarkMode={isDarkMode} />
+                                <ControlGroup label="Bloc Y" value={Math.round(selectedCustomZone.y * 100)} onChange={(v) => onUpdateCustomZone?.(selectedSlotIndex, { y: v / 100 })} min={0} max={Math.max(0, Math.round((1 - selectedCustomZone.h) * 100))} unit="%" isDarkMode={isDarkMode} />
+                                <ControlGroup label="Arrondi bloc" value={selectedCustomZone.radius !== undefined ? Math.round(selectedCustomZone.radius) : radius} onChange={(v) => onUpdateCustomZone?.(selectedSlotIndex, { radius: v })} min={0} max={100} unit="px" isDarkMode={isDarkMode} />
                             </div>
                         ) : null}
                         <ControlGroup label="Zoom" value={activeConfig.zoom} onChange={(v) => updateSlotConfig('zoom', v)} min={1} max={4} step={0.1} unit="x" isDarkMode={isDarkMode} />
@@ -287,35 +395,86 @@ export default function LayoutSidebar({
                 <div className={`mt-3 border p-3 ${isCustomTemplate ? 'border-indigo-500/60 bg-indigo-500/10' : (isDarkMode ? 'border-neutral-800 bg-black/20' : 'border-gray-200 bg-gray-50')}`}>
                     <div className="mb-3 flex items-start justify-between gap-3">
                         <div>
-                            <div className={`text-xs font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Modele personnalise</div>
+                            <div className={`text-xs font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Modèle personnalisé</div>
                             <div className="mt-1 text-[10px] uppercase tracking-widest opacity-60">
                                 {isCustomTemplate ? `${customZonesCount} zones actives` : 'Canvas vide + blocs importables'}
                             </div>
                         </div>
                         <LayoutTemplate size={18} className={isCustomTemplate ? 'text-indigo-300' : 'opacity-50'} />
                     </div>
-                    <div className="grid grid-cols-1 gap-2">
+                    <div className="grid grid-cols-1 gap-3">
                         {isCustomTemplate ? (
-                            <button
-                                type="button"
-                                onClick={() => setCustomEditMode?.(!customEditMode)}
-                                className={`border px-3 py-2 text-left transition-all ${customEditMode ? 'border-cyan-300 bg-cyan-400/15 text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.16)]' : (isDarkMode ? 'border-neutral-800 text-neutral-400 hover:border-cyan-400/50 hover:text-white' : 'border-gray-200 text-gray-600 hover:border-cyan-400 hover:bg-white')}`}
-                            >
-                                <span className="block text-[11px] font-bold uppercase tracking-widest">Mode edit personnalise</span>
-                                <span className="mt-1 block text-[10px] opacity-60">{customEditMode ? 'Palette active + blocs modifiables.' : 'Active la palette et les controles de blocs.'}</span>
-                            </button>
+                            <div className="space-y-3 pt-2 pb-1 border-t border-neutral-800/40">
+                                <div className="text-[10px] font-mono uppercase tracking-widest text-indigo-300">Ajouter un bloc</div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {CUSTOM_SHAPE_LIBRARY.map((shape) => {
+                                        const handleDragStart = (event) => {
+                                            event.dataTransfer.setData('application/vibefx-shape', shape.id);
+                                            event.dataTransfer.effectAllowed = 'copy';
+                                        };
+                                        return (
+                                            <button
+                                                key={shape.id}
+                                                type="button"
+                                                draggable
+                                                onDragStart={handleDragStart}
+                                                onClick={() => onAddCustomZone?.(shape, null)}
+                                                className="group flex items-center gap-2 border border-neutral-800 bg-black/40 hover:bg-indigo-600/10 hover:border-indigo-500 px-2.5 py-1.5 text-left transition cursor-grab active:cursor-grabbing"
+                                                title={shape.description}
+                                            >
+                                                <span className="flex h-5 w-5 items-center justify-center text-indigo-400">
+                                                    <Plus size={14} />
+                                                </span>
+                                                <span className="min-w-0">
+                                                    <span className="block truncate font-mono text-[9px] font-bold uppercase tracking-widest text-neutral-200">{shape.label}</span>
+                                                    <span className="block truncate text-[8px] text-neutral-500">{Math.round(shape.w * 100)}x{Math.round(shape.h * 100)}%</span>
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                
+                                <div className="pt-2 flex justify-between gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setActiveTemplate(prev => {
+                                                if (prev.id !== 'custom') return prev;
+                                                return {
+                                                    ...prev,
+                                                    slots: 0,
+                                                    customLayout: {
+                                                        ...prev.customLayout,
+                                                        presetId: 'manual',
+                                                        zones: [],
+                                                    }
+                                                };
+                                            });
+                                            setSelectedSlotIndex(null);
+                                        }}
+                                        className="flex-1 flex items-center justify-center gap-1.5 border border-red-900/40 hover:border-red-500 bg-red-950/20 text-red-400 hover:text-white px-3 py-1.5 font-mono text-[9px] uppercase tracking-widest transition"
+                                    >
+                                        <Eraser size={12} />
+                                        Vider le canevas
+                                    </button>
+                                </div>
+                            </div>
                         ) : null}
-                        {CUSTOM_LAYOUT_PRESETS.map(preset => (
-                            <button
-                                key={preset.id}
-                                type="button"
-                                onClick={() => applyCustomPreset(preset)}
-                                className={`border px-3 py-2 text-left transition-all ${customPresetId === preset.id ? 'border-indigo-400 bg-indigo-500/20 text-indigo-100' : (isDarkMode ? 'border-neutral-800 text-neutral-400 hover:border-indigo-500/50 hover:text-white' : 'border-gray-200 text-gray-600 hover:border-indigo-400 hover:bg-white')}`}
-                            >
-                                <span className="block text-[11px] font-bold uppercase tracking-widest">{preset.label}</span>
-                                <span className="mt-1 block text-[10px] opacity-60">{preset.description}</span>
-                            </button>
-                        ))}
+
+                        <div className="space-y-2 pt-2 border-t border-neutral-800/40">
+                            <div className="text-[10px] font-mono uppercase tracking-widest text-indigo-400/70">Préréglages</div>
+                            {CUSTOM_LAYOUT_PRESETS.map(preset => (
+                                <button
+                                    key={preset.id}
+                                    type="button"
+                                    onClick={() => applyCustomPreset(preset)}
+                                    className={`w-full border px-3 py-2 text-left transition-all ${customPresetId === preset.id ? 'border-indigo-400 bg-indigo-500/20 text-indigo-100' : (isDarkMode ? 'border-neutral-800 text-neutral-400 hover:border-indigo-500/50 hover:text-white' : 'border-gray-200 text-gray-600 hover:border-indigo-400 hover:bg-white')}`}
+                                >
+                                    <span className="block text-[11px] font-bold uppercase tracking-widest">{preset.label}</span>
+                                    <span className="mt-1 block text-[10px] opacity-60">{preset.description}</span>
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>

@@ -120,24 +120,64 @@ export function renderLayoutImageTexture(ctx, w, h, { layoutTextures, activeText
  */
 export function renderSlot(ctx, slotId, imgIndex, x, y, sw, sh, overrideRadius, { images, slotConfigs, radius, layoutBgBlur, layoutBgColor, activeTemplate, slotRects }) {
     const cfg = slotConfigs[slotId] || { zoom: 1, x: 0, y: 0, border: 0, blur: 0 };
-    const safeImgIndex = images.length > 0 ? imgIndex % images.length : null;
-    const img = cfg.image || (safeImgIndex !== null ? images[safeImgIndex] : null);
+    let fallbackImg = null;
+    if (images.length > 0) {
+        const safeImgIndex = imgIndex % images.length;
+        const candidateImg = images[safeImgIndex];
+        if (candidateImg && (!candidateImg.isSlotSpecific || candidateImg.slotId === slotId)) {
+            fallbackImg = candidateImg;
+        }
+    }
+    const img = cfg.image || fallbackImg;
     const effRadius = overrideRadius !== undefined ? overrideRadius : radius;
 
-    ctx.save();
+    ctx.save(); // Main save
+    
+    // Draw background color or fallback inside the slot (with clipping)
+    ctx.save(); // Clip save
     ctx.beginPath();
     ctx.roundRect(x, y, sw, sh, effRadius);
-    ctx.save();
     ctx.clip();
-    if (!layoutBgBlur && activeTemplate.id !== 'polaroid') {
+    
+    if (cfg.bgColor) {
+        ctx.fillStyle = cfg.bgColor;
+        ctx.fillRect(x, y, sw, sh);
+    } else if (!layoutBgBlur && activeTemplate.id !== 'polaroid') {
         ctx.fillStyle = "#000000";
         ctx.fillRect(x, y, sw, sh);
     }
 
-    if (!img?.width || !img?.height) {
-        ctx.fillStyle = activeTemplate.id === 'custom' ? 'rgba(99, 102, 241, 0.08)' : '#050505';
-        ctx.fillRect(x, y, sw, sh);
-        ctx.restore();
+    let hasImage = false;
+    
+    if (img?.width && img?.height) {
+        hasImage = true;
+        const imgRatio = img.width / img.height;
+        const slotRatio = sw / sh;
+        let baseW, baseH;
+        if (slotRatio > imgRatio) { baseW = sw; baseH = sw / imgRatio; }
+        else { baseH = sh; baseW = sh * imgRatio; }
+        const scale = cfg.zoom;
+        const finalW = baseW * scale;
+        const finalH = baseH * scale;
+        const centerX = x + (sw - finalW) / 2;
+        const centerY = y + (sh - finalH) / 2;
+        const panX = cfg.x * (sw / 100);
+        const panY = cfg.y * (sh / 100);
+
+        if (cfg.blur > 0) ctx.filter = `blur(${cfg.blur}px)`;
+        ctx.drawImage(img, centerX + panX, centerY + panY, finalW, finalH);
+        ctx.filter = 'none';
+    } else {
+        if (!cfg.bgColor) {
+            ctx.fillStyle = activeTemplate.id === 'custom' ? 'rgba(99, 102, 241, 0.08)' : '#050505';
+            ctx.fillRect(x, y, sw, sh);
+        }
+    }
+    
+    ctx.restore(); // Restore clip context
+
+    // Draw dotted outline placeholder if there is no image
+    if (!hasImage) {
         ctx.save();
         ctx.strokeStyle = activeTemplate.id === 'custom' ? 'rgba(129, 140, 248, 0.55)' : 'rgba(255, 255, 255, 0.18)';
         ctx.lineWidth = Math.max(2, Math.min(sw, sh) * 0.006);
@@ -146,36 +186,45 @@ export function renderSlot(ctx, slotId, imgIndex, x, y, sw, sh, overrideRadius, 
         ctx.roundRect(x + 1, y + 1, sw - 2, sh - 2, Math.max(0, effRadius - 1));
         ctx.stroke();
         ctx.restore();
-        ctx.restore();
-        slotRects.push({ id: slotId, x, y, w: sw, h: sh, r: effRadius, hasImage: false });
-        return;
     }
 
-    const imgRatio = img.width / img.height;
-    const slotRatio = sw / sh;
-    let baseW, baseH;
-    if (slotRatio > imgRatio) { baseW = sw; baseH = sw / imgRatio; }
-    else { baseH = sh; baseW = sh * imgRatio; }
-    const scale = cfg.zoom;
-    const finalW = baseW * scale;
-    const finalH = baseH * scale;
-    const centerX = x + (sw - finalW) / 2;
-    const centerY = y + (sh - finalH) / 2;
-    const panX = cfg.x * (sw / 100);
-    const panY = cfg.y * (sh / 100);
+    // Draw block text content if configured
+    if (cfg.textContent) {
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        const textColor = cfg.textColor || '#ffffff';
+        const textFont = cfg.textFont || 'Inter';
+        const textSize = cfg.textSize || 24;
+        
+        ctx.font = `bold ${textSize}px ${textFont}`;
+        ctx.fillStyle = textColor;
+        
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 1;
+        
+        const textX = x + sw / 2;
+        const textY = y + sh / 2;
+        ctx.fillText(cfg.textContent, textX, textY);
+        ctx.restore();
+    }
 
-    if (cfg.blur > 0) ctx.filter = `blur(${cfg.blur}px)`;
-    ctx.drawImage(img, centerX + panX, centerY + panY, finalW, finalH);
-    ctx.filter = 'none';
-    ctx.restore();
-
+    // Draw slot border
     if (cfg.border > 0 && activeTemplate.id !== 'polaroid') {
+        ctx.save();
         ctx.lineWidth = cfg.border;
         ctx.strokeStyle = layoutBgBlur ? '#ffffff' : layoutBgColor;
+        ctx.beginPath();
+        ctx.roundRect(x, y, sw, sh, effRadius);
         ctx.stroke();
+        ctx.restore();
     }
-    ctx.restore();
-    slotRects.push({ id: slotId, x, y, w: sw, h: sh, r: effRadius });
+
+    ctx.restore(); // Restore main save
+    slotRects.push({ id: slotId, x, y, w: sw, h: sh, r: effRadius, hasImage });
 }
 
 /**

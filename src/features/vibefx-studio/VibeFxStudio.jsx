@@ -241,6 +241,230 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
     const [visionDiagnostics, setVisionDiagnostics] = useState({ status: 'idle' });
 
     const canvasRef = useRef(null);
+
+    // --- UNDO / REDO HISTORY FOR LAYOUT ---
+    const [history, setHistory] = useState([]);
+    const [historyIndex, setHistoryIndex] = useState(-1);
+    const isRestoringHistoryRef = useRef(false);
+    const prevSavedStateRef = useRef(null);
+
+    const captureState = useCallback(() => {
+        return {
+            images: images.map(img => img),
+            activeFormat,
+            activeTemplate,
+            overlayMode,
+            texts: texts.map(t => ({ ...t })),
+            assets: assets.map(a => ({ ...a })),
+            padding,
+            gap,
+            radius,
+            layoutBgColor,
+            layoutBgBlur,
+            layoutBgTexture,
+            layoutBgGradient,
+            layoutBgMeshColors: [...layoutBgMeshColors],
+            slotConfigs: Object.fromEntries(
+                Object.entries(slotConfigs).map(([k, v]) => [
+                    k,
+                    { ...v }
+                ])
+            ),
+            layoutLumenBackground: layoutLumenBackground ? { ...layoutLumenBackground } : null,
+            layoutSmoothBlur: layoutSmoothBlur ? { ...layoutSmoothBlur } : null,
+            filters: { ...filters },
+        };
+    }, [
+        images,
+        activeFormat,
+        activeTemplate,
+        overlayMode,
+        texts,
+        assets,
+        padding,
+        gap,
+        radius,
+        layoutBgColor,
+        layoutBgBlur,
+        layoutBgTexture,
+        layoutBgGradient,
+        layoutBgMeshColors,
+        slotConfigs,
+        layoutLumenBackground,
+        layoutSmoothBlur,
+        filters
+    ]);
+
+    const restoreState = useCallback((state) => {
+        if (!state) return;
+        setImages(state.images || []);
+        setActiveFormat(state.activeFormat || FORMATS[0]);
+        setActiveTemplate(state.activeTemplate || TEMPLATES[0]);
+        setOverlayMode(state.overlayMode || 'landscape');
+        setTexts(state.texts || []);
+        setAssets(state.assets || []);
+        setPadding(state.padding ?? 40);
+        setGap(state.gap ?? 20);
+        setRadius(state.radius ?? 0);
+        setLayoutBgColor(state.layoutBgColor ?? '#000000');
+        setLayoutBgBlur(state.layoutBgBlur ?? true);
+        setLayoutBgTexture(state.layoutBgTexture ?? 15);
+        setLayoutBgGradient(state.layoutBgGradient ?? false);
+        setLayoutBgMeshColors(state.layoutBgMeshColors ?? DEFAULT_LAYOUT_MESH_COLORS);
+        setSlotConfigs(state.slotConfigs || {});
+        setLayoutLumenBackground(state.layoutLumenBackground || null);
+        setLayoutSmoothBlur(state.layoutSmoothBlur || {
+            enabled: false,
+            direction: 'down',
+            height: 54,
+            precision: 35,
+            blur: 64,
+            preset: 'linear',
+            easeType: 'in',
+            reverse: false
+        });
+        setFilters(state.filters || { ...DEFAULT_FILTERS });
+    }, []);
+
+    const isStateEqual = useCallback((a, b) => {
+        if (!a || !b) return false;
+        if (a.images?.length !== b.images?.length) return false;
+        if (a.activeFormat?.id !== b.activeFormat?.id) return false;
+        if (a.activeTemplate?.id !== b.activeTemplate?.id) return false;
+        if (a.overlayMode !== b.overlayMode) return false;
+        if (a.padding !== b.padding) return false;
+        if (a.gap !== b.gap) return false;
+        if (a.radius !== b.radius) return false;
+        if (a.layoutBgColor !== b.layoutBgColor) return false;
+        if (a.layoutBgBlur !== b.layoutBgBlur) return false;
+        if (a.layoutBgTexture !== b.layoutBgTexture) return false;
+        if (a.layoutBgGradient !== b.layoutBgGradient) return false;
+        if (JSON.stringify(a.layoutBgMeshColors) !== JSON.stringify(b.layoutBgMeshColors)) return false;
+        if (JSON.stringify(a.texts) !== JSON.stringify(b.texts)) return false;
+        if (JSON.stringify(a.assets) !== JSON.stringify(b.assets)) return false;
+        if (a.layoutLumenBackground?.id !== b.layoutLumenBackground?.id) return false;
+        if (JSON.stringify(a.layoutSmoothBlur) !== JSON.stringify(b.layoutSmoothBlur)) return false;
+        if (JSON.stringify(a.filters) !== JSON.stringify(b.filters)) return false;
+
+        const keysA = Object.keys(a.slotConfigs || {});
+        const keysB = Object.keys(b.slotConfigs || {});
+        if (keysA.length !== keysB.length) return false;
+        for (const key of keysA) {
+            const confA = a.slotConfigs[key];
+            const confB = b.slotConfigs[key];
+            if (!confB) return false;
+            if (confA.zoom !== confB.zoom) return false;
+            if (confA.x !== confB.x) return false;
+            if (confA.y !== confB.y) return false;
+            if (confA.border !== confB.border) return false;
+            if (confA.blur !== confB.blur) return false;
+            if (confA.bgColor !== confB.bgColor) return false;
+            if (confA.textContent !== confB.textContent) return false;
+            if (confA.textColor !== confB.textColor) return false;
+            if (confA.textFont !== confB.textFont) return false;
+            if (confA.textSize !== confB.textSize) return false;
+            if (confA.imageName !== confB.imageName) return false;
+        }
+        return true;
+    }, []);
+
+    // Save initial state
+    useEffect(() => {
+        const initialState = captureState();
+        setHistory([initialState]);
+        setHistoryIndex(0);
+        prevSavedStateRef.current = initialState;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Monitor changes to save history (debounced)
+    useEffect(() => {
+        if (isRestoringHistoryRef.current) return;
+
+        const currentState = captureState();
+        if (isStateEqual(currentState, prevSavedStateRef.current)) return;
+
+        const timer = setTimeout(() => {
+            setHistory(prev => {
+                const nextHistory = prev.slice(0, historyIndex + 1);
+                nextHistory.push(currentState);
+                if (nextHistory.length > 30) {
+                    nextHistory.shift();
+                }
+                return nextHistory;
+            });
+            setHistoryIndex(prev => {
+                const nextIndex = prev + 1;
+                return Math.min(29, nextIndex);
+            });
+            prevSavedStateRef.current = currentState;
+        }, 400);
+
+        return () => clearTimeout(timer);
+    }, [
+        captureState,
+        isStateEqual,
+        historyIndex,
+    ]);
+
+    const undo = useCallback(() => {
+        if (historyIndex > 0) {
+            const nextIndex = historyIndex - 1;
+            const targetState = history[nextIndex];
+
+            isRestoringHistoryRef.current = true;
+            prevSavedStateRef.current = targetState;
+            setHistoryIndex(nextIndex);
+
+            restoreState(targetState);
+
+            setTimeout(() => {
+                isRestoringHistoryRef.current = false;
+            }, 50);
+        }
+    }, [historyIndex, history, restoreState]);
+
+    const redo = useCallback(() => {
+        if (historyIndex < history.length - 1) {
+            const nextIndex = historyIndex + 1;
+            const targetState = history[nextIndex];
+
+            isRestoringHistoryRef.current = true;
+            prevSavedStateRef.current = targetState;
+            setHistoryIndex(nextIndex);
+
+            restoreState(targetState);
+
+            setTimeout(() => {
+                isRestoringHistoryRef.current = false;
+            }, 50);
+        }
+    }, [historyIndex, history, restoreState]);
+
+    // Keyboard shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (view !== 'layout' && view !== 'studio') return;
+
+            const isZ = e.key?.toLowerCase() === 'z';
+            const isY = e.key?.toLowerCase() === 'y';
+
+            if (isZ && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                if (e.shiftKey) {
+                    redo();
+                } else {
+                    undo();
+                }
+            } else if (isY && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                redo();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [view, undo, redo]);
     const canvasContainerRef = useRef(null);
     const bgCanvasRef = useRef(null);
     const slotRects = useRef([]);
@@ -258,6 +482,23 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
             setView('studio');
         }
     }, [aiInterfacesEnabled, view]);
+
+    // Sync images deletions from rail back to slotConfigs
+    useEffect(() => {
+        setSlotConfigs(prev => {
+            let changed = false;
+            const updated = { ...prev };
+            for (const slotId of Object.keys(updated)) {
+                const cfg = updated[slotId];
+                if (cfg?.image && !images.includes(cfg.image)) {
+                    const { image, imageSrc, imageName, ...rest } = cfg;
+                    updated[slotId] = rest;
+                    changed = true;
+                }
+            }
+            return changed ? updated : prev;
+        });
+    }, [images]);
 
     // CHARGEMENT DES POLICES GOOGLE FONTS
     useEffect(() => {
@@ -353,7 +594,19 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
 
         img.onload = () => {
             setLoadingProgress(50);
-            updateSlotConfig(slotId, { image: img, objectUrl });
+            setSelectedSlotIndex(slotId);
+            img.isSlotSpecific = true;
+            img.slotId = slotId;
+            setSlotConfigs(prev => ({
+                ...prev,
+                [slotId]: {
+                    ...(prev[slotId] || { zoom: 1, x: 0, y: 0, border: 0, blur: 0 }),
+                    image: img,
+                    imageSrc: objectUrl,
+                    imageName: file.name
+                }
+            }));
+            setImages(prev => [...prev, img]);
             setIsProcessing(false);
             setLoadingProgress(0);
         };
@@ -365,7 +618,25 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         };
 
         img.src = objectUrl;
-    }, [updateSlotConfig]);
+    }, [setSelectedSlotIndex, setSlotConfigs, setImages]);
+
+    const handleRemoveSlotImage = useCallback((slotId) => {
+        const config = slotConfigs[slotId];
+        const imgToRemove = config?.image;
+
+        setSlotConfigs(prev => {
+            const next = { ...prev };
+            if (next[slotId]) {
+                const { image, imageSrc, imageName, ...rest } = next[slotId];
+                next[slotId] = rest;
+            }
+            return next;
+        });
+
+        if (imgToRemove) {
+            setImages(prev => prev.filter(img => img !== imgToRemove));
+        }
+    }, [slotConfigs, setImages]);
 
     const handleFullscreen = () => { if (canvasRef.current?.requestFullscreen) canvasRef.current.requestFullscreen(); };
 
@@ -373,14 +644,35 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         if (!zoneId) return;
         setActiveTemplate((previousTemplate) => {
             if (previousTemplate.id !== 'custom') return previousTemplate;
+            const currentZones = previousTemplate.customLayout?.zones || [];
+            const zoneToUpdate = currentZones.find(z => z.id === zoneId);
+            if (!zoneToUpdate) return previousTemplate;
+
+            const updatedZone = { ...zoneToUpdate, ...patch };
+
+            // Clamp and constrain x, y, w, h to keep within [0, 1] bounds
+            if ('w' in patch) {
+                updatedZone.w = Math.max(0.08, Math.min(1 - updatedZone.x, patch.w));
+            }
+            if ('h' in patch) {
+                updatedZone.h = Math.max(0.08, Math.min(1 - updatedZone.y, patch.h));
+            }
+            if ('x' in patch) {
+                updatedZone.x = Math.max(0, Math.min(1 - updatedZone.w, patch.x));
+            }
+            if ('y' in patch) {
+                updatedZone.y = Math.max(0, Math.min(1 - updatedZone.h, patch.y));
+            }
+
             const homePatch = {
-                ...('x' in patch ? { homeX: patch.x } : {}),
-                ...('y' in patch ? { homeY: patch.y } : {}),
-                ...('w' in patch ? { homeW: patch.w } : {}),
-                ...('h' in patch ? { homeH: patch.h } : {}),
+                homeX: updatedZone.x,
+                homeY: updatedZone.y,
+                homeW: updatedZone.w,
+                homeH: updatedZone.h,
             };
-            const zones = (previousTemplate.customLayout?.zones || []).map((zone) => (
-                zone.id === zoneId ? { ...zone, ...patch, ...homePatch, hidden: false } : zone
+
+            const zones = currentZones.map((zone) => (
+                zone.id === zoneId ? { ...zone, ...updatedZone, ...homePatch, hidden: false } : zone
             ));
             return updateCustomTemplateZones(
                 previousTemplate,
@@ -954,6 +1246,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                             handleImageUpload={handleImageUpload}
                             handleSlotImageUpload={handleSlotImageUpload}
                             handleReplaceImageUpload={handleReplaceImageUpload}
+                            handleRemoveSlotImage={handleRemoveSlotImage}
                             handleFullscreen={handleFullscreen}
                             onCompareOpen={() => setIsCompareModalOpen(true)}
                             onInstaPreview={() => { setInstaPreviewUrl(canvasRef.current.toDataURL()); setIsInstaPreviewOpen(true); }}
@@ -968,6 +1261,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                             visionCompareSplit={visionCompareSplit}
                             customEditMode={customEditMode}
                             onAddCustomZone={handleAddCustomZone}
+                            onDeleteCustomZone={handleDeleteCustomZone}
                             layoutHasGeneratedBackground={layoutHasGeneratedBackground}
                             slotRectsState={slotRectsState}
                             layoutQuickActions={{
@@ -985,6 +1279,10 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                                 },
                                 onOpenAccordion: openLayoutAccordion,
                             }}
+                            undo={undo}
+                            redo={redo}
+                            canUndo={historyIndex > 0}
+                            canRedo={historyIndex < history.length - 1}
                         />
 
                         {/* SIDEBAR */}
@@ -1064,6 +1362,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                                     setCustomEditMode={setCustomEditMode}
                                     onUpdateCustomZone={handleUpdateCustomZone}
                                     onDeleteCustomZone={handleDeleteCustomZone}
+                                    onAddCustomZone={handleAddCustomZone}
                                 />
                             )}
 

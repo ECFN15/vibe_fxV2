@@ -68,15 +68,35 @@ export default function useLayoutHelpers({
     const getActiveText = useCallback(() => texts.find(t => t.id === activeTextId), [texts, activeTextId]);
     const getActiveAsset = useCallback(() => assets.find(a => a.id === activeAssetId), [assets, activeAssetId]);
 
-    const updateSlotConfig = useCallback((key, value) => {
-        if (selectedSlotIndex === null) return;
-        setSlotConfigs(prev => ({
-            ...prev,
-            [selectedSlotIndex]: {
-                ...(prev[selectedSlotIndex] || { zoom: 1, x: 0, y: 0, border: 0, blur: 0 }),
-                [key]: value
-            }
-        }));
+    const updateSlotConfig = useCallback((first, second) => {
+        if (typeof first === 'object' && first !== null) {
+            if (selectedSlotIndex === null) return;
+            setSlotConfigs(prev => ({
+                ...prev,
+                [selectedSlotIndex]: {
+                    ...(prev[selectedSlotIndex] || { zoom: 1, x: 0, y: 0, border: 0, blur: 0 }),
+                    ...first
+                }
+            }));
+        } else if (typeof second === 'object' && second !== null) {
+            const slotId = first;
+            setSlotConfigs(prev => ({
+                ...prev,
+                [slotId]: {
+                    ...(prev[slotId] || { zoom: 1, x: 0, y: 0, border: 0, blur: 0 }),
+                    ...second
+                }
+            }));
+        } else {
+            if (selectedSlotIndex === null) return;
+            setSlotConfigs(prev => ({
+                ...prev,
+                [selectedSlotIndex]: {
+                    ...(prev[selectedSlotIndex] || { zoom: 1, x: 0, y: 0, border: 0, blur: 0 }),
+                    [first]: second
+                }
+            }));
+        }
     }, [selectedSlotIndex, setSlotConfigs]);
 
     const moveLayoutImage = useCallback((index, direction) => {

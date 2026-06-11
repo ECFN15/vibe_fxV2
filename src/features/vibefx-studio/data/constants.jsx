@@ -68,11 +68,11 @@ export const DEFAULT_CUSTOM_TEMPLATE = {
     id: 'custom',
     label: 'Personnalise',
     icon: <LayoutTemplate size={18} />,
-    slots: CUSTOM_LAYOUT_PRESETS[0].zones.length,
+    slots: 0,
     customLayout: {
         version: 1,
-        presetId: CUSTOM_LAYOUT_PRESETS[0].id,
-        zones: CUSTOM_LAYOUT_PRESETS[0].zones,
+        presetId: 'manual',
+        zones: [],
     },
 };
 
