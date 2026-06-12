@@ -42,7 +42,17 @@ export default function CanvasWorkspace({
     texts = [],
     assets = [],
 }) {
-    const showCanvas = images.length > 0 || (texts && texts.length > 0) || (assets && assets.length > 0) || (view === 'layout' && activeTemplate?.id === 'custom');
+    const isInitialState = images.length === 0 &&
+        (!assets || assets.length === 0) &&
+        (activeTemplate?.id === 'minimal' || activeTemplate?.id === 'default') &&
+        (texts && texts.length === 1 && (texts[0].content === 'Vibe_fx' || texts[0].content === 'Vibe_fx Studio'));
+
+    const showCanvas = !isInitialState && (
+        images.length > 0 ||
+        (texts && texts.length > 0) ||
+        (assets && assets.length > 0) ||
+        (view === 'layout' && activeTemplate?.id === 'custom')
+    );
     const showCustomShapePalette = view === 'layout' && activeTemplate?.id === 'custom' && customEditMode;
 
     const getShapeDropPosition = (event, shape) => {

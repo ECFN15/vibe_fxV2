@@ -547,6 +547,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         lastMousePos, dragOffset, textMetrics,
         isCropping,
         setCropPos,
+        setActiveAccordion,
     });
 
     // --- HOOKS: CANVAS RENDERER ---
@@ -628,7 +629,29 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
 
     const handleRemoveSlotImage = useCallback((slotId) => {
         const config = slotConfigs[slotId];
-        const imgToRemove = config?.image;
+        let imgToRemove = config?.image;
+
+        // If not explicitly defined in config, resolve from images array by slotId/template structure
+        if (!imgToRemove && images.length > 0) {
+            if (activeTemplate?.id === 'custom') {
+                const zones = activeTemplate.customLayout?.zones || [];
+                const zoneIndex = zones.findIndex(z => z.id === slotId);
+                if (zoneIndex !== -1) {
+                    const zone = zones[zoneIndex];
+                    const imgIndex = zone.imageIndex !== undefined ? zone.imageIndex : zoneIndex;
+                    imgToRemove = images[imgIndex % images.length];
+                }
+            } else {
+                // For standard templates, slotId is the numerical index of the slot
+                const numericSlotId = parseInt(slotId, 10);
+                if (!isNaN(numericSlotId)) {
+                    imgToRemove = images[numericSlotId % images.length];
+                } else {
+                    // Fallback to first image
+                    imgToRemove = images[0];
+                }
+            }
+        }
 
         setSlotConfigs(prev => {
             const next = { ...prev };
@@ -642,7 +665,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         if (imgToRemove) {
             setImages(prev => prev.filter(img => img !== imgToRemove));
         }
-    }, [slotConfigs, setImages]);
+    }, [slotConfigs, images, activeTemplate, setImages]);
 
     const handleFullscreen = () => { if (canvasRef.current?.requestFullscreen) canvasRef.current.requestFullscreen(); };
 

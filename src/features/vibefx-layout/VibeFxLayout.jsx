@@ -636,6 +636,7 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
     selectedSlotIndex,
     setSelectedSlotIndex,
     slotRects,
+    setActiveAccordion,
     isDragging,
     setIsDragging,
     isDraggingText,

@@ -12,6 +12,7 @@ export default function useCanvasEvents({
     activeAssetId, setActiveAssetId,
     selectedSlotIndex, setSelectedSlotIndex,
     slotRects,
+    setActiveAccordion,
     // Drag state
     isDragging, setIsDragging,
     isDraggingText, setIsDraggingText,
@@ -49,6 +50,7 @@ export default function useCanvasEvents({
                 if (Math.abs(pos.x - ax) < 60 && Math.abs(pos.y - ay) < 20) {
                     setActiveAssetId(a.id); setSelectedSlotIndex(null); setActiveTextId(null); setIsDraggingAsset(true);
                     dragOffset.current = { x: pos.x - ax, y: pos.y - ay };
+                    setActiveAccordion?.('texts');
                     return;
                 }
             }
@@ -74,6 +76,7 @@ export default function useCanvasEvents({
                     setActiveTextId(t.id); setSelectedSlotIndex(null); setActiveAssetId(null); setIsDraggingText(true);
                     dragOffset.current = { x: pos.x - tx, y: pos.y - ty };
                     textMetrics.current = { w: tw, h: th };
+                    setActiveAccordion?.('texts');
                     return;
                 }
             }
@@ -100,7 +103,7 @@ export default function useCanvasEvents({
         }
     }, [canvasRef, view, assets, texts, images, isCropping, getPointerPos,
         setActiveAssetId, setSelectedSlotIndex, setActiveTextId, setIsDraggingAsset,
-        setIsDraggingText, setIsDragging, slotRects, dragOffset, textMetrics, lastMousePos]);
+        setIsDraggingText, setIsDragging, slotRects, dragOffset, textMetrics, lastMousePos, setActiveAccordion]);
 
     const handlePointerMove = useCallback((e) => {
         // LAYOUT DRAG

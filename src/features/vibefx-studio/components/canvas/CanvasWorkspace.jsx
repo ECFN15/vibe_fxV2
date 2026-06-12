@@ -54,7 +54,17 @@ export default function CanvasWorkspace({
     texts = [],
     assets = [],
 }) {
-    const showCanvas = images.length > 0 || (texts && texts.length > 0) || (assets && assets.length > 0) || (view === 'layout' && (activeTemplate?.id === 'custom' || layoutHasGeneratedBackground));
+    const isInitialState = images.length === 0 &&
+        (!assets || assets.length === 0) &&
+        (activeTemplate?.id === 'minimal' || activeTemplate?.id === 'default') &&
+        (texts && texts.length === 1 && (texts[0].content === 'Vibe_fx' || texts[0].content === 'Vibe_fx Studio'));
+
+    const showCanvas = !isInitialState && (
+        images.length > 0 ||
+        (texts && texts.length > 0) ||
+        (assets && assets.length > 0) ||
+        (view === 'layout' && (activeTemplate?.id === 'custom' || layoutHasGeneratedBackground))
+    );
     const showCustomShapePalette = view === 'layout' && activeTemplate?.id === 'custom' && customEditMode;
 
     const getShapeDropPosition = (event, shape) => {
@@ -251,6 +261,9 @@ export default function CanvasWorkspace({
                                                                 transform: `scale(${buttonScale})`,
                                                                 transformOrigin: 'top right'
                                                             }}
+                                                            onPointerDown={(e) => e.stopPropagation()}
+                                                            onMouseDown={(e) => e.stopPropagation()}
+                                                            onTouchStart={(e) => e.stopPropagation()}
                                                         >
                                                             <label
                                                                 className="cursor-pointer w-6 h-6 bg-indigo-950/80 border border-indigo-500/40 text-indigo-200 hover:bg-indigo-600 hover:text-white hover:border-indigo-500 rounded transition-all flex items-center justify-center shadow-lg"
@@ -312,6 +325,9 @@ export default function CanvasWorkspace({
                                                                 transform: `scale(${buttonScale})`,
                                                                 transformOrigin: 'top right'
                                                             }}
+                                                            onPointerDown={(e) => e.stopPropagation()}
+                                                            onMouseDown={(e) => e.stopPropagation()}
+                                                            onTouchStart={(e) => e.stopPropagation()}
                                                         >
                                                             <button
                                                                 type="button"
