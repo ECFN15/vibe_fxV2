@@ -227,7 +227,7 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |   |   |   |       `-- Select.jsx
 |   |   |   |-- data/
 |   |   |   |   |-- constants.jsx
-|   |   |   |   `-- themedTemplates.jsx   # 50+ templates prets a poster par theme (E-commerce, Promo, Voyage, Editorial, Food, Mode, Branding, Photo, Deco, Immobilier, Art, Evenement, Lifestyle, Carrousel, Saisons) inspires de references Instagram
+|   |   |   |   `-- themedTemplates.jsx   # 68 templates prets a poster par theme (E-commerce, Promo, Voyage, Editorial, Food, Mode, Branding, Photo, Deco, Immobilier, Art, Evenement, Lifestyle, Carrousel, Saisons, Meuble) inspires de references Instagram et du catalogue client Tous a Table
 |   |   |   |-- engine/
 |   |   |   |   |-- assetRenderer.js
 |   |   |   |   |-- layoutRenderer.js
