@@ -27,14 +27,14 @@ export const CUSTOM_LAYOUT_PRESETS = [
         label: 'Catalogue CF1',
         description: 'Grande image, bande detail et vignettes.',
         zones: [
-            { id: 'custom-hero', label: 'Hero', x: 0, y: 0, w: 0.62, h: 0.62, imageIndex: 0 },
-            { id: 'custom-copy', label: 'Texte / fiche', x: 0.64, y: 0, w: 0.36, h: 0.62, imageIndex: 1 },
-            { id: 'custom-thumb-1', label: 'Detail 1', x: 0, y: 0.64, w: 0.235, h: 0.18, imageIndex: 2 },
-            { id: 'custom-thumb-2', label: 'Detail 2', x: 0.255, y: 0.64, w: 0.235, h: 0.18, imageIndex: 3 },
-            { id: 'custom-thumb-3', label: 'Detail 3', x: 0.51, y: 0.64, w: 0.235, h: 0.18, imageIndex: 4 },
-            { id: 'custom-thumb-4', label: 'Detail 4', x: 0.765, y: 0.64, w: 0.235, h: 0.18, imageIndex: 5 },
-            { id: 'custom-price', label: 'Prix / focus', x: 0, y: 0.84, w: 0.49, h: 0.16, imageIndex: 6 },
-            { id: 'custom-wide', label: 'Ambiance', x: 0.51, y: 0.84, w: 0.49, h: 0.16, imageIndex: 7 },
+            { id: 'custom-hero', label: 'Hero', x: 0, y: 0, w: 0.625, h: 0.625, imageIndex: 0 },
+            { id: 'custom-copy', label: 'Texte / fiche', x: 0.625, y: 0, w: 0.375, h: 0.625, imageIndex: 1 },
+            { id: 'custom-thumb-1', label: 'Detail 1', x: 0, y: 0.625, w: 0.25, h: 0.1875, imageIndex: 2 },
+            { id: 'custom-thumb-2', label: 'Detail 2', x: 0.25, y: 0.625, w: 0.25, h: 0.1875, imageIndex: 3 },
+            { id: 'custom-thumb-3', label: 'Detail 3', x: 0.5, y: 0.625, w: 0.25, h: 0.1875, imageIndex: 4 },
+            { id: 'custom-thumb-4', label: 'Detail 4', x: 0.75, y: 0.625, w: 0.25, h: 0.1875, imageIndex: 5 },
+            { id: 'custom-price', label: 'Prix / focus', x: 0, y: 0.8125, w: 0.5, h: 0.1875, imageIndex: 6 },
+            { id: 'custom-wide', label: 'Ambiance', x: 0.5, y: 0.8125, w: 0.5, h: 0.1875, imageIndex: 7 },
         ],
     },
     {
@@ -42,11 +42,11 @@ export const CUSTOM_LAYOUT_PRESETS = [
         label: 'Feature + 4',
         description: 'Une image forte et quatre blocs secondaires.',
         zones: [
-            { id: 'custom-main', label: 'Image principale', x: 0, y: 0, w: 1, h: 0.58, imageIndex: 0 },
-            { id: 'custom-a', label: 'Bloc A', x: 0, y: 0.61, w: 0.49, h: 0.18, imageIndex: 1 },
-            { id: 'custom-b', label: 'Bloc B', x: 0.51, y: 0.61, w: 0.49, h: 0.18, imageIndex: 2 },
-            { id: 'custom-c', label: 'Bloc C', x: 0, y: 0.82, w: 0.49, h: 0.18, imageIndex: 3 },
-            { id: 'custom-d', label: 'Bloc D', x: 0.51, y: 0.82, w: 0.49, h: 0.18, imageIndex: 4 },
+            { id: 'custom-main', label: 'Image principale', x: 0, y: 0, w: 1, h: 0.6, imageIndex: 0 },
+            { id: 'custom-a', label: 'Bloc A', x: 0, y: 0.6, w: 0.5, h: 0.2, imageIndex: 1 },
+            { id: 'custom-b', label: 'Bloc B', x: 0.5, y: 0.6, w: 0.5, h: 0.2, imageIndex: 2 },
+            { id: 'custom-c', label: 'Bloc C', x: 0, y: 0.8, w: 0.5, h: 0.2, imageIndex: 3 },
+            { id: 'custom-d', label: 'Bloc D', x: 0.5, y: 0.8, w: 0.5, h: 0.2, imageIndex: 4 },
         ],
     },
     {
@@ -54,15 +54,17 @@ export const CUSTOM_LAYOUT_PRESETS = [
         label: 'Editorial 6',
         description: 'Grille propre pour moodboard ou carrousel.',
         zones: [
-            { id: 'custom-e1', label: 'Zone 1', x: 0, y: 0, w: 0.49, h: 0.32, imageIndex: 0 },
-            { id: 'custom-e2', label: 'Zone 2', x: 0.51, y: 0, w: 0.49, h: 0.32, imageIndex: 1 },
-            { id: 'custom-e3', label: 'Zone 3', x: 0, y: 0.34, w: 0.49, h: 0.32, imageIndex: 2 },
-            { id: 'custom-e4', label: 'Zone 4', x: 0.51, y: 0.34, w: 0.49, h: 0.32, imageIndex: 3 },
-            { id: 'custom-e5', label: 'Zone 5', x: 0, y: 0.68, w: 0.49, h: 0.32, imageIndex: 4 },
-            { id: 'custom-e6', label: 'Zone 6', x: 0.51, y: 0.68, w: 0.49, h: 0.32, imageIndex: 5 },
+            { id: 'custom-e1', label: 'Zone 1', x: 0, y: 0, w: 0.5, h: 1 / 3, imageIndex: 0 },
+            { id: 'custom-e2', label: 'Zone 2', x: 0.5, y: 0, w: 0.5, h: 1 / 3, imageIndex: 1 },
+            { id: 'custom-e3', label: 'Zone 3', x: 0, y: 1 / 3, w: 0.5, h: 1 / 3, imageIndex: 2 },
+            { id: 'custom-e4', label: 'Zone 4', x: 0.5, y: 1 / 3, w: 0.5, h: 1 / 3, imageIndex: 3 },
+            { id: 'custom-e5', label: 'Zone 5', x: 0, y: 2 / 3, w: 0.5, h: 1 / 3, imageIndex: 4 },
+            { id: 'custom-e6', label: 'Zone 6', x: 0.5, y: 2 / 3, w: 0.5, h: 1 / 3, imageIndex: 5 },
         ],
     },
 ];
+
+export const DEFAULT_CUSTOM_LAYOUT_GAP = 12;
 
 export const DEFAULT_CUSTOM_TEMPLATE = {
     id: 'custom',

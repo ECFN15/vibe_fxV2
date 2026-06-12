@@ -38,6 +38,7 @@ export default function LayoutSidebar({
     // Geometry
     padding, setPadding,
     gap, setGap,
+    customLayoutGap, setCustomLayoutGap,
     radius, setRadius,
     // Background
     layoutBgBlur, setLayoutBgBlur,
@@ -52,8 +53,9 @@ export default function LayoutSidebar({
     const accordionRefs = useRef({});
     const isCustomTemplate = activeTemplate.id === 'custom';
     const customPresetId = activeTemplate.customLayout?.presetId;
+    const canEditCustomLayout = isCustomTemplate && customEditMode;
     const customZonesCount = (activeTemplate.customLayout?.zones || []).filter(zone => !zone.hidden).length;
-    const selectedCustomZone = isCustomTemplate && selectedSlotIndex !== null
+    const selectedCustomZone = canEditCustomLayout && selectedSlotIndex !== null
         ? activeTemplate.customLayout?.zones?.find(zone => zone.id === selectedSlotIndex)
         : null;
 
@@ -71,6 +73,7 @@ export default function LayoutSidebar({
                 zones: preset.zones,
             },
         });
+        setCustomEditMode?.(false);
         setSelectedSlotIndex(null);
         setActiveTextId(null);
     };
@@ -156,6 +159,16 @@ export default function LayoutSidebar({
                                 <ControlGroup label="Hauteur bloc" value={Math.round(selectedCustomZone.h * 100)} onChange={(v) => onUpdateCustomZone?.(selectedSlotIndex, { h: v / 100 })} min={8} max={100} unit="%" isDarkMode={isDarkMode} />
                                 <ControlGroup label="Bloc X" value={Math.round(selectedCustomZone.x * 100)} onChange={(v) => onUpdateCustomZone?.(selectedSlotIndex, { x: v / 100 })} min={0} max={100} unit="%" isDarkMode={isDarkMode} />
                                 <ControlGroup label="Bloc Y" value={Math.round(selectedCustomZone.y * 100)} onChange={(v) => onUpdateCustomZone?.(selectedSlotIndex, { y: v / 100 })} min={0} max={100} unit="%" isDarkMode={isDarkMode} />
+                                <ControlGroup label="Marge zone" value={selectedCustomZone.gap !== undefined ? Math.round(selectedCustomZone.gap) : customLayoutGap} onChange={(v) => onUpdateCustomZone?.(selectedSlotIndex, { gap: v })} min={0} max={100} unit="px" isDarkMode={isDarkMode} />
+                                {selectedCustomZone.gap !== undefined ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => onUpdateCustomZone?.(selectedSlotIndex, { gap: undefined })}
+                                        className="mt-2 w-full border border-cyan-300/20 px-2 py-1.5 font-mono text-[9px] uppercase tracking-widest text-cyan-100/70 transition hover:border-cyan-300/50 hover:text-cyan-100"
+                                    >
+                                        Reprendre la marge globale
+                                    </button>
+                                ) : null}
                             </div>
                         ) : null}
                         <ControlGroup label="Zoom" value={activeConfig.zoom} onChange={(v) => updateSlotConfig('zoom', v)} min={1} max={4} step={0.1} unit="x" isDarkMode={isDarkMode} />
@@ -213,14 +226,35 @@ export default function LayoutSidebar({
                     </div>
                     <div className="grid grid-cols-1 gap-2">
                         {isCustomTemplate ? (
-                            <button
-                                type="button"
-                                onClick={() => setCustomEditMode?.(!customEditMode)}
-                                className={`border px-3 py-2 text-left transition-all ${customEditMode ? 'border-cyan-300 bg-cyan-400/15 text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.16)]' : (isDarkMode ? 'border-neutral-800 text-neutral-400 hover:border-cyan-400/50 hover:text-white' : 'border-gray-200 text-gray-600 hover:border-cyan-400 hover:bg-white')}`}
+                            <>
+                            <label
+                                className={`flex cursor-pointer items-center justify-between gap-3 border px-3 py-2 text-left transition-all ${customEditMode ? 'border-cyan-300 bg-cyan-400/15 text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.16)]' : (isDarkMode ? 'border-neutral-800 text-neutral-400 hover:border-cyan-400/50 hover:text-white' : 'border-gray-200 text-gray-600 hover:border-cyan-400 hover:bg-white')}`}
                             >
-                                <span className="block text-[11px] font-bold uppercase tracking-widest">Mode edit personnalise</span>
-                                <span className="mt-1 block text-[10px] opacity-60">{customEditMode ? 'Palette active + blocs modifiables.' : 'Active la palette et les controles de blocs.'}</span>
-                            </button>
+                                <span className="min-w-0">
+                                    <span className="block text-[11px] font-bold uppercase tracking-widest">Modifier ce préréglage</span>
+                                    <span className="mt-1 block text-[10px] opacity-60">{customEditMode ? 'Palette active + blocs modifiables.' : 'Cochez pour personnaliser ce preset.'}</span>
+                                </span>
+                                <input
+                                    type="checkbox"
+                                    checked={customEditMode}
+                                    onChange={(event) => setCustomEditMode?.(event.target.checked)}
+                                    className="h-4 w-4 accent-cyan-400"
+                                />
+                            </label>
+                            {canEditCustomLayout ? (
+                                <div className="border border-neutral-800/70 bg-black/20 px-3 py-2">
+                                    <ControlGroup
+                                        label="Marge entre blocs"
+                                        value={customLayoutGap}
+                                        onChange={setCustomLayoutGap}
+                                        min={0}
+                                        max={80}
+                                        unit="px"
+                                        isDarkMode={isDarkMode}
+                                    />
+                                </div>
+                            ) : null}
+                            </>
                         ) : null}
                         {CUSTOM_LAYOUT_PRESETS.map(preset => (
                             <button
@@ -314,6 +348,8 @@ export default function LayoutSidebar({
                                     setPadding={setPadding}
                                     gap={gap}
                                     setGap={setGap}
+                                    customLayoutGap={customLayoutGap}
+                                    setCustomLayoutGap={setCustomLayoutGap}
                                     radius={radius}
                                     setRadius={setRadius}
                                     activeTemplate={activeTemplate}

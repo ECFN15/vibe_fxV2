@@ -1,15 +1,21 @@
 import React from 'react';
-import { Move } from 'lucide-react';
-
 import ControlGroup from '../ui/ControlGroup';
 
-const GeometryPanel = ({ isDarkMode, padding, setPadding, gap, setGap, radius, setRadius, activeTemplate }) => {
+const GeometryPanel = ({
+    isDarkMode,
+    padding, setPadding,
+    gap, setGap,
+    customLayoutGap, setCustomLayoutGap,
+    radius, setRadius,
+    activeTemplate,
+}) => {
     
     // Logique conditionnelle d'affichage selon le template
     // - polaroid : a ses propres marges et un design rigide -> On cache tout ou on met un message.
     // - minimal (Standard 1 zone) / cinema : n'ont pas d'espace entre les images (gap) car 1 seule image.
     // - pip (Picture-in-Picture) : gère l'image par-dessus, pas de gap standard.
     
+    const isCustomTemplate = activeTemplate && activeTemplate.id === 'custom';
     const showGap = activeTemplate && activeTemplate.slots > 1 && activeTemplate.id !== 'pip';
     const isPolaroid = activeTemplate && activeTemplate.id === 'polaroid';
 
@@ -26,9 +32,11 @@ const GeometryPanel = ({ isDarkMode, padding, setPadding, gap, setGap, radius, s
                         <>
                             <ControlGroup label="Marge Externe (Padding)" value={padding} onChange={setPadding} min={0} max={150} unit="px" isDarkMode={isDarkMode}/>
                             
-                            {showGap && (
+                            {isCustomTemplate ? (
+                                <ControlGroup label="Marge entre blocs" value={customLayoutGap} onChange={setCustomLayoutGap} min={0} max={100} unit="px" isDarkMode={isDarkMode}/>
+                            ) : showGap ? (
                                 <ControlGroup label="Espacement Image (Gap)" value={gap} onChange={setGap} min={0} max={100} unit="px" isDarkMode={isDarkMode}/>
-                            )}
+                            ) : null}
                             
                             <div className={`h-px w-full my-2 ${isDarkMode ? 'bg-neutral-800' : 'bg-gray-100'}`} />
                             <ControlGroup label="Arrondi Image (Radius)" value={radius} onChange={setRadius} min={0} max={150} unit="px" isDarkMode={isDarkMode}/>

@@ -53,7 +53,7 @@ export default function CanvasWorkspace({
     canRedo,
 }) {
     const showCanvas = images.length > 0 || (view === 'layout' && (activeTemplate?.id === 'custom' || layoutHasGeneratedBackground));
-    const showCustomShapePalette = view === 'layout' && activeTemplate?.id === 'custom';
+    const showCustomShapePalette = view === 'layout' && activeTemplate?.id === 'custom' && customEditMode;
 
     const getShapeDropPosition = (event, shape) => {
         const rect = canvasRef.current?.getBoundingClientRect();

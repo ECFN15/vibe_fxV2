@@ -58,8 +58,8 @@ export function renderSlot(ctx, slotId, imgIndex, x, y, sw, sh, overrideRadius, 
         if (isPreview) {
             ctx.save();
             ctx.strokeStyle = activeTemplate.id === 'custom' ? 'rgba(129, 140, 248, 0.55)' : 'rgba(255, 255, 255, 0.18)';
-            ctx.lineWidth = Math.max(2, Math.min(sw, sh) * 0.006);
-            ctx.setLineDash([Math.max(8, sw * 0.025), Math.max(6, sw * 0.014)]);
+            ctx.lineWidth = 2;
+            ctx.setLineDash([8, 6]);
             ctx.beginPath();
             ctx.roundRect(x + 1, y + 1, sw - 2, sh - 2, Math.max(0, effRadius - 1));
             ctx.stroke();
@@ -103,7 +103,7 @@ export function renderSlot(ctx, slotId, imgIndex, x, y, sw, sh, overrideRadius, 
  * renderTemplateSlots — Dispatch les slots selon le template actif.
  */
 export function renderTemplateSlots(ctx, w, h, opts) {
-    const { activeTemplate, padding, gap, images, overlayMode, radius } = opts;
+    const { activeTemplate, padding, gap, customLayoutGap = 12, images, overlayMode, radius } = opts;
     const safeW = w - (padding * 2);
     const safeH = h - (padding * 2);
     const startX = padding;
@@ -115,11 +115,17 @@ export function renderTemplateSlots(ctx, w, h, opts) {
 
     if (activeTemplate.id === 'custom') {
         const zones = activeTemplate.customLayout?.zones || [];
+        const getZoneHalfGap = (zone) => Math.max(0, Number(zone.gap ?? customLayoutGap) || 0) / 2;
         zones.filter(zone => !zone.hidden).forEach((zone, index) => {
-            const slotX = startX + (zone.x * safeW);
-            const slotY = startY + (zone.y * safeH);
-            const slotW = zone.w * safeW;
-            const slotH = zone.h * safeH;
+            const zoneHalfGap = getZoneHalfGap(zone);
+            const insetLeft = zone.x > 0.0001 ? zoneHalfGap : 0;
+            const insetTop = zone.y > 0.0001 ? zoneHalfGap : 0;
+            const insetRight = zone.x + zone.w < 0.9999 ? zoneHalfGap : 0;
+            const insetBottom = zone.y + zone.h < 0.9999 ? zoneHalfGap : 0;
+            const slotX = startX + (zone.x * safeW) + insetLeft;
+            const slotY = startY + (zone.y * safeH) + insetTop;
+            const slotW = Math.max(1, (zone.w * safeW) - insetLeft - insetRight);
+            const slotH = Math.max(1, (zone.h * safeH) - insetTop - insetBottom);
             rs(zone.id || `custom-${index}`, zone.imageIndex ?? index, slotX, slotY, slotW, slotH, zone.radius);
         });
     }

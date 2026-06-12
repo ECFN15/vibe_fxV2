@@ -5,7 +5,7 @@ import { useAiLaunchSettings } from '@/hooks/useAiLaunchSettings';
 
 
 // --- DATA ---
-import { FORMATS, TEMPLATES, FONT_OPTIONS, PRESET_CATEGORIES, CAMERA_BRANDS } from './data/constants';
+import { DEFAULT_CUSTOM_LAYOUT_GAP, FORMATS, TEMPLATES, FONT_OPTIONS, PRESET_CATEGORIES, CAMERA_BRANDS } from './data/constants';
 
 // --- COMPOSANTS ---
 import VisionPanel from './components/panels/VisionPanel';
@@ -182,6 +182,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
     // Layout Styles
     const [padding, setPadding] = useState(40);
     const [gap, setGap] = useState(20);
+    const [customLayoutGap, setCustomLayoutGap] = useState(DEFAULT_CUSTOM_LAYOUT_GAP);
     const [radius, setRadius] = useState(0);
     const [layoutBgColor, setLayoutBgColor] = useState('#000000');
     const [layoutBgBlur, setLayoutBgBlur] = useState(true);
@@ -258,6 +259,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
             assets: assets.map(a => ({ ...a })),
             padding,
             gap,
+            customLayoutGap,
             radius,
             layoutBgColor,
             layoutBgBlur,
@@ -283,6 +285,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         assets,
         padding,
         gap,
+        customLayoutGap,
         radius,
         layoutBgColor,
         layoutBgBlur,
@@ -305,6 +308,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         setAssets(state.assets || []);
         setPadding(state.padding ?? 40);
         setGap(state.gap ?? 20);
+        setCustomLayoutGap(state.customLayoutGap ?? DEFAULT_CUSTOM_LAYOUT_GAP);
         setRadius(state.radius ?? 0);
         setLayoutBgColor(state.layoutBgColor ?? '#000000');
         setLayoutBgBlur(state.layoutBgBlur ?? true);
@@ -331,9 +335,11 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         if (a.images?.length !== b.images?.length) return false;
         if (a.activeFormat?.id !== b.activeFormat?.id) return false;
         if (a.activeTemplate?.id !== b.activeTemplate?.id) return false;
+        if (JSON.stringify(a.activeTemplate?.customLayout || null) !== JSON.stringify(b.activeTemplate?.customLayout || null)) return false;
         if (a.overlayMode !== b.overlayMode) return false;
         if (a.padding !== b.padding) return false;
         if (a.gap !== b.gap) return false;
+        if (a.customLayoutGap !== b.customLayoutGap) return false;
         if (a.radius !== b.radius) return false;
         if (a.layoutBgColor !== b.layoutBgColor) return false;
         if (a.layoutBgBlur !== b.layoutBgBlur) return false;
@@ -547,7 +553,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
     const { getCanvasDimensions, getPreviewCanvasDimensions, renderPipeline } = useCanvasRenderer({
         canvasRef, images, view,
         activeFormat, activeTemplate, overlayMode,
-        padding, gap, radius,
+        padding, gap, customLayoutGap, radius,
         layoutBgColor, layoutBgBlur, layoutBgGradient, layoutBgMeshColors, layoutLumenBackground, layoutBgTexture, layoutSmoothBlur,
         layoutTextures, activeTextureId, layoutTextureOpacity,
         selectedSlotIndex, slotConfigs,
@@ -916,6 +922,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                 overlayMode,
                 padding,
                 gap,
+                customLayoutGap,
                 radius,
                 layoutBgColor,
                 layoutBgBlur,
@@ -953,6 +960,7 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
         activeTemplate,
         activeTextureId,
         assets,
+        customLayoutGap,
         exportName,
         filters,
         gap,
@@ -1346,6 +1354,8 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                                     setPadding={setPadding}
                                     gap={gap}
                                     setGap={setGap}
+                                    customLayoutGap={customLayoutGap}
+                                    setCustomLayoutGap={setCustomLayoutGap}
                                     radius={radius}
                                     setRadius={setRadius}
                                     layoutBgBlur={layoutBgBlur}

@@ -11,7 +11,7 @@ export default function useCanvasRenderer({
     canvasRef, images, view,
     // Layout
     activeFormat, activeTemplate, overlayMode,
-    padding, gap, radius,
+    padding, gap, customLayoutGap, radius,
     layoutBgColor, layoutBgBlur, layoutBgTexture, layoutSmoothBlur,
     selectedSlotIndex, slotConfigs,
     slotRects: slotRectsRef,
@@ -94,7 +94,7 @@ export default function useCanvasRenderer({
             // 2. Template slots
             renderTemplateSlots(ctx, w, h, {
                 ...layoutOpts,
-                activeTemplate, padding, gap, overlayMode,
+                activeTemplate, padding, gap, customLayoutGap, overlayMode,
             });
 
             // 3. Texture overlay
@@ -244,7 +244,7 @@ export default function useCanvasRenderer({
             }
 
         }
-    }, [images, view, activeTemplate, overlayMode, padding, gap, radius,
+    }, [images, view, activeTemplate, overlayMode, padding, gap, customLayoutGap, radius,
         layoutBgColor, layoutBgBlur, layoutBgTexture, layoutSmoothBlur, selectedSlotIndex, slotConfigs,
         texts, activeTextId, isDraggingText, activeGuides, assets, activeAssetId,
         bgCanvasRef, slotRectsRef, setSlotRectsState]);

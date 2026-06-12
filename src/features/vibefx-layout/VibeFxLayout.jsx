@@ -20,7 +20,7 @@ import CanvasWorkspace from './components/canvas/CanvasWorkspace';
 import LayoutSidebar from './components/sidebar/LayoutSidebar';
 import LayoutDemoOverlay from './components/tutorial/LayoutDemoOverlay';
 import LayoutTutorialOverlay from './components/tutorial/LayoutTutorialOverlay';
-import { FORMATS, TEMPLATES } from './data/constants';
+import { DEFAULT_CUSTOM_LAYOUT_GAP, FORMATS, TEMPLATES } from './data/constants';
 import useCanvasEvents from './hooks/useCanvasEvents';
 import useCanvasRenderer from './hooks/useCanvasRenderer';
 import useImageUpload from './hooks/useImageUpload';
@@ -215,6 +215,7 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
   const [customEditMode, setCustomEditMode] = useState(false);
   const [padding, setPadding] = useState(40);
   const [gap, setGap] = useState(20);
+  const [customLayoutGap, setCustomLayoutGap] = useState(DEFAULT_CUSTOM_LAYOUT_GAP);
   const [radius, setRadius] = useState(0);
   const [layoutBgColor, setLayoutBgColor] = useState('#000000');
   const [layoutBgBlur, setLayoutBgBlur] = useState(true);
@@ -293,6 +294,7 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
     setCustomEditMode(snapshot.customEditMode);
     setPadding(snapshot.padding);
     setGap(snapshot.gap);
+    setCustomLayoutGap(snapshot.customLayoutGap ?? DEFAULT_CUSTOM_LAYOUT_GAP);
     setRadius(snapshot.radius);
     setLayoutBgColor(snapshot.layoutBgColor);
     setLayoutBgBlur(snapshot.layoutBgBlur);
@@ -319,6 +321,7 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
       customEditMode,
       padding,
       gap,
+      customLayoutGap,
       radius,
       layoutBgColor,
       layoutBgBlur,
@@ -336,6 +339,7 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
     activeFormat,
     activeTemplate,
     customEditMode,
+    customLayoutGap,
     activeTextId,
     assets,
     exportName,
@@ -591,6 +595,7 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
     overlayMode,
     padding,
     gap,
+    customLayoutGap,
     radius,
     layoutBgColor,
     layoutBgBlur,
@@ -764,6 +769,7 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
         overlayMode,
         padding,
         gap,
+        customLayoutGap,
         radius,
         layoutBgColor,
         layoutBgBlur,
@@ -782,6 +788,7 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
     assets,
     exportName,
     gap,
+    customLayoutGap,
     images.length,
     layoutBgBlur,
     layoutBgColor,
@@ -981,6 +988,8 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
             setPadding={setPadding}
             gap={gap}
             setGap={setGap}
+            customLayoutGap={customLayoutGap}
+            setCustomLayoutGap={setCustomLayoutGap}
             radius={radius}
             setRadius={setRadius}
             layoutBgBlur={layoutBgBlur}
