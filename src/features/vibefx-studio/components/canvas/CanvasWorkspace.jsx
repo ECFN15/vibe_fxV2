@@ -51,8 +51,10 @@ export default function CanvasWorkspace({
     redo,
     canUndo,
     canRedo,
+    texts = [],
+    assets = [],
 }) {
-    const showCanvas = images.length > 0 || (view === 'layout' && (activeTemplate?.id === 'custom' || layoutHasGeneratedBackground));
+    const showCanvas = images.length > 0 || (texts && texts.length > 0) || (assets && assets.length > 0) || (view === 'layout' && (activeTemplate?.id === 'custom' || layoutHasGeneratedBackground));
     const showCustomShapePalette = view === 'layout' && activeTemplate?.id === 'custom' && customEditMode;
 
     const getShapeDropPosition = (event, shape) => {

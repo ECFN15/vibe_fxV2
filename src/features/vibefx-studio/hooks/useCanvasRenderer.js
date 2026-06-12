@@ -120,7 +120,8 @@ export default function useCanvasRenderer({
 
             const hasCustomSlots = activeTemplate.id === 'custom' && activeTemplate.customLayout?.zones?.length > 0;
             const hasGeneratedLayoutBackground = layoutBgGradient || Boolean(layoutLumenBackground?.image) || layoutTextures?.length > 0;
-            if (images.length === 0 && !hasCustomSlots && !hasGeneratedLayoutBackground) {
+            const hasTextsOrAssets = (texts && texts.length > 0) || (assets && assets.length > 0);
+            if (images.length === 0 && !hasCustomSlots && !hasGeneratedLayoutBackground && !hasTextsOrAssets) {
                 slotRects.current = [];
                 if (setSlotRectsState) {
                     setSlotRectsState([]);
@@ -129,11 +130,13 @@ export default function useCanvasRenderer({
             }
 
             // 2. Template slots
-            renderTemplateSlots(ctx, w, h, {
+            if (images.length > 0 || hasCustomSlots) {
+                renderTemplateSlots(ctx, w, h, {
                 ...layoutOpts,
                 activeTemplate, padding, gap, customLayoutGap, overlayMode,
             });
 
+            }
             // 3. Texture overlay
             renderLayoutTexture(ctx, w, h, { layoutBgTexture, activeTemplate });
 
@@ -292,8 +295,15 @@ export default function useCanvasRenderer({
         cropRatio, cropPos, cropScale, isCropping, bgCanvasRef, setSlotRectsState, slotRects]);
 
     const renderCanvas = useCallback(() => {
-        const canRenderEmptyCustomLayout = view === 'layout' && activeTemplate.id === 'custom';
-        if ((!images.length && !canRenderEmptyCustomLayout) || !canvasRef.current) {
+        const canRenderEmpty = view === 'layout' && (
+            activeTemplate.id === 'custom' ||
+            layoutBgGradient ||
+            Boolean(layoutLumenBackground?.image) ||
+            (layoutTextures && layoutTextures.length > 0) ||
+            (texts && texts.length > 0) ||
+            (assets && assets.length > 0)
+        );
+        if ((!images.length && !canRenderEmpty) || !canvasRef.current) {
             slotRects.current = [];
             if (setSlotRectsState) {
                 setSlotRectsState([]);
@@ -312,7 +322,7 @@ export default function useCanvasRenderer({
         canvas.width = width;
         canvas.height = height;
         renderPipeline(canvas, width, height, true, (isDragging || isDraggingText) ? 'low' : 'high');
-    }, [activeTemplate, images, getPreviewCanvasDimensions, renderPipeline, isDragging, isDraggingText, view, setSlotRectsState, slotRects, canvasRef]);
+    }, [activeTemplate, images, getPreviewCanvasDimensions, renderPipeline, isDragging, isDraggingText, view, setSlotRectsState, slotRects, canvasRef, assets, layoutBgGradient, layoutLumenBackground?.image, layoutTextures, texts]);
 
     // Animation loop
     useEffect(() => {

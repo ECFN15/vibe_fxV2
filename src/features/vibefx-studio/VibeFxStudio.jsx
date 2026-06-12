@@ -1300,6 +1300,8 @@ function App({ onImportToPublication, onOpenPublications, initialView = 'studio'
                             redo={redo}
                             canUndo={historyIndex > 0}
                             canRedo={historyIndex < history.length - 1}
+                            texts={texts}
+                            assets={assets}
                         />
 
                         {/* SIDEBAR */}

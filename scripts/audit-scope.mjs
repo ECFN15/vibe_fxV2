@@ -175,16 +175,22 @@ assert.doesNotMatch(functionsAiProviderRegistry, /productionAllowed: true/);
 
 const exports = [...functionsIndex.matchAll(/exports\.([A-Za-z0-9_]+)\s*=/g)].map((match) => match[1]).sort();
 assert.deepEqual(exports, [
+  "cancelVideoExportJob",
   "createAiJob",
   "createCheckoutSession",
   "createMetaOAuthConnectUrl",
+  "createVideoExportJob",
   "disconnectMetaOAuth",
   "getMetaOAuthStatus",
+  "getVideoExportAdminTelemetry",
+  "getVideoExportDownloadUrl",
   "metaOAuthCallback",
+  "processVideoExportJob",
   "publishPublicationToConnectedMeta",
   "publishPublicationToMeta",
   "reconcileStaleAiReservations",
   "requestAccountDeletion",
+  "retryVideoExportJob",
   "stripeWebhook",
 ].sort());
 

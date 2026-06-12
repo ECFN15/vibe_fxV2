@@ -248,7 +248,7 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
 
   useEffect(() => {
     const link = document.createElement('link');
-    link.href = 'https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Caveat:wght@400;700&family=Courier+Prime:wght@400;700&family=Inter:wght@300;400;600;800&family=Lato:wght@300;400;700&family=Montserrat:wght@300;400;600;800&family=Oswald:wght@400;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap';
+    link.href = 'https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Caveat:wght@400;700&family=Cinzel:wght@400;700&family=Courier+Prime:wght@400;700&family=Inter:wght@300;400;600;800&family=Lato:wght@300;400;700&family=Montserrat:wght@300;400;600;800&family=Oswald:wght@400;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Prata&display=swap';
     link.rel = 'stylesheet';
     document.head.appendChild(link);
     return () => document.head.removeChild(link);
@@ -935,6 +935,8 @@ export default function VibeFxLayout({ onImportToPublication, onOpenPublications
           customEditMode={customEditMode}
           onAddCustomZone={handleAddCustomZone}
           slotRectsState={slotRectsState}
+          texts={texts}
+          assets={assets}
         />
 
         <aside className="vibefx-layout-sidebar lg:col-span-4 flex flex-col h-full border-l backdrop-blur-md overflow-hidden transition-colors duration-300 bg-black/80 border-neutral-800">

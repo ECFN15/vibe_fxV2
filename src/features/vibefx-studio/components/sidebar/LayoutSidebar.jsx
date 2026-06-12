@@ -1,13 +1,34 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     Smartphone, LayoutTemplate, Square, RectangleHorizontal, Sparkles,
     ChevronDown, MousePointer2, Scaling, Palette, Type, Images, Trash2, Plus, Eraser
 } from 'lucide-react';
 import { CUSTOM_LAYOUT_PRESETS, DEFAULT_CUSTOM_TEMPLATE, FORMATS, TEMPLATES, CUSTOM_SHAPE_LIBRARY, FONT_OPTIONS } from '../../data/constants';
+import { THEMED_TEMPLATE_CATEGORIES } from '../../../vibefx-layout/data/themedTemplates';
 import ControlGroup from '../ui/ControlGroup';
 import TextAssetsPanel from '../panels/TextAssetsPanel';
 import GeometryPanel from '../panels/GeometryPanel';
 import BackgroundPanel from '../panels/BackgroundPanel';
+
+const mapTextsWithIds = (texts) => {
+    const stamp = Date.now();
+    return (texts || []).map((t, index) => ({ ...t, id: stamp + index }));
+};
+
+const hexToRgba = (hex, opacity) => {
+    if (!hex) return `rgba(0, 0, 0, ${opacity})`;
+    const cleanHex = hex.replace('#', '');
+    if (cleanHex.length === 3) {
+        const r = parseInt(cleanHex[0] + cleanHex[0], 16);
+        const g = parseInt(cleanHex[1] + cleanHex[1], 16);
+        const b = parseInt(cleanHex[2] + cleanHex[2], 16);
+        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    }
+    const r = parseInt(cleanHex.substring(0, 2), 16);
+    const g = parseInt(cleanHex.substring(2, 4), 16);
+    const b = parseInt(cleanHex.substring(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+};
 
 function TexturePanel({
     isDarkMode,
@@ -135,6 +156,8 @@ export default function LayoutSidebar({
 }) {
     const scrollRef = useRef(null);
     const accordionRefs = useRef({});
+    const [activeThemeId, setActiveThemeId] = useState(THEMED_TEMPLATE_CATEGORIES[0].id);
+    const activeTheme = THEMED_TEMPLATE_CATEGORIES.find(theme => theme.id === activeThemeId) || THEMED_TEMPLATE_CATEGORIES[0];
     const isCustomTemplate = activeTemplate.id === 'custom';
     const customPresetId = activeTemplate.customLayout?.presetId;
     const isManualCustomPreset = customPresetId === 'manual';
@@ -143,6 +166,42 @@ export default function LayoutSidebar({
     const selectedCustomZone = canEditCustomLayout && selectedSlotIndex !== null
         ? activeTemplate.customLayout?.zones?.find(zone => zone.id === selectedSlotIndex)
         : null;
+
+    const applyThemedTemplate = (themedTpl) => {
+        if (themedTpl.formatId) {
+            const fmt = FORMATS.find(f => f.id === themedTpl.formatId);
+            if (fmt) setActiveFormat(fmt);
+        }
+        if (themedTpl.zones) {
+            setActiveTemplate({
+                ...DEFAULT_CUSTOM_TEMPLATE,
+                label: themedTpl.label,
+                slots: themedTpl.zones.length,
+                customLayout: {
+                    version: 1,
+                    presetId: themedTpl.id,
+                    zones: themedTpl.zones,
+                },
+            });
+        } else {
+            const base = TEMPLATES.find(t => t.id === (themedTpl.baseTemplateId || 'minimal'));
+            setActiveTemplate(base || TEMPLATES[0]);
+        }
+        const layout = themedTpl.layout || {};
+        if (layout.padding !== undefined) setPadding?.(layout.padding);
+        if (layout.gap !== undefined) setGap?.(layout.gap);
+        if (layout.radius !== undefined) setRadius?.(layout.radius);
+        if (layout.customLayoutGap !== undefined) setCustomLayoutGap?.(layout.customLayoutGap);
+        if (layout.bgColor !== undefined) setLayoutBgColor?.(layout.bgColor);
+        if (layout.bgBlur !== undefined) setLayoutBgBlur?.(layout.bgBlur);
+        if (layout.bgTexture !== undefined) setLayoutBgTexture?.(layout.bgTexture);
+        setTexts?.(mapTextsWithIds(themedTpl.texts));
+        setCustomEditMode?.(false);
+        setSelectedSlotIndex(null);
+        setActiveTextId(null);
+    };
+
+    const appliedThemedId = activeTemplate.customLayout?.presetId;
 
     const applyCustomPreset = (preset) => {
         if (!isCustomTemplate) {
@@ -406,6 +465,77 @@ export default function LayoutSidebar({
                         </button>
                     ))}
                 </div>
+            </div>
+
+            {/* 3bis. TEMPLATES THEMATIQUES */}
+            <div className="mb-6">
+                <h3 className={`text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2 ${isDarkMode ? 'text-neutral-500' : 'text-gray-400'}`}><Sparkles size={14} /> Templates</h3>
+                <p className={`mb-3 text-[10px] leading-relaxed ${isDarkMode ? 'text-neutral-500' : 'text-gray-400'}`}>
+                    Habillages prêts à poster par thème : choisissez, importez vos images, ajustez les textes.
+                </p>
+                <div className="mb-3 flex flex-wrap gap-1.5">
+                    {THEMED_TEMPLATE_CATEGORIES.map(theme => (
+                        <button
+                            key={theme.id}
+                            type="button"
+                            onClick={() => setActiveThemeId(theme.id)}
+                            className={`inline-flex items-center gap-1.5 border px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase tracking-widest transition-all ${activeThemeId === theme.id ? 'border-indigo-400 bg-indigo-500/20 text-indigo-200' : (isDarkMode ? 'border-neutral-800 text-neutral-500 hover:border-neutral-600 hover:text-white' : 'border-gray-200 text-gray-500 hover:border-gray-400 hover:text-black')}`}
+                        >
+                            {theme.icon}
+                            {theme.label}
+                        </button>
+                    ))}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '6px' }} className="animate-in fade-in duration-200">
+                    {activeTheme.templates.map(tpl => {
+                        const isApplied = appliedThemedId === tpl.id;
+                        const previewIsDark = tpl.preview?.dark !== false;
+                        const labelText = tpl.previewLabel || tpl.label;
+                        return (
+                            <button
+                                key={tpl.id}
+                                type="button"
+                                onClick={() => applyThemedTemplate(tpl)}
+                                title={`${tpl.label} : ${tpl.description}${tpl.zones ? ` (${tpl.zones.length} zones)` : ' (1 zone)'}`}
+                                className={`group relative overflow-hidden border transition-all rounded-lg flex flex-col items-center justify-center p-1 text-center select-none ${isApplied ? 'border-indigo-500 ring-2 ring-indigo-500/30' : (isDarkMode ? 'border-neutral-800 bg-neutral-900/30 hover:border-neutral-600 hover:scale-[1.04]' : 'border-gray-200 bg-white hover:border-gray-300 hover:scale-[1.04]')}`}
+                                style={{
+                                    background: tpl.preview?.bg || '#15151a',
+                                    width: '100%',
+                                    aspectRatio: '1/1',
+                                }}
+                            >
+                                <span
+                                    style={{
+                                        fontFamily: tpl.texts?.[0]?.font || 'Inter',
+                                        color: tpl.texts?.[0]?.color || (previewIsDark ? '#ffffff' : '#1d1c19'),
+                                        fontWeight: 'bold',
+                                        fontSize: labelText.length > 9 ? '9.5px' : (labelText.length > 7 ? '11px' : '12.5px'),
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.8px',
+                                        textAlign: 'center',
+                                        lineHeight: 1.2,
+                                        maxWidth: '96%',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                        pointerEvents: 'none',
+                                        textShadow: previewIsDark ? '0 1px 3px rgba(0, 0, 0, 0.6)' : 'none',
+                                    }}
+                                >
+                                    {labelText}
+                                </span>
+
+                                {tpl.zones ? (
+                                    <span className="absolute right-1.5 top-1.5 w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_6px_rgba(129,140,248,0.9)] animate-pulse" />
+                                ) : null}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* 3ter. MODELE PERSONNALISE */}
+            <div className="mb-6">
                 <div
                     role="button"
                     tabIndex={0}
@@ -428,7 +558,7 @@ export default function LayoutSidebar({
                             }
                         }
                     }}
-                    className={`mt-3 border p-3 transition-all ${isCustomTemplate ? 'border-indigo-500/60 bg-indigo-500/10' : (isDarkMode ? 'border-neutral-800 bg-black/20 hover:border-indigo-500/50 hover:bg-neutral-800/30 cursor-pointer' : 'border-gray-200 bg-gray-50 hover:border-indigo-400 hover:bg-gray-100 cursor-pointer')}`}
+                    className={`border p-3 transition-all ${isCustomTemplate ? 'border-indigo-500/60 bg-indigo-500/10' : (isDarkMode ? 'border-neutral-800 bg-black/20 hover:border-indigo-500/50 hover:bg-neutral-800/30 cursor-pointer' : 'border-gray-200 bg-gray-50 hover:border-indigo-400 hover:bg-gray-100 cursor-pointer')}`}
                 >
                     <div className="mb-3 flex items-start justify-between gap-3">
                         <div>

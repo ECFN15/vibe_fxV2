@@ -89,13 +89,15 @@ export default function useCanvasRenderer({
             });
 
             const hasCustomSlots = activeTemplate.id === 'custom' && activeTemplate.customLayout?.zones?.length > 0;
-            if (images.length === 0 && !hasCustomSlots) return;
+            if (images.length === 0 && !hasCustomSlots && !((texts && texts.length > 0) || (assets && assets.length > 0))) return;
 
             // 2. Template slots
-            renderTemplateSlots(ctx, w, h, {
-                ...layoutOpts,
-                activeTemplate, padding, gap, customLayoutGap, overlayMode,
-            });
+            if (images.length > 0 || hasCustomSlots) {
+                renderTemplateSlots(ctx, w, h, {
+                    ...layoutOpts,
+                    activeTemplate, padding, gap, customLayoutGap, overlayMode,
+                });
+            }
 
             // 3. Texture overlay
             renderLayoutTexture(ctx, w, h, { layoutBgTexture, activeTemplate });
@@ -250,15 +252,19 @@ export default function useCanvasRenderer({
         bgCanvasRef, slotRectsRef, setSlotRectsState]);
 
     const renderCanvas = useCallback(() => {
-        const canRenderEmptyCustomLayout = view === 'layout' && activeTemplate.id === 'custom';
-        if ((!images.length && !canRenderEmptyCustomLayout) || !canvasRef.current) return;
+        const canRenderEmpty = view === 'layout' && (
+            activeTemplate.id === 'custom' || 
+            (texts && texts.length > 0) || 
+            (assets && assets.length > 0)
+        );
+        if ((!images.length && !canRenderEmpty) || !canvasRef.current) return;
         const canvas = canvasRef.current;
         const { width, height } = getCanvasDimensions();
         if (width === 0 || height === 0) return;
         canvas.width = width;
         canvas.height = height;
         renderPipeline(canvas, width, height, true, (isDragging || isDraggingText) ? 'low' : 'high');
-    }, [activeTemplate, images, getCanvasDimensions, renderPipeline, isDragging, isDraggingText, view, canvasRef]);
+    }, [activeTemplate, images, getCanvasDimensions, renderPipeline, isDragging, isDraggingText, view, canvasRef, texts, assets]);
 
     // Animation loop
     useEffect(() => {
