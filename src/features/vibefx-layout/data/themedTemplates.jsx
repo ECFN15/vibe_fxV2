@@ -1121,21 +1121,41 @@ export const THEMED_TEMPLATE_CATEGORIES = [
                     text({ content: 'LIEN EN BIO', font: 'Inter', bold: true, scale: 30, tracking: 8, color: '#0a0a09', bgStyle: 'solid', bgColor: '#dba45f', bgOpacity: 100, padding: 14, x: 0.78, y: 0.94 }),
                 ],
             },
-            // ③ Avant / Après Restauration
+            // ③ Avant / Après Restauration (Horizontal)
             {
                 id: 'theme-meuble-avant-apres',
-                label: 'Avant / Après',
-                description: 'Comparaison avant/après restauration avec titres dorés.',
-                previewLabel: 'AV/AP',
+                label: 'Avant / Après (H)',
+                description: 'Comparaison avant/après en split horizontal avec labels sur chaque vue.',
+                previewLabel: 'AV/AP H',
                 formatId: 'insta-sq',
                 baseTemplateId: 'split',
                 layout: { padding: 20, gap: 8, radius: 0, bgBlur: false, bgColor: '#0a0a09', bgTexture: 4 },
                 preview: { bg: '#0a0a09' },
                 texts: [
                     text({ content: 'SECONDE VIE', font: 'Cinzel', scale: 80, tracking: 14, color: '#f5ebd9', x: 0.5, y: 0.08 }),
-                    text({ content: 'AVANT', font: 'Inter', bold: true, scale: 42, tracking: 10, color: '#a8a29e', bgStyle: 'solid', bgColor: '#1c1917', bgOpacity: 85, padding: 12, x: 0.25, y: 0.88 }),
-                    text({ content: 'APRÈS', font: 'Inter', bold: true, scale: 42, tracking: 10, color: '#dba45f', bgStyle: 'solid', bgColor: '#1c1917', bgOpacity: 85, padding: 12, x: 0.75, y: 0.88 }),
+                    text({ content: 'AVANT', font: 'Inter', bold: true, scale: 42, tracking: 10, color: '#a8a29e', bgStyle: 'solid', bgColor: '#1c1917', bgOpacity: 85, padding: 12, x: 0.16, y: 0.43 }),
+                    text({ content: 'APRÈS', font: 'Inter', bold: true, scale: 42, tracking: 10, color: '#dba45f', bgStyle: 'solid', bgColor: '#1c1917', bgOpacity: 85, padding: 12, x: 0.16, y: 0.92 }),
                     text({ content: 'Restauration artisanale — Atelier Normand', font: 'Inter', scale: 26, tracking: 4, color: '#78716c', x: 0.5, y: 0.96 }),
+                ],
+            },
+            // ③-bis Avant / Après Restauration (Vertical)
+            {
+                id: 'theme-meuble-avant-apres-vertical',
+                label: 'Avant / Après (V)',
+                description: 'Comparaison avant/après en split vertical (côte à côte) avec labels.',
+                previewLabel: 'AV/AP V',
+                formatId: 'insta-sq',
+                layout: { padding: 20, gap: 8, radius: 0, bgBlur: false, bgColor: '#0a0a09', bgTexture: 4, customLayoutGap: 8 },
+                preview: { bg: '#0a0a09' },
+                zones: [
+                    { id: 'avant-apres-v-left', label: 'Avant (Gauche)', x: 0, y: 0.14, w: 0.5, h: 0.72, imageIndex: 0 },
+                    { id: 'avant-apres-v-right', label: 'Après (Droite)', x: 0.5, y: 0.14, w: 0.5, h: 0.72, imageIndex: 1 },
+                ],
+                texts: [
+                    text({ content: 'SECONDE VIE', font: 'Cinzel', scale: 80, tracking: 14, color: '#f5ebd9', x: 0.5, y: 0.08 }),
+                    text({ content: 'AVANT', font: 'Inter', bold: true, scale: 42, tracking: 10, color: '#a8a29e', bgStyle: 'solid', bgColor: '#1c1917', bgOpacity: 85, padding: 12, x: 0.16, y: 0.80 }),
+                    text({ content: 'APRÈS', font: 'Inter', bold: true, scale: 42, tracking: 10, color: '#dba45f', bgStyle: 'solid', bgColor: '#1c1917', bgOpacity: 85, padding: 12, x: 0.66, y: 0.80 }),
+                    text({ content: 'Restauration artisanale — Atelier Normand', font: 'Inter', scale: 26, tracking: 4, color: '#78716c', x: 0.5, y: 0.94 }),
                 ],
             },
             // ④ Fiche Technique Specs — photo + grille specs
