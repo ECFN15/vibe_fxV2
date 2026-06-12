@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingBag, BadgePercent, Plane, Newspaper, UtensilsCrossed, Shirt } from 'lucide-react';
+import { ShoppingBag, BadgePercent, Plane, Newspaper, UtensilsCrossed, Shirt, Camera, Home, Palette, Gem, Heart, Building, Image, BookOpen, Star, Gift } from 'lucide-react';
 
 /**
  * themedTemplates — Templates "prêts à poster" par thème Instagram (style Canva).
@@ -29,6 +29,7 @@ const text = (overrides) => ({
 });
 
 export const THEMED_TEMPLATE_CATEGORIES = [
+    // ─── E-COMMERCE ─────────────────────────────────────────────────────
     {
         id: 'ecommerce',
         label: 'E-commerce',
@@ -86,8 +87,43 @@ export const THEMED_TEMPLATE_CATEGORIES = [
                     text({ content: 'VIBE20', bold: true, scale: 68, tracking: 12, color: '#1c1a16', bgStyle: 'rounded', bgColor: '#f5efe2', bgOpacity: 72, borderRadius: 60, padding: 26, y: 0.625 }),
                 ],
             },
+            // ← Inspired by San Lò: Product showcase on solid color bg with spec grid
+            {
+                id: 'theme-product-specs',
+                label: 'Fiche Produit Specs',
+                description: 'Produit centré sur fond coloré, grille de spécifications en haut.',
+                previewLabel: 'SPECS',
+                formatId: 'insta-port',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: false, bgColor: '#faf5ed', bgTexture: 0 },
+                preview: { bg: '#faf5ed', dark: false },
+                texts: [
+                    text({ content: 'Design:', scale: 32, tracking: 2, color: '#c45a4f', x: 0.17, y: 0.06, font: 'Inter' }),
+                    text({ content: 'Votre Designer', scale: 32, tracking: 0, color: '#c45a4f', x: 0.17, y: 0.09, font: 'Inter', bold: true }),
+                    text({ content: 'Matière:', scale: 32, tracking: 2, color: '#c45a4f', x: 0.5, y: 0.06, font: 'Inter' }),
+                    text({ content: 'Lin & Coton', scale: 32, tracking: 0, color: '#c45a4f', x: 0.5, y: 0.09, font: 'Inter', bold: true }),
+                    text({ content: 'Votre Produit', font: '"Playfair Display"', scale: 160, color: '#c45a4f', x: 0.5, y: 0.28 }),
+                    text({ content: 'VOTRE MARQUE', font: 'Oswald', bold: true, scale: 180, tracking: 4, color: '#c45a4f', x: 0.5, y: 0.88 }),
+                ],
+            },
+            // ← Inspired by San Lò: Double product + large brand name
+            {
+                id: 'theme-double-product',
+                label: 'Double Produit',
+                description: 'Deux produits empilés avec nom de marque massif entre les deux.',
+                previewLabel: 'DUO',
+                formatId: 'story',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: false, bgColor: '#1a1a1a', bgTexture: 4 },
+                preview: { bg: 'linear-gradient(180deg, #1a1a1a, #0a0a0a)' },
+                texts: [
+                    text({ content: 'VOTRE', font: 'Oswald', bold: true, scale: 200, tracking: 8, color: '#c45a4f', y: 0.48 }),
+                    text({ content: 'MARQUE', font: 'Oswald', bold: true, scale: 200, tracking: 8, color: '#c45a4f', y: 0.55 }),
+                ],
+            },
         ],
     },
+    // ─── PROMO ────────────────────────────────────────────────────────────
     {
         id: 'promo',
         label: 'Promo',
@@ -124,8 +160,42 @@ export const THEMED_TEMPLATE_CATEGORIES = [
                     text({ content: 'LIEN EN BIO', bold: true, scale: 38, tracking: 10, color: '#0a0a12', bgStyle: 'solid', bgColor: '#67e8f9', bgOpacity: 100, padding: 16, y: 0.69 }),
                 ],
             },
+            // ← Inspired by Spring on the Table: Bold promo text over bright outdoor photo
+            {
+                id: 'theme-seasonal-sale',
+                label: 'Promo Saison',
+                description: 'Grand titre bold "SPRING/SUMMER" avec sous-texte commercial sur photo nature.',
+                previewLabel: 'SAISON',
+                formatId: 'insta-port',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#2a3a1a', bgTexture: 6 },
+                preview: { bg: 'linear-gradient(180deg, #4a6832, #1a2a10)' },
+                texts: [
+                    text({ content: 'SUMMER', font: 'Oswald', bold: true, scale: 250, tracking: 4, color: '#ffffff', y: 0.28 }),
+                    text({ content: 'COLLECTION.', font: '"Playfair Display"', scale: 165, tracking: 2, color: '#ffffff', y: 0.38 }),
+                    text({ content: 'Les beaux jours appellent la couleur.', font: '"Playfair Display"', italic: true, scale: 62, color: '#ffffff', y: 0.46 }),
+                ],
+            },
+            // ← Gift/Event promo card
+            {
+                id: 'theme-carte-cadeau',
+                label: 'Carte Cadeau',
+                description: 'Carte cadeau élégante avec valeur et conditions.',
+                previewLabel: 'GIFT',
+                formatId: 'insta-sq',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#1a0f1e', bgTexture: 14 },
+                preview: { bg: 'linear-gradient(145deg, #3d1f4a, #1a0f1e)' },
+                texts: [
+                    text({ content: 'CARTE', font: 'Cinzel', scale: 90, tracking: 20, color: '#e8d5f0', y: 0.28 }),
+                    text({ content: 'CADEAU', font: 'Cinzel', scale: 90, tracking: 20, color: '#e8d5f0', y: 0.36 }),
+                    text({ content: '50€', font: '"Playfair Display"', bold: true, scale: 200, color: '#f5e6ff', y: 0.54 }),
+                    text({ content: 'Valable 1 an — En boutique & en ligne', font: '"Playfair Display"', italic: true, scale: 42, color: '#c9a8d8', y: 0.68 }),
+                ],
+            },
         ],
     },
+    // ─── VOYAGE ───────────────────────────────────────────────────────────
     {
         id: 'voyage',
         label: 'Voyage',
@@ -156,7 +226,7 @@ export const THEMED_TEMPLATE_CATEGORIES = [
             },
             {
                 id: 'theme-story-evasion',
-                label: 'Story Édvasion',
+                label: 'Story Évasion',
                 description: 'Titre vertical signature et légende serif, façon galerie.',
                 previewLabel: 'EVASION',
                 formatId: 'story',
@@ -169,8 +239,42 @@ export const THEMED_TEMPLATE_CATEGORIES = [
                     text({ content: 'sous forme de récit', font: '"Playfair Display"', italic: true, scale: 48, color: '#ffd84d', x: 0.62, y: 0.59 }),
                 ],
             },
+            // ← Inspired by "une grange en Auvergne": Script + serif mix on landscape
+            {
+                id: 'theme-lieu-script',
+                label: 'Lieu Script',
+                description: 'Mélange script/serif pour nommer un lieu sur une photo paysage.',
+                previewLabel: 'LIEU',
+                formatId: 'insta-port',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#1a1810', bgTexture: 6 },
+                preview: { bg: 'linear-gradient(180deg, #6a8a52, #2a341a)' },
+                texts: [
+                    text({ content: 'une', font: 'Inter', scale: 60, color: '#ffffff', x: 0.35, y: 0.5 }),
+                    text({ content: 'maison', font: '"Dancing Script"', bold: true, scale: 150, color: '#ffffff', x: 0.5, y: 0.53 }),
+                    text({ content: 'en', font: 'Inter', scale: 60, color: '#ffffff', x: 0.65, y: 0.5 }),
+                    text({ content: 'PROVENCE', font: 'Inter', bold: true, scale: 80, tracking: 12, color: '#ffffff', x: 0.5, y: 0.61 }),
+                ],
+            },
+            // ← Inspired by Gran Hotel Margalida: Elegant hotel/brand centering
+            {
+                id: 'theme-hotel-marque',
+                label: 'Hôtel & Marque',
+                description: 'Bloc typographique centré élégant sur photo intérieure luxe.',
+                previewLabel: 'HÔTEL',
+                formatId: 'story',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#1a1508', bgTexture: 5 },
+                preview: { bg: 'linear-gradient(160deg, #c4a058, #3a2e12)' },
+                texts: [
+                    text({ content: 'GRAND HÔTEL', font: 'Inter', scale: 55, tracking: 14, color: '#ffffff', y: 0.42 }),
+                    text({ content: 'MARGUERITE', font: 'Prata', bold: true, scale: 140, tracking: 4, color: '#ffffff', y: 0.48 }),
+                    text({ content: 'MALLORCA', font: 'Inter', scale: 50, tracking: 18, color: '#ffffff', y: 0.55 }),
+                ],
+            },
         ],
     },
+    // ─── ÉDITORIAL ─────────────────────────────────────────────────────
     {
         id: 'editorial',
         label: 'Éditorial',
@@ -211,8 +315,52 @@ export const THEMED_TEMPLATE_CATEGORIES = [
                     text({ content: '— VOTRE MARQUE', scale: 38, tracking: 8, color: '#cdb98a', y: 0.68 }),
                 ],
             },
+            // ← Inspired by The World of Interiors "The Emporium": White header block
+            {
+                id: 'theme-emporium',
+                label: 'En-tête Magazine',
+                description: 'Bandeau blanc titre + sous-titre en haut, photo éditoriale en bas.',
+                previewLabel: 'MAGAZINE',
+                formatId: 'insta-port',
+                layout: { padding: 0, radius: 0, bgBlur: false, bgColor: '#ffffff', bgTexture: 0, customLayoutGap: 0 },
+                preview: { bg: '#ffffff', dark: false },
+                zones: [
+                    { id: 'theme-emporium-img', label: 'Photo', x: 0, y: 0.22, w: 1, h: 0.78, imageIndex: 0 },
+                ],
+                texts: [
+                    text({ content: 'THE WORLD OF INTERIORS ARCADE', font: 'Inter', scale: 36, tracking: 6, color: '#1a1a1a', x: 0.5, y: 0.06 }),
+                    text({ content: 'THE EMPORIUM', font: '"Playfair Display"', bold: true, scale: 145, tracking: 2, color: '#1a1a1a', x: 0.5, y: 0.14 }),
+                ],
+            },
+            // ← Inspired by Levia Magazine: Centered title + triptych photos
+            {
+                id: 'theme-invitation-magazine',
+                label: 'Invitation Magazine',
+                description: 'Titre centré, bande de 3 photos et texte invitation élégant.',
+                previewLabel: 'INVITE',
+                formatId: 'insta-port',
+                layout: { padding: 48, radius: 0, bgBlur: false, bgColor: '#faf8f4', bgTexture: 0, customLayoutGap: 8 },
+                preview: { bg: '#faf8f4', dark: false },
+                zones: [
+                    { id: 'theme-invite-1', label: 'Photo 1', x: 0, y: 0.28, w: 1 / 3, h: 0.24, imageIndex: 0 },
+                    { id: 'theme-invite-2', label: 'Photo 2', x: 1 / 3, y: 0.28, w: 1 / 3, h: 0.24, imageIndex: 1 },
+                    { id: 'theme-invite-3', label: 'Photo 3', x: 2 / 3, y: 0.28, w: 1 / 3, h: 0.24, imageIndex: 2 },
+                ],
+                texts: [
+                    text({ content: 'UNE INVITATION', font: 'Inter', scale: 40, tracking: 6, color: '#2a2a2a', x: 0.5, y: 0.1 }),
+                    text({ content: 'À SUIVRE', font: 'Inter', scale: 40, tracking: 6, color: '#2a2a2a', x: 0.5, y: 0.14 }),
+                    text({ content: 'VOTRE MAGAZINE', font: 'Inter', bold: true, scale: 40, tracking: 6, color: '#2a2a2a', x: 0.5, y: 0.18 }),
+                    text({ content: 'Fatigué du bruit des réseaux sociaux ?', font: '"Playfair Display"', italic: true, scale: 56, color: '#1a1a1a', x: 0.5, y: 0.62 }),
+                    text({ content: 'Découvrez une autre façon de prendre le temps.', font: '"Playfair Display"', italic: true, scale: 48, color: '#1a1a1a', x: 0.5, y: 0.68 }),
+                    text({ content: 'Portraits. Histoires. Conversations.', font: '"Playfair Display"', italic: true, scale: 48, color: '#1a1a1a', x: 0.5, y: 0.74 }),
+                    text({ content: 'VISUAL', font: 'Inter', scale: 28, tracking: 8, color: '#888888', x: 0.14, y: 0.88 }),
+                    text({ content: 'LIFE', font: 'Inter', scale: 28, tracking: 8, color: '#888888', x: 0.5, y: 0.88 }),
+                    text({ content: 'MIND', font: 'Inter', scale: 28, tracking: 8, color: '#888888', x: 0.86, y: 0.88 }),
+                ],
+            },
         ],
     },
+    // ─── FOOD ──────────────────────────────────────────────────────────
     {
         id: 'food',
         label: 'Food',
@@ -248,8 +396,30 @@ export const THEMED_TEMPLATE_CATEGORIES = [
                     text({ content: 'Ingrédients en légende ↓', font: 'Caveat', scale: 70, color: '#21201c', rotate: 2, y: 0.92 }),
                 ],
             },
+            // ← New: Bistro board style
+            {
+                id: 'theme-bistro-board',
+                label: 'Ardoise Bistro',
+                description: 'Menu sur fond ardoise foncé avec typo manuscrite et déco.',
+                previewLabel: 'ARDOISE',
+                formatId: 'insta-sq',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: false, bgColor: '#1e2a24', bgTexture: 20 },
+                preview: { bg: '#1e2a24' },
+                texts: [
+                    text({ content: '✦ MENU DU JOUR ✦', font: 'Caveat', bold: true, scale: 110, color: '#f5e6c8', y: 0.12 }),
+                    text({ content: 'Entrée', font: '"Playfair Display"', italic: true, scale: 60, color: '#d4c4a0', y: 0.28 }),
+                    text({ content: 'Velouté de saison', font: 'Caveat', scale: 72, color: '#ffffff', y: 0.34 }),
+                    text({ content: 'Plat', font: '"Playfair Display"', italic: true, scale: 60, color: '#d4c4a0', y: 0.48 }),
+                    text({ content: 'Magret aux figues', font: 'Caveat', scale: 72, color: '#ffffff', y: 0.54 }),
+                    text({ content: 'Dessert', font: '"Playfair Display"', italic: true, scale: 60, color: '#d4c4a0', y: 0.68 }),
+                    text({ content: 'Tarte au citron', font: 'Caveat', scale: 72, color: '#ffffff', y: 0.74 }),
+                    text({ content: '28€', font: '"Playfair Display"', bold: true, scale: 90, color: '#f5e6c8', y: 0.9 }),
+                ],
+            },
         ],
     },
+    // ─── MODE ──────────────────────────────────────────────────────────
     {
         id: 'mode',
         label: 'Mode',
@@ -283,6 +453,624 @@ export const THEMED_TEMPLATE_CATEGORIES = [
                 texts: [
                     text({ content: 'LOOKBOOK', font: 'Oswald', bold: true, scale: 150, tracking: 18, color: '#ffffff', blend: 'difference', y: 0.5 }),
                     text({ content: 'SAISON 26', font: 'Oswald', scale: 52, tracking: 12, color: '#ffffff', bgStyle: 'outline', bgColor: '#ffffff', borderWidth: 2, padding: 14, y: 0.6 }),
+                ],
+            },
+            // ← Inspired by Paul Smith: Signature handwritten brand over fashion photo
+            {
+                id: 'theme-signature-brand',
+                label: 'Signature Brand',
+                description: 'Nom de marque en écriture manuscrite signature sur photo mode.',
+                previewLabel: 'SIGNATURE',
+                formatId: 'story',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#1a1208', bgTexture: 8 },
+                preview: { bg: 'linear-gradient(170deg, #5a4830, #1a1208)' },
+                texts: [
+                    text({ content: 'Votre Marque', font: '"Nothing You Could Do"', bold: true, scale: 155, color: '#ffffff', y: 0.72 }),
+                ],
+            },
+            // ← Inspired by New Works: Massive serif brand over product
+            {
+                id: 'theme-new-works',
+                label: 'Brand Statement',
+                description: 'Nom de marque serif massif en haut, objet design en dessous.',
+                previewLabel: 'BRAND',
+                formatId: 'story',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#2a1018', bgTexture: 6 },
+                preview: { bg: 'linear-gradient(170deg, #8a4060, #2a1018)' },
+                texts: [
+                    text({ content: 'NEW WORKS.', font: '"Playfair Display"', bold: true, scale: 205, tracking: 2, color: '#ffffff', y: 0.14 }),
+                ],
+            },
+        ],
+    },
+    // ─── BRANDING & IDENTITÉ ─────────────────────────────────────────
+    {
+        id: 'branding',
+        label: 'Branding',
+        sub: 'Logo & Identité',
+        icon: <Gem size={14} />,
+        templates: [
+            // ← Inspired by NG Design: Logo + tagline on dark editorial photo
+            {
+                id: 'theme-logo-tagline',
+                label: 'Logo & Tagline',
+                description: 'Logo empilé et tagline centrés sur photo lifestyle sombre.',
+                previewLabel: 'BRAND',
+                formatId: 'insta-port',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#14120e', bgTexture: 8 },
+                preview: { bg: 'linear-gradient(160deg, #4a3c2e, #14120e)' },
+                texts: [
+                    text({ content: 'NG', font: 'Cinzel', bold: true, scale: 110, tracking: 20, color: '#ffffff', y: 0.17 }),
+                    text({ content: 'DESIGN', font: 'Cinzel', scale: 90, tracking: 16, color: '#ffffff', y: 0.23 }),
+                    text({ content: 'If it\'s boring', font: '"Playfair Display"', italic: true, scale: 65, color: '#ffffff', y: 0.32 }),
+                    text({ content: 'it\'s not ours.', font: '"Playfair Display"', italic: true, scale: 65, color: '#ffffff', y: 0.37 }),
+                ],
+            },
+            // ← Inspired by Lancelier: Giant serif brand fill
+            {
+                id: 'theme-typo-fill',
+                label: 'Typo Full Frame',
+                description: 'Le nom de marque en serif géant remplit tout le cadre.',
+                previewLabel: 'GIANT',
+                formatId: 'insta-sq',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: false, bgColor: '#bdb79a', bgTexture: 0 },
+                preview: { bg: '#bdb79a', dark: false },
+                texts: [
+                    text({ content: 'VOTRE', font: '"Playfair Display"', bold: true, scale: 260, tracking: 4, color: '#d0cbb4', blend: 'soft-light', y: 0.25 }),
+                    text({ content: 'MARQ', font: '"Playfair Display"', bold: true, scale: 260, tracking: 4, color: '#d0cbb4', blend: 'soft-light', y: 0.48 }),
+                    text({ content: 'UE', font: '"Playfair Display"', bold: true, scale: 260, tracking: 4, color: '#d0cbb4', blend: 'soft-light', y: 0.71 }),
+                ],
+            },
+            // ← Inspired by San Lò + tagline: Brand name serif with subtitle
+            {
+                id: 'theme-brand-subtitle',
+                label: 'Brand + Baseline',
+                description: 'Nom de marque serif géant + sous-titre positionné sur la photo.',
+                previewLabel: 'LABEL',
+                formatId: 'story',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#e8e4dc', bgTexture: 4 },
+                preview: { bg: 'linear-gradient(170deg, #c8c4b8, #484438)' },
+                texts: [
+                    text({ content: 'VOTRE', font: '"Playfair Display"', bold: true, scale: 230, color: '#faf5e8', y: 0.5 }),
+                    text({ content: 'MARQUE', font: '"Playfair Display"', bold: true, scale: 230, color: '#faf5e8', y: 0.58 }),
+                    text({ content: 'Sofas for dreamers', font: '"Playfair Display"', italic: true, scale: 62, color: '#faf5e8', y: 0.66 }),
+                ],
+            },
+            // ← Clean brand reveal on cream
+            {
+                id: 'theme-brand-minimal',
+                label: 'Brand Minimal',
+                description: 'Logo et tagline minimalistes sur fond crème.',
+                previewLabel: 'MINIMAL',
+                formatId: 'insta-sq',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: false, bgColor: '#f8f5f0', bgTexture: 0 },
+                preview: { bg: '#f8f5f0', dark: false },
+                texts: [
+                    text({ content: 'VOTRE MARQUE', font: 'Cinzel', scale: 120, tracking: 10, color: '#1a1a1a', y: 0.45 }),
+                    text({ content: 'TISSEUR ÉDITEUR', font: 'Inter', scale: 38, tracking: 14, color: '#888888', y: 0.55 }),
+                ],
+            },
+        ],
+    },
+    // ─── PHOTOGRAPHIE ─────────────────────────────────────────────────
+    {
+        id: 'photo',
+        label: 'Photo',
+        sub: 'Photographe & Portfolio',
+        icon: <Camera size={14} />,
+        templates: [
+            // ← Inspired by Hasselblad: Camera specs bar above photo
+            {
+                id: 'theme-photo-specs',
+                label: 'Photo Specs',
+                description: 'Barre de paramètres camera (focale, ouverture, ISO) au-dessus de la photo.',
+                previewLabel: 'SPECS',
+                formatId: 'insta-port',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: false, bgColor: '#0a0a0a', bgTexture: 0 },
+                preview: { bg: '#0a0a0a' },
+                texts: [
+                    text({ content: '35MM', font: 'Oswald', scale: 48, tracking: 4, color: '#ffffff', x: 0.12, y: 0.34 }),
+                    text({ content: '|', font: 'Inter', scale: 48, color: '#555555', x: 0.22, y: 0.34 }),
+                    text({ content: 'F 2.8', font: 'Oswald', scale: 48, tracking: 4, color: '#ffffff', x: 0.32, y: 0.34 }),
+                    text({ content: '|', font: 'Inter', scale: 48, color: '#555555', x: 0.42, y: 0.34 }),
+                    text({ content: '1/125S', font: 'Oswald', scale: 48, tracking: 4, color: '#ffffff', x: 0.54, y: 0.34 }),
+                    text({ content: '|', font: 'Inter', scale: 48, color: '#555555', x: 0.66, y: 0.34 }),
+                    text({ content: 'ISO 100', font: 'Oswald', scale: 48, tracking: 4, color: '#ffffff', x: 0.78, y: 0.34 }),
+                ],
+            },
+            // ← Inspired by kreativwedding: Product name + subtitle overlay top-left
+            {
+                id: 'theme-photo-product',
+                label: 'Preset Signature',
+                description: 'Nom du preset et sous-titre positionnés en haut à gauche sur la photo.',
+                previewLabel: 'PRESET',
+                formatId: 'insta-port',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#284050', bgTexture: 4 },
+                preview: { bg: 'linear-gradient(160deg, #4a7080, #1a3040)' },
+                texts: [
+                    text({ content: 'PRESET SIGNATURE', font: 'Oswald', bold: true, scale: 100, tracking: 4, color: '#ffffff', x: 0.35, y: 0.22 }),
+                    text({ content: 'FOR LIGHTROOM CLASSIC & CC', font: 'Inter', scale: 35, tracking: 4, color: '#d4e8d4', x: 0.32, y: 0.28 }),
+                ],
+            },
+            // ← Photo portfolio with bottom caption
+            {
+                id: 'theme-portfolio-caption',
+                label: 'Portfolio Légende',
+                description: 'Photo plein cadre avec légende minimale en bas.',
+                previewLabel: 'FOLIO',
+                formatId: 'insta-sq',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#0a0a0a', bgTexture: 0 },
+                preview: { bg: '#0a0a0a' },
+                texts: [
+                    text({ content: 'Titre de la série', font: 'Prata', scale: 70, color: '#ffffff', x: 0.5, y: 0.88 }),
+                    text({ content: '© Votre Nom — 2026', font: 'Inter', scale: 30, tracking: 4, color: '#888888', x: 0.5, y: 0.94 }),
+                ],
+            },
+            // ← Moodboard/collage grid
+            {
+                id: 'theme-moodboard-grid',
+                label: 'Moodboard Collage',
+                description: 'Grille asymétrique 5 photos pour moodboard type "Life Lately".',
+                previewLabel: 'MOOD',
+                formatId: 'insta-port',
+                layout: { padding: 4, radius: 0, bgBlur: false, bgColor: '#1a1a1a', bgTexture: 0, customLayoutGap: 4 },
+                preview: { bg: '#1a1a1a' },
+                zones: [
+                    { id: 'mood-tl', label: 'Top Left', x: 0, y: 0, w: 0.48, h: 0.36, imageIndex: 0 },
+                    { id: 'mood-tr', label: 'Top Right', x: 0.48, y: 0, w: 0.52, h: 0.36, imageIndex: 1 },
+                    { id: 'mood-ml', label: 'Mid Left', x: 0, y: 0.36, w: 0.38, h: 0.34, imageIndex: 2 },
+                    { id: 'mood-mr', label: 'Mid Right', x: 0.38, y: 0.36, w: 0.62, h: 0.34, imageIndex: 3 },
+                    { id: 'mood-btm', label: 'Bottom', x: 0, y: 0.7, w: 1, h: 0.3, imageIndex: 4 },
+                ],
+                texts: [
+                    text({ content: 'Life Lately', font: '"Dancing Script"', bold: true, scale: 130, color: '#ffffff', y: 0.6, blend: 'difference' }),
+                ],
+            },
+        ],
+    },
+    // ─── DÉCO & INTÉRIEUR ─────────────────────────────────────────────
+    {
+        id: 'deco',
+        label: 'Déco',
+        sub: 'Intérieur & Design',
+        icon: <Home size={14} />,
+        templates: [
+            // ← Inspired by Rocle: Elegant serif centered on interior photo
+            {
+                id: 'theme-deco-elegant',
+                label: 'Maison Élégante',
+                description: 'Grand serif centré sur image intérieur chic, avec baseline en caps.',
+                previewLabel: 'MAISON',
+                formatId: 'story',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#1a1610', bgTexture: 6 },
+                preview: { bg: 'linear-gradient(165deg, #6a5a4a, #1a1610)' },
+                texts: [
+                    text({ content: 'Entrez dans', font: '"Playfair Display"', scale: 130, color: '#ffffff', y: 0.52 }),
+                    text({ content: 'l\'univers', font: '"Playfair Display"', scale: 130, color: '#ffffff', y: 0.59 }),
+                    text({ content: 'ROCLE', font: 'Cinzel', bold: true, scale: 120, tracking: 12, color: '#ffffff', y: 0.72 }),
+                    text({ content: 'TISSEUR ÉDITEUR', font: 'Inter', scale: 36, tracking: 14, color: '#d4c8b8', y: 0.79 }),
+                ],
+            },
+            // ← Inspired by Beletier: Art gallery invitation over interior
+            {
+                id: 'theme-galerie-art',
+                label: 'Galerie d\'Art',
+                description: 'Invitation discrète style galerie sur fond intérieur design.',
+                previewLabel: 'GALERIE',
+                formatId: 'story',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#1a1a12', bgTexture: 4 },
+                preview: { bg: 'linear-gradient(170deg, #5a6a48, #1a1a12)' },
+                texts: [
+                    text({ content: 'Une invitation discrète', font: '"Courier Prime"', scale: 60, tracking: 4, color: '#ffffff', y: 0.1 }),
+                    text({ content: 'Par VOTRE MARQUE', font: '"Courier Prime"', scale: 42, tracking: 6, color: '#d4d0c4', y: 0.15 }),
+                    text({ content: 'Whispers of the Summit', font: '"Playfair Display"', italic: true, scale: 68, tracking: 3, color: '#ffffff', y: 0.78 }),
+                    text({ content: 'Découvrir sur Instagram', font: '"Courier Prime"', scale: 38, tracking: 4, color: '#d4d0c4', y: 0.84 }),
+                ],
+            },
+            // ← Clean interior with product name
+            {
+                id: 'theme-deco-produit',
+                label: 'Produit Déco',
+                description: 'Photo intérieure avec nom de produit/collection centré.',
+                previewLabel: 'PRODUIT',
+                formatId: 'insta-port',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#f5f0e8', bgTexture: 6 },
+                preview: { bg: 'linear-gradient(165deg, #d4c8b4, #8a7e6a)' },
+                texts: [
+                    text({ content: 'COLLECTION', font: 'Inter', scale: 38, tracking: 14, color: '#ffffff', y: 0.4 }),
+                    text({ content: 'Automne', font: '"Playfair Display"', bold: true, scale: 155, color: '#ffffff', y: 0.48 }),
+                    text({ content: 'Hiver 2026', font: '"Playfair Display"', italic: true, scale: 72, color: '#e8e0d4', y: 0.56 }),
+                ],
+            },
+            // ← Product card image + text on cream bg (inspired by sanlo)
+            {
+                id: 'theme-deco-card',
+                label: 'Carte Produit',
+                description: 'Photo produit centrée avec citation sous fond crème.',
+                previewLabel: 'CARTE',
+                formatId: 'insta-sq',
+                layout: { padding: 52, radius: 0, bgBlur: false, bgColor: '#faf5ed', bgTexture: 0, customLayoutGap: 0 },
+                preview: { bg: '#faf5ed', dark: false },
+                zones: [
+                    { id: 'theme-card-img', label: 'Produit', x: 0.15, y: 0.08, w: 0.7, h: 0.52, imageIndex: 0 },
+                ],
+                texts: [
+                    text({ content: 'You don\'t need to', font: '"Playfair Display"', scale: 82, color: '#1a1a1a', x: 0.5, y: 0.72 }),
+                    text({ content: 'earn your place on', font: '"Playfair Display"', scale: 82, color: '#1a1a1a', x: 0.5, y: 0.79 }),
+                    text({ content: 'the sofa.', font: '"Playfair Display"', scale: 82, color: '#1a1a1a', x: 0.5, y: 0.86 }),
+                ],
+            },
+        ],
+    },
+    // ─── IMMOBILIER & HÔTELLERIE ──────────────────────────────────────
+    {
+        id: 'immobilier',
+        label: 'Immobilier',
+        sub: 'Hôtels & Lieux',
+        icon: <Building size={14} />,
+        templates: [
+            // ← Inspired by Gran Hotel Margalida: Luxury hotel announcement
+            {
+                id: 'theme-hotel-luxe',
+                label: 'Annonce Luxe',
+                description: 'Présentation hôtelière élégante avec hiérarchie typographique.',
+                previewLabel: 'LUXE',
+                formatId: 'story',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#2a2010', bgTexture: 6 },
+                preview: { bg: 'linear-gradient(160deg, #c4a058, #2a2010)' },
+                texts: [
+                    text({ content: 'VILLA', font: 'Inter', scale: 55, tracking: 18, color: '#ffffff', y: 0.38 }),
+                    text({ content: 'SOLEIL D\'OR', font: 'Prata', bold: true, scale: 130, tracking: 6, color: '#ffffff', y: 0.44 }),
+                    text({ content: 'CÔTE D\'AZUR', font: 'Inter', scale: 45, tracking: 22, color: '#e8d4a8', y: 0.52 }),
+                    text({ content: 'Réservez votre séjour', font: '"Playfair Display"', italic: true, scale: 55, color: '#e8d4a8', y: 0.62 }),
+                ],
+            },
+            // ← Property showcase with key feature callouts
+            {
+                id: 'theme-bien-vitrine',
+                label: 'Bien en Vitrine',
+                description: 'Photo principale + texte de présentation bien immobilier.',
+                previewLabel: 'BIEN',
+                formatId: 'insta-port',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#1a1a2a', bgTexture: 4 },
+                preview: { bg: 'linear-gradient(160deg, #3a4a6a, #1a1a2a)' },
+                texts: [
+                    text({ content: 'À VENDRE', font: 'Oswald', bold: true, scale: 48, tracking: 12, color: '#ffffff', bgStyle: 'solid', bgColor: '#c45a4f', bgOpacity: 95, padding: 18, x: 0.2, y: 0.08 }),
+                    text({ content: 'Maison de Charme', font: '"Playfair Display"', bold: true, scale: 115, color: '#ffffff', y: 0.82 }),
+                    text({ content: '180m² — 4 chambres — jardin', font: 'Inter', scale: 40, tracking: 3, color: '#d4d0e4', y: 0.89 }),
+                    text({ content: '485 000 €', font: 'Oswald', bold: true, scale: 72, tracking: 4, color: '#ffffff', y: 0.95 }),
+                ],
+            },
+        ],
+    },
+    // ─── ART & CULTURE ────────────────────────────────────────────────
+    {
+        id: 'art',
+        label: 'Art',
+        sub: 'Galerie & Culture',
+        icon: <Palette size={14} />,
+        templates: [
+            // ← Inspired by Domkapa: Centered teaser text on moody photo
+            {
+                id: 'theme-teaser-moody',
+                label: 'Teaser Mystère',
+                description: 'Texte invitation centré sur photo moody, avec mot en italique accentué.',
+                previewLabel: 'TEASER',
+                formatId: 'insta-port',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#1a1408', bgTexture: 6 },
+                preview: { bg: 'linear-gradient(180deg, #7a6840, #1a1408)' },
+                texts: [
+                    text({ content: 'An invitation to', font: '"Playfair Display"', scale: 72, color: '#ffffff', y: 0.52 }),
+                    text({ content: 'unlock what\'s', font: '"Playfair Display"', scale: 72, color: '#ffffff', y: 0.57 }),
+                    text({ content: 'coming.', font: '"Playfair Display"', bold: true, italic: true, scale: 75, color: '#ffffff', y: 0.62 }),
+                ],
+            },
+            // ← Exhibition announcement
+            {
+                id: 'theme-expo-annonce',
+                label: 'Annonce Expo',
+                description: 'Affiche d\'exposition avec titre fort et dates.',
+                previewLabel: 'EXPO',
+                formatId: 'insta-port',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#0a0a0a', bgTexture: 14 },
+                preview: { bg: 'linear-gradient(165deg, #3a3a4a, #0a0a0a)' },
+                texts: [
+                    text({ content: 'EXPOSITION', font: 'Inter', scale: 38, tracking: 16, color: '#888888', y: 0.12 }),
+                    text({ content: 'Fragments', font: '"Playfair Display"', bold: true, scale: 165, color: '#ffffff', y: 0.26 }),
+                    text({ content: 'de Lumière', font: '"Playfair Display"', italic: true, scale: 120, color: '#ffffff', y: 0.36 }),
+                    text({ content: '15 SEPT — 30 NOV 2026', font: 'Oswald', scale: 42, tracking: 8, color: '#aaaaaa', y: 0.82 }),
+                    text({ content: 'GALERIE SAINT-HONORÉ, PARIS', font: 'Inter', scale: 32, tracking: 6, color: '#666666', y: 0.88 }),
+                ],
+            },
+            // ← Art poster with gallery aesthetic
+            {
+                id: 'theme-affiche-galerie',
+                label: 'Affiche Galerie',
+                description: 'Composition poster avec nom d\'artiste et œuvre.',
+                previewLabel: 'POSTER',
+                formatId: 'story',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: false, bgColor: '#f5f2ec', bgTexture: 8 },
+                preview: { bg: '#f5f2ec', dark: false },
+                texts: [
+                    text({ content: 'NOM DE', font: 'Oswald', bold: true, scale: 150, tracking: 6, color: '#1a1a1a', y: 0.08 }),
+                    text({ content: 'L\'ARTISTE', font: 'Oswald', bold: true, scale: 150, tracking: 6, color: '#1a1a1a', y: 0.15 }),
+                    text({ content: 'Galerie Contemporaine', font: '"Playfair Display"', italic: true, scale: 52, color: '#666666', y: 0.88 }),
+                    text({ content: 'DU 15.09 AU 30.11.2026', font: 'Inter', scale: 30, tracking: 6, color: '#999999', y: 0.93 }),
+                ],
+            },
+        ],
+    },
+    // ─── ÉVÉNEMENT & INVITATION ──────────────────────────────────────
+    {
+        id: 'evenement',
+        label: 'Événement',
+        sub: 'Soirée & Invitation',
+        icon: <Star size={14} />,
+        templates: [
+            // ← Elegant save the date
+            {
+                id: 'theme-save-the-date',
+                label: 'Save the Date',
+                description: 'Invitation élégante avec date en gros et détails subtils.',
+                previewLabel: 'SAVE',
+                formatId: 'insta-port',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#1a1410', bgTexture: 10 },
+                preview: { bg: 'linear-gradient(155deg, #6a5a3a, #1a1410)' },
+                texts: [
+                    text({ content: 'SAVE THE DATE', font: 'Inter', scale: 42, tracking: 16, color: '#d4c4a0', y: 0.2 }),
+                    text({ content: '15', font: '"Playfair Display"', bold: true, scale: 280, color: '#ffffff', y: 0.42 }),
+                    text({ content: 'SEPTEMBRE', font: 'Cinzel', scale: 70, tracking: 14, color: '#ffffff', y: 0.56 }),
+                    text({ content: '2026', font: 'Cinzel', scale: 55, tracking: 18, color: '#d4c4a0', y: 0.63 }),
+                    text({ content: 'Détails à suivre...', font: '"Playfair Display"', italic: true, scale: 52, color: '#d4c4a0', y: 0.78 }),
+                ],
+            },
+            // ← Launch event
+            {
+                id: 'theme-lancement',
+                label: 'Lancement',
+                description: 'Annonce de lancement produit/marque avec countdown feel.',
+                previewLabel: 'LAUNCH',
+                formatId: 'story',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#0a0a14', bgTexture: 16 },
+                preview: { bg: 'linear-gradient(170deg, #1a2040, #0a0a14)' },
+                texts: [
+                    text({ content: 'COMING', font: 'Oswald', bold: true, scale: 180, tracking: 8, color: '#ffffff', y: 0.36 }),
+                    text({ content: 'SOON', font: 'Oswald', bold: true, scale: 180, tracking: 8, color: '#ffffff', y: 0.44 }),
+                    text({ content: '01.10.2026', font: 'Oswald', scale: 65, tracking: 12, color: '#67e8f9', y: 0.56 }),
+                    text({ content: 'Soyez les premiers informés', font: '"Playfair Display"', italic: true, scale: 50, color: '#aaaacc', y: 0.68 }),
+                ],
+            },
+            // ← Opening / Vernissage
+            {
+                id: 'theme-vernissage',
+                label: 'Vernissage',
+                description: 'Carton d\'invitation vernissage ou opening.',
+                previewLabel: 'OPENING',
+                formatId: 'insta-sq',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: false, bgColor: '#f8f5f0', bgTexture: 8 },
+                preview: { bg: '#f8f5f0', dark: false },
+                texts: [
+                    text({ content: 'VOUS ÊTES', font: 'Inter', scale: 34, tracking: 12, color: '#aaaaaa', y: 0.22 }),
+                    text({ content: 'INVITÉ(E)', font: 'Inter', scale: 34, tracking: 12, color: '#aaaaaa', y: 0.26 }),
+                    text({ content: 'Vernissage', font: '"Playfair Display"', bold: true, scale: 145, color: '#1a1a1a', y: 0.42 }),
+                    text({ content: 'Jeudi 15 septembre', font: '"Playfair Display"', italic: true, scale: 58, color: '#1a1a1a', y: 0.54 }),
+                    text({ content: '18h — 22h', font: '"Playfair Display"', italic: true, scale: 58, color: '#1a1a1a', y: 0.6 }),
+                    text({ content: 'Galerie Saint-Honoré, Paris', font: 'Inter', scale: 34, tracking: 4, color: '#888888', y: 0.78 }),
+                ],
+            },
+        ],
+    },
+    // ─── LIFESTYLE & BIEN-ÊTRE ───────────────────────────────────────
+    {
+        id: 'lifestyle',
+        label: 'Lifestyle',
+        sub: 'Bien-être & Inspirations',
+        icon: <Heart size={14} />,
+        templates: [
+            // ← Inspirational quote on light bg
+            {
+                id: 'theme-mantra',
+                label: 'Mantra du Jour',
+                description: 'Citation inspirante minimaliste sur fond doux.',
+                previewLabel: 'MANTRA',
+                formatId: 'insta-sq',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: false, bgColor: '#f5f0e8', bgTexture: 10 },
+                preview: { bg: '#f5f0e8', dark: false },
+                texts: [
+                    text({ content: 'Breathe.', font: '"Playfair Display"', italic: true, scale: 140, color: '#2a2a2a', y: 0.35 }),
+                    text({ content: 'Let go.', font: '"Playfair Display"', italic: true, scale: 140, color: '#2a2a2a', y: 0.47 }),
+                    text({ content: 'Begin.', font: '"Playfair Display"', italic: true, scale: 140, color: '#2a2a2a', y: 0.59 }),
+                    text({ content: '— Daily reminder', font: 'Inter', scale: 32, tracking: 6, color: '#aaaaaa', y: 0.78 }),
+                ],
+            },
+            // ← Before/After split
+            {
+                id: 'theme-avant-apres',
+                label: 'Avant / Après',
+                description: 'Comparaison avant/après en split vertical avec labels.',
+                previewLabel: 'B/A',
+                formatId: 'insta-sq',
+                baseTemplateId: 'split',
+                layout: { padding: 20, gap: 8, radius: 0, bgBlur: false, bgColor: '#1a1a1a', bgTexture: 0 },
+                preview: { bg: '#1a1a1a' },
+                texts: [
+                    text({ content: 'AVANT', font: 'Oswald', bold: true, scale: 52, tracking: 8, color: '#ffffff', bgStyle: 'solid', bgColor: '#1a1a1a', bgOpacity: 80, padding: 14, x: 0.25, y: 0.9 }),
+                    text({ content: 'APRÈS', font: 'Oswald', bold: true, scale: 52, tracking: 8, color: '#ffffff', bgStyle: 'solid', bgColor: '#1a1a1a', bgOpacity: 80, padding: 14, x: 0.75, y: 0.9 }),
+                ],
+            },
+            // ← Wellness / slow living
+            {
+                id: 'theme-slow-living',
+                label: 'Slow Living',
+                description: 'Ambiance zen avec texte organique doux.',
+                previewLabel: 'SLOW',
+                formatId: 'insta-port',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#e8e2d8', bgTexture: 8 },
+                preview: { bg: 'linear-gradient(165deg, #d4cec4, #8a847a)' },
+                texts: [
+                    text({ content: 'slow', font: '"Dancing Script"', scale: 160, color: '#ffffff', y: 0.3 }),
+                    text({ content: 'living', font: '"Dancing Script"', scale: 160, color: '#ffffff', y: 0.38 }),
+                    text({ content: 'Prenez le temps de vivre pleinement.', font: '"Playfair Display"', italic: true, scale: 48, color: '#ffffff', y: 0.52 }),
+                ],
+            },
+        ],
+    },
+    // ─── CARROUSELS & SÉRIES ──────────────────────────────────────────
+    {
+        id: 'carrousel',
+        label: 'Carrousel',
+        sub: 'Slides & Séries',
+        icon: <BookOpen size={14} />,
+        templates: [
+            // ← Cover slide for carousel
+            {
+                id: 'theme-carousel-cover',
+                label: 'Slide Couverture',
+                description: 'Première slide de carrousel avec titre accrocheur.',
+                previewLabel: 'COVER',
+                formatId: 'insta-port',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#0c0c14', bgTexture: 14 },
+                preview: { bg: 'linear-gradient(155deg, #2a2040, #0c0c14)' },
+                texts: [
+                    text({ content: '5 CONSEILS', font: 'Oswald', bold: true, scale: 170, tracking: 4, color: '#ffffff', y: 0.32 }),
+                    text({ content: 'pour réussir', font: '"Playfair Display"', italic: true, scale: 90, color: '#d4c8ff', y: 0.42 }),
+                    text({ content: 'votre post Instagram', font: '"Playfair Display"', italic: true, scale: 75, color: '#d4c8ff', y: 0.49 }),
+                    text({ content: 'GLISSEZ →', font: 'Inter', bold: true, scale: 36, tracking: 8, color: '#ffffff', bgStyle: 'solid', bgColor: '#6a3aff', bgOpacity: 90, padding: 16, y: 0.68 }),
+                ],
+            },
+            // ← Tip/Info slide
+            {
+                id: 'theme-carousel-tip',
+                label: 'Slide Info',
+                description: 'Slide numérotée pour contenu pédagogique.',
+                previewLabel: 'TIP',
+                formatId: 'insta-port',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: false, bgColor: '#f5f0e8', bgTexture: 8 },
+                preview: { bg: '#f5f0e8', dark: false },
+                texts: [
+                    text({ content: '01', font: 'Oswald', bold: true, scale: 200, color: '#e8dcc8', y: 0.15 }),
+                    text({ content: 'Trouvez votre', font: '"Playfair Display"', bold: true, scale: 105, color: '#1a1a1a', y: 0.38 }),
+                    text({ content: 'identité visuelle', font: '"Playfair Display"', bold: true, scale: 105, color: '#1a1a1a', y: 0.46 }),
+                    text({ content: 'Définissez vos couleurs, vos polices et\nvos motifs avant de poster.', font: 'Inter', scale: 42, color: '#666666', y: 0.62 }),
+                ],
+            },
+            // ← End slide / CTA
+            {
+                id: 'theme-carousel-cta',
+                label: 'Slide CTA Final',
+                description: 'Dernière slide de carrousel avec appel à l\'action.',
+                previewLabel: 'CTA',
+                formatId: 'insta-port',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: false, bgColor: '#1a1a2a', bgTexture: 12 },
+                preview: { bg: '#1a1a2a' },
+                texts: [
+                    text({ content: 'SUIVEZ-NOUS', font: 'Oswald', bold: true, scale: 140, tracking: 6, color: '#ffffff', y: 0.32 }),
+                    text({ content: 'pour plus de contenu', font: '"Playfair Display"', italic: true, scale: 65, color: '#aaaacc', y: 0.42 }),
+                    text({ content: '@VOTRE.COMPTE', font: 'Oswald', bold: true, scale: 72, tracking: 4, color: '#ffffff', bgStyle: 'rounded', bgColor: '#6a3aff', bgOpacity: 90, borderRadius: 50, padding: 22, y: 0.62 }),
+                    text({ content: '❤️ LIKEZ  💬 COMMENTEZ  📤 PARTAGEZ', font: 'Inter', scale: 32, tracking: 2, color: '#888888', y: 0.82 }),
+                ],
+            },
+        ],
+    },
+    // ─── SAISONS & FÊTES ─────────────────────────────────────────────
+    {
+        id: 'saisons',
+        label: 'Saisons',
+        sub: 'Fêtes & Célébrations',
+        icon: <Gift size={14} />,
+        templates: [
+            // ← Christmas/Holiday
+            {
+                id: 'theme-noel',
+                label: 'Noël',
+                description: 'Ambiance festive dorée pour les fêtes de fin d\'année.',
+                previewLabel: 'NOËL',
+                formatId: 'insta-port',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#1a0a0a', bgTexture: 12 },
+                preview: { bg: 'linear-gradient(160deg, #5a1a1a, #1a0a0a)' },
+                texts: [
+                    text({ content: '✦', font: 'Inter', scale: 120, color: '#ffd700', y: 0.18 }),
+                    text({ content: 'JOYEUX', font: 'Cinzel', scale: 130, tracking: 12, color: '#ffd700', y: 0.34 }),
+                    text({ content: 'NOËL', font: 'Cinzel', bold: true, scale: 180, tracking: 8, color: '#ffffff', y: 0.44 }),
+                    text({ content: '& BONNE ANNÉE 2027', font: 'Cinzel', scale: 55, tracking: 14, color: '#ffd700', y: 0.54 }),
+                    text({ content: 'De la part de toute l\'équipe', font: '"Playfair Display"', italic: true, scale: 50, color: '#e8d4a8', y: 0.72 }),
+                ],
+            },
+            // ← Summer vibes
+            {
+                id: 'theme-summer-vibes',
+                label: 'Summer Vibes',
+                description: 'Ambiance estivale avec typo bold et couleurs chaudes.',
+                previewLabel: 'SUMMER',
+                formatId: 'story',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#1a2810', bgTexture: 4 },
+                preview: { bg: 'linear-gradient(170deg, #6a9a42, #1a2810)' },
+                texts: [
+                    text({ content: 'SUMMER', font: 'Oswald', bold: true, scale: 220, tracking: 6, color: '#ffffff', y: 0.28 }),
+                    text({ content: 'VIBES', font: 'Oswald', bold: true, scale: 220, tracking: 6, color: '#ffffff', y: 0.36 }),
+                    text({ content: '☀️', font: 'Inter', scale: 120, y: 0.52 }),
+                    text({ content: 'Les beaux jours sont là', font: '"Playfair Display"', italic: true, scale: 52, color: '#ffffff', y: 0.68 }),
+                ],
+            },
+            // ← Autumn/Rentrée
+            {
+                id: 'theme-rentree',
+                label: 'Rentrée',
+                description: 'Ambiance rentrée avec tons chauds et énergie nouvelle.',
+                previewLabel: 'RENTRÉE',
+                formatId: 'insta-port',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#1a1008', bgTexture: 10 },
+                preview: { bg: 'linear-gradient(160deg, #8a5a20, #1a1008)' },
+                texts: [
+                    text({ content: 'C\'EST', font: 'Inter', scale: 50, tracking: 14, color: '#e8d4a8', y: 0.3 }),
+                    text({ content: 'LA RENTRÉE', font: '"Playfair Display"', bold: true, scale: 155, color: '#ffffff', y: 0.4 }),
+                    text({ content: 'Nouveautés, projets & inspirations', font: '"Playfair Display"', italic: true, scale: 52, color: '#e8d4a8', y: 0.52 }),
+                    text({ content: 'DÉCOUVRIR →', font: 'Inter', bold: true, scale: 36, tracking: 6, color: '#ffffff', bgStyle: 'solid', bgColor: '#8a5a20', bgOpacity: 90, padding: 16, y: 0.72 }),
+                ],
+            },
+            // ← Valentine/Love
+            {
+                id: 'theme-saint-valentin',
+                label: 'Saint-Valentin',
+                description: 'Invitation romantique douce et raffinée.',
+                previewLabel: 'LOVE',
+                formatId: 'insta-sq',
+                baseTemplateId: 'minimal',
+                layout: { padding: 0, radius: 0, bgBlur: true, bgColor: '#2a0a1a', bgTexture: 10 },
+                preview: { bg: 'linear-gradient(155deg, #6a2a4a, #2a0a1a)' },
+                texts: [
+                    text({ content: '♥', font: 'Inter', scale: 160, color: '#ff6b8a', y: 0.2 }),
+                    text({ content: 'With Love', font: '"Dancing Script"', bold: true, scale: 155, color: '#ffffff', y: 0.45 }),
+                    text({ content: 'SAINT-VALENTIN 2026', font: 'Inter', scale: 38, tracking: 10, color: '#ff8da8', y: 0.58 }),
+                    text({ content: 'Offrez quelque chose de spécial', font: '"Playfair Display"', italic: true, scale: 48, color: '#e8c4d4', y: 0.72 }),
                 ],
             },
         ],

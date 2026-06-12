@@ -226,7 +226,8 @@ Mettre a jour ce fichier a chaque creation, suppression, renommage, deplacement 
 |   |   |   |       |-- ControlGroup.jsx
 |   |   |   |       `-- Select.jsx
 |   |   |   |-- data/
-|   |   |   |   `-- constants.jsx
+|   |   |   |   |-- constants.jsx
+|   |   |   |   `-- themedTemplates.jsx   # 50+ templates prets a poster par theme (E-commerce, Promo, Voyage, Editorial, Food, Mode, Branding, Photo, Deco, Immobilier, Art, Evenement, Lifestyle, Carrousel, Saisons) inspires de references Instagram
 |   |   |   |-- engine/
 |   |   |   |   |-- assetRenderer.js
 |   |   |   |   |-- layoutRenderer.js
